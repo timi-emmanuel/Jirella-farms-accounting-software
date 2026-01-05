@@ -28,6 +28,17 @@ Target: **Working MVP**, not over-engineered SaaS.
 
 Single repository, single application.
 
+Architecture style:
+- Modular monolith
+- Domain-based separation (auth, feed mill, poultry, sales)
+- Shared database
+- No microservices
+
+Each Excel sheet maps to:
+- One domain
+- One database model (or set of related models)
+- One AG Grid-based UI
+
 
 ---
 
@@ -42,7 +53,12 @@ Single repository, single application.
 - **Tailwind CSS**
 - **shadcn/ui** (for buttons, inputs, dialogs)
 - **AG Grid (Community)** for Excel-like tables
-- **Context API for state managament** 
+State philosophy:
+- Server is source of truth
+- AG Grid manages table state
+- React Context used sparingly (auth, layout)
+
+
 
 ### Do I need a design palette?
 ❌ No Figma or custom design system needed.
@@ -62,6 +78,8 @@ Goal: **functional > beautiful**
 - **NextAuth (Auth.js)** for authentication
 - **Zod** for input validation
 - Business logic in plain TypeScript
+- Backend recalculations always override frontend values
+- Never trust client-submitted totals
 
 No separate backend service.
 
@@ -168,13 +186,15 @@ Examples:
 - UI calculation = feedback only
 - Backend calculation = source of truth
 - Always validate against Excel sheets
+- Store raw inputs only (quantities, prices, percentages)
+- Never store derived totals unless required for auditing
+
 
 ---
 
 ## 11. DATABASE MODELS (MVP SCOPE)
 
-Minimum models:
-
+Initial MVP models (can evolve):
 - User
 - Ingredient
 - Recipe
@@ -185,96 +205,82 @@ Minimum models:
 - Expense
 - Sale
 
+
 Keep schemas simple. Add fields later.
 
 ---
 
-## 12. ROADMAP (START → MVP)
-
-### DAY 0 — PREPARATION
-- Confirm requirements with boss
-- Collect Excel sheets
-- Extract formulas
-- Lock MVP scope
 
 ---
+## DATA VALIDATION & AUDITABILITY
 
-### DAYS 1–2 — PROJECT SETUP
-- Create Next.js app
-- Setup Tailwind & shadcn/ui
-- Setup Prisma & PostgreSQL
-- Create repo structure
-- Setup environment variables
+- All financial calculations must be reproducible
+- Input changes must be traceable
+- Backend recalculates totals on every save
+- Future versions may include audit logs
 
----
+Goal:
+Numbers shown today must be explainable tomorrow.
 
-### DAYS 3–4 — AUTH & ROLES
-- Implement NextAuth (credentials)
-- Create User model with role
-- Build login page
-- Protect routes with middleware
-- Seed admin user
 
----
+## File Structure
+app/
+├── (auth)/
+│   └── login/
+│       └── page.tsx
+├── dashboard/
+│   ├── page.tsx
+│   ├── feed-mill/
+│   │   ├── recipe-master/
+│   │   │   └── page.tsx
+│   │   ├── rm-inventory/
+│   │   │   └── page.tsx
+│   │   └── production/
+│   │       └── page.tsx
+│   │   ├── sales/
+│   │   │   └── page.tsx
+│   │   └── poultry/
+│   │       └── page.tsx   (future)
+├── api/
+│   ├── auth/
+│   ├── users/
+│   ├── feed-mill/
+│   └── inventory/
+├── features/
+│   ├── auth/
+│   │   ├── LoginForm.tsx
+│   │   └── auth.service.ts
+│   ├── dashboard/
+│   │   └── DashboardCards.tsx
+│   ├── feed-mill/
+│   │   ├── RecipeGrid.tsx
+│   │   ├── RMInventoryGrid.tsx
+│   │   ├── ProductionGrid.tsx
+│   │   └── feedMill.service.ts
+│   └── sales/
+│       └── SalesGrid.tsx
+├── components/
+│   ├── AppLayout.tsx
+│   ├── Sidebar.tsx
+│   ├── RoleGuard.tsx
+│   └── TableToolbar.tsx
+├── lib/
+│   ├── db.ts          # Prisma client
+│   ├── auth.ts        # NextAuth config
+│   ├── permissions.ts
+│   └── calculations/ # Excel formulas go here
+│       ├── recipe.ts
+│       ├── inventory.ts
+│       └── production.ts
+│
+├── constants/
+│   └── roles.ts
+│
+├── types/
+│   └── index.ts
 
-### DAYS 5–6 — DASHBOARD & NAVIGATION
-- Dashboard layout
-- Sidebar navigation
-- Role-based menu visibility
-- Empty pages for all tabs
 
----
 
-### DAYS 7–9 — AG GRID FOUNDATION
-- Install AG Grid
-- Build first editable grid (Recipe Master)
-- Inline editing
-- Auto-calculated columns
-- Save data to backend
-
-Build ONE grid perfectly before cloning.
-
----
-
-### DAYS 10–12 — FEED MILL MODULE
-- Ingredients CRUD
-- Recipe Master (grid)
-- Production batches
-- Batch cost calculation
-
----
-
-### DAYS 13–14 — POULTRY MODULE
-- Flocks
-- Daily records (grid)
-- Mortality tracking
-- Simple aggregations
-
----
-
-### DAYS 15–16 — REPORTS & DASHBOARD
-- Daily summary
-- Weekly / monthly totals
-- Role-based visibility
-
----
-
-### DAYS 17–18 — POLISHING
-- Validation
-- Error handling
-- Loading states
-- Access control checks
-- Test with real data
-
----
-
-### DAYS 19–20 — DEPLOYMENT
-- Deploy to Vercel
-- Setup production database
-- Run migrations
-- Demo MVP to boss
-
----
 
 ## 13. DEVELOPMENT RULES (DO NOT IGNORE)
 

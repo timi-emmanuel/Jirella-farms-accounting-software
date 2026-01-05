@@ -3,6 +3,97 @@ Farm Management & Proceeds Calculation System
 
 This file tracks development tasks and progress for the project.
 
+## ROADMAP (START → MVP)
+
+### DAY 0 — PREPARATION
+- Confirm requirements with boss
+- Collect Excel sheets
+- Extract formulas
+- Lock MVP scope
+
+---
+
+### DAYS 1–2 — PROJECT SETUP
+- Create Next.js app
+- Setup Tailwind & shadcn/ui
+- Setup Prisma & PostgreSQL
+- Create repo structure
+- Setup environment variables
+
+---
+
+### DAYS 3–4 — AUTH & ROLES
+- Implement NextAuth (credentials)
+- Create User model with role
+- Build login page
+- Protect routes with middleware
+- Seed admin user
+
+---
+
+### DAYS 5–6 — DASHBOARD & NAVIGATION
+- Dashboard layout
+- Sidebar navigation
+- Role-based menu visibility
+- Empty pages for all tabs
+
+---
+
+### DAYS 7–9 — AG GRID FOUNDATION
+- Install AG Grid
+- Build first editable grid (Recipe Master)
+- Inline editing
+- Auto-calculated columns
+- Save data to backend
+
+Build ONE grid perfectly before cloning.
+
+---
+
+### DAYS 10–12 — FEED MILL MODULE
+- Ingredients CRUD
+- Recipe Master (grid)
+- Production batches
+- Batch cost calculation
+
+---
+
+### DAYS 13–14 — POULTRY MODULE
+- Flocks
+- Daily records (grid)
+- Mortality tracking
+- Simple aggregations
+
+---
+
+### DAYS 15–16 — REPORTS & DASHBOARD
+- Daily summary
+- Weekly / monthly totals
+- Role-based visibility
+
+---
+
+### DAYS 17–18 — POLISHING
+- Validation
+- Error handling
+- Loading states
+- Access control checks
+- Test with real data
+
+---
+
+### DAYS 19–20 — DEPLOYMENT
+- Deploy to Vercel
+- Setup production database
+- Run migrations
+- Demo MVP to boss
+
+Note:
+Feed Mill module is the most complex part of the system.
+Expect more iteration here than other modules.
+Do not rush this section.
+
+
 ---
 
 ## 🟢 PHASE 0 — REQUIREMENTS & PREPARATION
