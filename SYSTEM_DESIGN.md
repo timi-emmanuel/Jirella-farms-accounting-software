@@ -93,12 +93,6 @@ All calculations are executed server-side.
 - sales
 - reports
 
-### ORM
-- Prisma is used for:
-  - Schema definition
-  - Migrations
-  - Type-safe queries
-
 ---
 
 ## 7. Reporting & Aggregation

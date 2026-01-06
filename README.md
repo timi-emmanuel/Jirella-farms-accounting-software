@@ -88,21 +88,10 @@ No separate backend service.
 ## 5. DATABASE (BEST CHOICE, NO OVER-ENGINEERING)
 
 ### Database
-- **PostgreSQL**
-
-Why:
-- Strong relational data
-- Handles reports & aggregations well
-- Industry standard
-- Simple to host
-
-### ORM
-- **Prisma**
-
-Why:
-- Type-safe
-- Easy migrations
-- Perfect with Next.js
+**Supabase (PostgreSQL)**
+- Database hosted on Supabase
+- SQL-first schema
+- App-level business logic in Next.js
 
 ---
 

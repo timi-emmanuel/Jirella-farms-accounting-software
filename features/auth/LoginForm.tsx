@@ -1,10 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { signIn } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { createClient } from "@/lib/supabase/client"
 
 export function LoginForm() {
  const router = useRouter()
@@ -17,26 +17,21 @@ export function LoginForm() {
   setError("")
 
   const formData = new FormData(event.currentTarget)
-  const email = formData.get("username") as string
+  const email = formData.get("email") as string
   const password = formData.get("password") as string
+  const supabase = createClient()
 
-  try {
-   const result = await signIn("credentials", {
-    email,
-    password,
-    redirect: false,
-   })
+  const { error: authError } = await supabase.auth.signInWithPassword({
+   email,
+   password,
+  })
 
-   if (result?.error) {
-    setError("Invalid email or password")
-    setLoading(false)
-   } else {
-    router.push("/dashboard")
-    router.refresh()
-   }
-  } catch (err) {
-   setError("Something went wrong")
+  if (authError) {
+   setError(authError.message)
    setLoading(false)
+  } else {
+   router.push("/dashboard")
+   router.refresh()
   }
  }
 
@@ -46,27 +41,27 @@ export function LoginForm() {
     <div className="grid gap-4">
      <div className="grid gap-2">
       <label
-       className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-       htmlFor="username"
+       className="text-sm font-medium leading-none"
+       htmlFor="email"
       >
-       Username
+       Email
       </label>
       <input
        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-       id="username"
-       placeholder="john.doe"
-       type="username"
+       id="email"
+       placeholder="name@example.com"
+       type="email"
        autoCapitalize="none"
-       autoComplete="username"
+       autoComplete="email"
        autoCorrect="off"
-       name="username"
+       name="email"
        disabled={loading}
        required
       />
      </div>
      <div className="grid gap-2">
       <label
-       className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+       className="text-sm font-medium leading-none"
        htmlFor="password"
       >
        Password
@@ -84,7 +79,7 @@ export function LoginForm() {
       />
      </div>
      {error && (
-      <div className="text-sm text-red-500 font-medium">
+      <div className="text-sm font-medium text-red-500">
        {error}
       </div>
      )}
@@ -95,10 +90,10 @@ export function LoginForm() {
       )}
       disabled={loading}
      >
-      {loading && (  
+      {loading && (
        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
       )}
-      Sign In 
+      Sign In
      </button>
     </div>
    </form>
