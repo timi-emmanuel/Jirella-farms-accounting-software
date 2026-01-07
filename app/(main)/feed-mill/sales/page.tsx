@@ -1,19 +1,19 @@
-import { InventoryGrid } from "@/features/feed-mill/components/InventoryGrid";
+import { SalesGrid } from "@/features/feed-mill/components/SalesGrid";
 
-export default function InventoryPage() {
+export default function SalesPage() {
  return (
   <div className="h-full flex flex-col space-y-6">
    <div className="flex flex-col">
     <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
-     Inventory <span className="text-emerald-600">Ledger</span>
+     Sales & <span className="text-emerald-600">Revenue</span>
     </h1>
     <p className="text-slate-500 text-sm font-medium">
-     Monitor raw material stock levels, incoming purchases, and production usage.
+     Track product sales, analyze profitability, and manage revenue streams.
     </p>
    </div>
 
    <div className="flex-1 overflow-hidden">
-    <InventoryGrid />
+    <SalesGrid />
    </div>
   </div>
  );

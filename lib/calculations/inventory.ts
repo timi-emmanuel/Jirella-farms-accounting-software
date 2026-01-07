@@ -1,52 +1,46 @@
+import { roundTo2 } from "@/lib/utils";
 
 // lib/calculations/inventory.ts
 // Derived from 2. RAW MATERIAL INVENTORY in CALCULATION.md
-
-// lib/calculations/inventory.ts
-// Derived from 2. RAW MATERIAL INVENTORY in CALCULATION.md
-import type { TransactionType } from "@/types";
-
-interface Transaction {
- type: TransactionType;
- quantity: number;
- totalValue: number;
-}
 
 /**
  * Calculates current stock balance from transaction history.
- * Formula: Opening + In - Out
- * In our case, Purchase/Adjustment (Positive) + Usage (Negative)
+ * Formula: Opening + Purchased - Used
  */
-export function calculateClosingBalance(transactions: Transaction[]): number {
- return transactions.reduce((balance, tx) => {
-  // Assuming 'quantity' is signed correctly in the DB
-  // If Purchases are positive and Usage is negative:
-  return balance + tx.quantity;
- }, 0);
+export function calculateClosingBalance(opening: number, purchased: number, used: number): number {
+ return roundTo2((opening || 0) + (purchased || 0) - (used || 0));
 }
 
 /**
- * Calculates Weighted Average Price
- * Formula: Total Value of Stock / Total Quantity
- * Note: This can be complex depending on accounting method (FIFO vs AVG). 
- * Simplest MVP approach: Total Value of currently held stock / Current Quantity
+ * Calculates the total value of current inventory
+ * Formula: Closing Balance * Weighted Average Price
  */
-export function calculateWeightedAveragePrice(transactions: Transaction[]): number {
- let totalQuantity = 0;
- let totalValue = 0;
+export function calculateInventoryValue(closingBalance: number, averagePrice: number): number {
+ return roundTo2((closingBalance || 0) * (averagePrice || 0));
+}
 
- // This is a naive implementation. True WAVCO requires processing in chronological order.
- // For MVP, we will assume we recalculate based on *remaining* stock value.
+/**
+ * Calculates Weighted Average Price after a new purchase
+ * Formula: ((Old Stock * Old Price) + (New Stock * New Price)) / Total Stock
+ */
+export function calculateNewWeightedAveragePrice(
+ oldStock: number,
+ oldAvgPrice: number,
+ newQty: number,
+ newUnitPrice: number
+): number {
+ const oldTotalValue = (oldStock || 0) * (oldAvgPrice || 0);
+ const newTotalValue = (newQty || 0) * (newUnitPrice || 0);
+ const totalQty = (oldStock || 0) + (newQty || 0);
 
- // Better Approach for MVP:
- // Just return the average of the *current* stock if we tracked value-in and value-out.
- // Ideally, we run through history:
+ if (totalQty <= 0) return 0;
+ return roundTo2((oldTotalValue + newTotalValue) / totalQty);
+}
 
- for (const tx of transactions) {
-  totalQuantity += tx.quantity;
-  totalValue += tx.totalValue; // Value change (Purchase cost or Usage cost)
- }
-
- if (totalQuantity <= 0) return 0;
- return totalValue / totalQuantity;
+/**
+ * Calculates total purchase entry cost
+ * Formula: Quantity * Unit Price
+ */
+export function calculateEntryTotal(quantity: number, unitPrice: number): number {
+ return roundTo2((quantity || 0) * (unitPrice || 0));
 }

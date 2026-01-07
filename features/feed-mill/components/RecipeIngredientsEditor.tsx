@@ -2,9 +2,29 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Loader2, Plus, Trash2, Save } from "lucide-react";
-import { Ingredient, RecipeItem } from "@/types";
+import { Loader2, Plus, Trash2, Save, Info } from "lucide-react";
+import { Ingredient } from "@/types";
+import { validateRecipePercentages, calculateBatchCost, calculateUnitCost } from "@/lib/calculations/recipe";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableFooter,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface EditorProps {
     recipeId: string;
@@ -12,12 +32,11 @@ interface EditorProps {
 }
 
 interface RowItem {
-    id?: string; // RecipeItem ID (if exists)
+    id?: string;
     ingredientId: string;
-    percentage: number;
-    // Computed for display
+    percentage: string; // Use string for input handling
     ingredientName?: string;
-    unitPrice?: number; // From Ingredient master
+    unitPrice?: number;
 }
 
 export function RecipeIngredientsEditor({ recipeId, targetBatchSize }: EditorProps) {
@@ -32,11 +51,9 @@ export function RecipeIngredientsEditor({ recipeId, targetBatchSize }: EditorPro
     }, [recipeId]);
 
     const loadData = async () => {
-        // Clear previous errors
         setValidationError(null);
         const supabase = createClient();
 
-        // 1. Fetch all ingredients for the dropdown
         const { data: ingredients, error: ingError } = await supabase
             .from('Ingredient')
             .select('*')
@@ -45,27 +62,24 @@ export function RecipeIngredientsEditor({ recipeId, targetBatchSize }: EditorPro
         if (ingError) setValidationError("Failed to load ingredients: " + ingError.message);
         if (ingredients) setAllIngredients(ingredients as any);
 
-        // 2. Fetch existing recipe items
         const { data: items, error: itemError } = await supabase
             .from('RecipeItem')
             .select(`
-                *,
-                ingredient:Ingredient(name, unit, averageCost) 
-            `)
+        *,
+        ingredient:Ingredient(name, unit, averageCost) 
+      `)
             .eq('recipeId', recipeId);
 
         if (itemError) {
             console.error("Error loading recipe items:", itemError);
-            // If column averageCost is missing (likely), warn user but don't block entirely if possible
-            // Actually, if fetching fails, items is null, so we must show error.
-            setValidationError("Failed to load ingredients. DB Error: " + itemError.message);
+            setValidationError("Failed to load formula items.");
         }
 
         if (items) {
             const formatted: RowItem[] = items.map((item: any) => ({
                 id: item.id,
                 ingredientId: item.ingredientId,
-                percentage: item.percentage,
+                percentage: item.percentage.toString(),
                 ingredientName: item.ingredient.name,
                 unitPrice: item.ingredient.averageCost || 0
             }));
@@ -76,7 +90,7 @@ export function RecipeIngredientsEditor({ recipeId, targetBatchSize }: EditorPro
     };
 
     const handleAddRow = () => {
-        setRows([...rows, { ingredientId: "", percentage: 0, unitPrice: 0 }]);
+        setRows([...rows, { ingredientId: "", percentage: "0", unitPrice: 0 }]);
     };
 
     const handleRemoveRow = (index: number) => {
@@ -87,7 +101,6 @@ export function RecipeIngredientsEditor({ recipeId, targetBatchSize }: EditorPro
 
     const handleChange = (index: number, field: keyof RowItem, value: any) => {
         const newRows = [...rows];
-        // If changing ingredient, update unitPrice too
         if (field === 'ingredientId') {
             const ing = allIngredients.find(i => i.id === value);
             if (ing) {
@@ -104,16 +117,14 @@ export function RecipeIngredientsEditor({ recipeId, targetBatchSize }: EditorPro
         const supabase = createClient();
 
         try {
-            // 1. Delete all existing items for this recipe
             await supabase.from('RecipeItem').delete().eq('recipeId', recipeId);
 
-            // 2. Insert new items
             const toInsert = rows
-                .filter(r => r.ingredientId && r.percentage > 0)
+                .filter(r => r.ingredientId && Number(r.percentage) > 0)
                 .map(r => ({
                     recipeId,
                     ingredientId: r.ingredientId,
-                    percentage: parseFloat(r.percentage.toString())
+                    percentage: parseFloat(r.percentage)
                 }));
 
             const { error } = await supabase.from('RecipeItem').insert(toInsert);
@@ -129,145 +140,135 @@ export function RecipeIngredientsEditor({ recipeId, targetBatchSize }: EditorPro
         setSaving(false);
     };
 
-    // Calculations
+    const calcItems = rows.map(r => ({ percentage: Number(r.percentage) || 0, averageCost: r.unitPrice || 0 }));
     const totalPercentage = rows.reduce((sum, r) => sum + (Number(r.percentage) || 0), 0);
-    const totalWeight = (totalPercentage / 100) * targetBatchSize;
-    const totalCost = rows.reduce((sum, r) => {
-        const weight = (r.percentage / 100) * targetBatchSize;
-        return sum + (weight * (r.unitPrice || 0));
-    }, 0);
-    const costPerKg = targetBatchSize > 0 ? totalCost / targetBatchSize : 0;
+    const totalCost = calculateBatchCost(calcItems, targetBatchSize);
+    const costPerKg = calculateUnitCost(calcItems);
 
-    if (loading) return <Loader2 className="animate-spin text-black text-center" />;
+    if (loading) return (
+        <div className="flex items-center justify-center p-20">
+            <Loader2 className="animate-spin text-green-600 w-10 h-10" />
+        </div>
+    );
+
+    const isPercentageBalanced = validateRecipePercentages(rows.map(r => ({ percentage: Number(r.percentage) || 0 })));
 
     return (
-        <div className="space-y-6 max-w-4xl rounded-md">
+        <div className="space-y-6 custom-scrollbar">
             {validationError && (
-                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
-                    <strong>Error:</strong> {validationError}
+                <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-lg text-sm font-medium">
+                    {validationError}
                 </div>
             )}
-            <div className="border rounded-md shadow-sm ">
-                <table className="w-full text-sm text-left">
-                    <thead className=" border-b">
-                        <tr>
-                            <th className="px-4 py-3 font-medium">Ingredient</th>
-                            <th className="px-4 py-3 font-medium w-32">Inclusion %</th>
-                            <th className="px-4 py-3 font-medium w-32">Kg Required</th>
-                            <th className="px-4 py-3 font-medium w-32">Avg Cost/kg</th>
-                            <th className="px-4 py-3 font-medium w-32">Total Cost</th>
-                            <th className="px-4 py-3 w-10"></th>
-                        </tr>
-                    </thead>
 
-                    <tbody className="divide-y">
+            <Card className="border-none shadow-md overflow-hidden ">
+                <Table>
+                    <TableHeader className="bg-slate-50">
+                        <TableRow>
+                            <TableHead className="w-[300px] ">Ingredient</TableHead>
+                            <TableHead className="text-right ">Inclusion %</TableHead>
+                            <TableHead className="text-right">Kg Required</TableHead>
+                            <TableHead className="text-right">Unit Cost</TableHead>
+                            <TableHead className="text-right">Total Cost</TableHead>
+                            <TableHead className="w-[50px]"></TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
                         {rows.map((row, idx) => {
-                            const weight = (row.percentage / 100) * targetBatchSize;
+                            const weight = (Number(row.percentage) / 100) * targetBatchSize;
                             const lineCost = weight * (row.unitPrice || 0);
                             return (
-                                <tr key={idx} className="group hover:bg-slate-900 ">
-                                    <td className="px-4 py-2">
-                                        <select
-                                            className="
-                                                    w-full
-                                                    rounded
-                                                    border
-                                                    border-slate-300
-                                                    bg-slate-200
-                                                    px-2
-                                                    py-1
-                                                    text-sm
-                                                    text-slate-900
-                                                    focus:outline-none
-                                                    cursor-pointer
-                                                    focus:ring-2
-                                                    focus:ring-blue-500
-                                                    focus:border-blue-500
-                                                "
+                                <TableRow key={idx} className="group">
+                                    <TableCell>
+                                        <Select
                                             value={row.ingredientId}
-                                            onChange={(e) => handleChange(idx, 'ingredientId', e.target.value)}
+                                            onValueChange={(val) => handleChange(idx, 'ingredientId', val)}
                                         >
-                                            <option value="">Select Ingredient...</option>
-                                            {allIngredients.map(ing => (
-                                                <option key={ing.id} value={ing.id}>{ing.name}</option>
-                                            ))}
-                                        </select>
-                                    </td>
-                                    <td className="px-4 py-2">
-                                        <input
+                                            <SelectTrigger className="w-full bg-white">
+                                                <SelectValue placeholder="Select ingredient..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {allIngredients.map(ing => (
+                                                    <SelectItem key={ing.id} value={ing.id}>{ing.name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <Input
                                             type="number"
-                                            className="w-full bg-transparent border rounded px-2 py-1 text-gray-300"
+                                            className="w-24 ml-auto text-right bg-white"
                                             value={row.percentage}
                                             onChange={(e) => handleChange(idx, 'percentage', e.target.value)}
                                             step="0.01"
-                                        /> 
-                                    </td>
-                                    <td className="px-4 py-2 font-mono text-gray-300">
+                                        />
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono text-slate-600">
                                         {weight.toFixed(2)} kg
-                                    </td>
-                                    <td className="px-4 py-2 font-mono text-gray-300 text-xs">
-                                        ₦{row.unitPrice?.toFixed(2)}
-                                    </td>
-                                    <td className="px-4 py-2 font-mono text-gray-300 font-bold">
-                                        ₦{lineCost.toLocaleString('en-NG', { minimumFractionDigits: 2 })}
-                                    </td>
-                                    <td className="px-4 py-2 text-center">
-                                        <button
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono text-slate-500 text-xs">
+                                        ₦{row.unitPrice?.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono font-semibold">
+                                        ₦{lineCost.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </TableCell>
+                                    <TableCell>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
                                             onClick={() => handleRemoveRow(idx)}
-                                            className="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-600"
+                                            className="text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
                                         >
                                             <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </td>
-                                </tr>
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
                             )
                         })}
-                    </tbody>
-
-                    <tfoot className="font-medium">
-                        <tr>
-                            <td className="px-4 py-3">
-                                <button onClick={handleAddRow} className="flex items-center text-green-500 hover:text-green-600 text-xs uppercase tracking-wider font-bold">
-                                    <Plus className="w-4 h-4 mr-1" /> Add Ingredient
-                                </button>
-                            </td>
-                            <td className={cn("px-4 py-3", Math.abs(totalPercentage - 100) > 0.1 ? "text-red-600" : "text-green-600")}>
+                    </TableBody>
+                    <TableFooter className="bg-slate-50/50">
+                        <TableRow>
+                            <TableCell>
+                                <Button variant="outline" size="sm" onClick={handleAddRow} className="text-green-700 hover:text-green-800 border-green-200 hover:bg-green-50">
+                                    <Plus className="w-4 h-4 mr-2" /> Add Ingredient
+                                </Button>
+                            </TableCell>
+                            <TableCell className={cn("text-right font-bold", isPercentageBalanced ? "text-green-600" : "text-destructive")}>
                                 {totalPercentage.toFixed(2)}%
-                            </td>
-                            <td className="px-4 py-3">
-                                {totalWeight.toFixed(2)} kg
-                            </td>
-                            <td className="px-4 py-3 text-right" colSpan={2}>
-                                Batch: ₦{totalCost.toLocaleString('en-NG', { minimumFractionDigits: 2 })}
-                            </td>
-                            <td></td>
-                        </tr>
-                        <tr>
-                            <td colSpan={3}></td>
-                            <td className="px-4 py-2 text-right text-xs text-slate-900 uppercase tracking-widest font-bold" colSpan={2}>
-                                Avg Cost per Kg: ₦{costPerKg.toLocaleString('en-NG', { minimumFractionDigits: 2 })}
-                            </td>
-                            <td></td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
+                            </TableCell>
+                            <TableCell className="text-right font-semibold">
+                                {(totalPercentage / 100 * targetBatchSize).toFixed(2)} kg
+                            </TableCell>
+                            <TableCell colSpan={2} className="text-right">
+                                <div className="flex flex-col">
+                                    <span className="text-xs text-slate-500 uppercase font-bold tracking-tight">Total Batch Cost</span>
+                                    <span className="text-lg font-bold">₦{totalCost.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                </div>
+                            </TableCell>
+                            <TableCell></TableCell>
+                        </TableRow>
+                    </TableFooter>
+                </Table>
+            </Card>
 
-            <div className="flex items-center justify-between bg-slate-100 p-3 rounded-md">
-                <div className="text-sm text-slate-500">
-                    <p>ℹ️ Percentages must sum to 100%.</p>
+            <div className="flex items-center justify-between p-4 bg-white rounded-xl shadow-sm border">
+                <div className="flex items-center text-sm text-slate-500 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
+                    <Info className="w-4 h-4 mr-2 text-blue-500" />
+                    Formula must sum to <span className="font-bold mx-1 text-slate-700">100%</span> to be valid.
                 </div>
-                <div className="flex flex-col items-end gap-2">
-                    <button
+                <div className="flex items-center gap-4">
+                    <div className="text-right mr-4">
+                        <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Cost Per Kg</p>
+                        <p className="text-xl font-bold text-green-700">₦{costPerKg.toLocaleString('en-NG', { minimumFractionDigits: 2 })}</p>
+                    </div>
+                    <Button
                         onClick={handleSave}
-                        disabled={saving}
-                        className="flex items-center bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50 font-medium"
+                        disabled={saving || !isPercentageBalanced}
+                        className="bg-green-600 hover:bg-green-700 shadow-lg shadow-green-600/20 px-4 py-2 h-auto text-base font-semibold transition-all hover:scale-105 active:scale-95"
                     >
-                        {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                        <Save className="w-4 h-4 mr-2" />
+                        {saving ? <Loader2 className="w-5 h-5 mr-1 animate-spin" /> : <Save className="w-5 h-5 mr-1" />}
                         Save Formula
-                    </button>
-                    {validationError && <span className="text-xs text-red-500 max-w-xs text-right">{validationError}</span>}
+                    </Button>
                 </div>
             </div>
         </div>

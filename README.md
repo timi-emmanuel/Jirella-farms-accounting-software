@@ -61,8 +61,6 @@ State philosophy:
 
 
 ### Do I need a design palette?
-❌ No Figma or custom design system needed.
-
 Use:
 - Tailwind default colors
 - shadcn/ui default theme
@@ -130,7 +128,7 @@ Example:
 ## 8. MAIN NAVIGATION (MVP)
 
 
-Each page = route under `(dashboard)`.
+
 
 ---
 

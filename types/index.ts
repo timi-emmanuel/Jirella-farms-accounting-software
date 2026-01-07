@@ -69,3 +69,31 @@ export interface FeedBatch {
  date: string;
  createdAt: string;
 }
+
+export interface FeedMillSale {
+ id: string;
+ date: string;
+ recipeId: string;
+ unitsSold: number;
+ unitSellingPrice: number;
+ unitCostPrice: number;
+ totalRevenue: number;
+ costOfGoodsSold: number;
+ grossProfit: number;
+ createdAt: string;
+ updatedAt: string;
+ // Relations
+ recipe?: Recipe;
+}
+
+export interface ProductionLog {
+ id: string;
+ date: string;
+ recipeId: string;
+ quantityProduced: number; // In KG
+ costPerKg: number; // Historical cost audit
+ createdAt: string;
+ updatedAt: string;
+ // Relations
+ recipe?: Recipe;
+}

@@ -13,7 +13,7 @@ This file tracks development tasks and progress for the project.
 
 ---
 
-### DAYS 1–2 — PROJECT SETUP
+### DAYS 1–2 — PROJECT SETUP (done)
 - Create Next.js app
 - Setup Tailwind & shadcn/ui
 - Setup Prisma & PostgreSQL
@@ -22,8 +22,8 @@ This file tracks development tasks and progress for the project.
 
 ---
 
-### DAYS 3–4 — AUTH & ROLES
-- Implement NextAuth (credentials)
+### DAYS 3–4 — AUTH & ROLES (done)
+- Implement superbase auth (credentials)
 - Create User model with role
 - Build login page
 - Protect routes with middleware
@@ -31,7 +31,7 @@ This file tracks development tasks and progress for the project.
 
 ---
 
-### DAYS 5–6 — DASHBOARD & NAVIGATION
+### DAYS 5–6 — DASHBOARD & NAVIGATION (done)
 - Dashboard layout
 - Sidebar navigation
 - Role-based menu visibility
@@ -39,7 +39,7 @@ This file tracks development tasks and progress for the project.
 
 ---
 
-### DAYS 7–9 — AG GRID FOUNDATION
+### DAYS 7–9 — AG GRID FOUNDATION (done)
 - Install AG Grid
 - Build first editable grid (Recipe Master)
 - Inline editing
@@ -96,7 +96,7 @@ Do not rush this section.
 
 ---
 
-## 🟢 PHASE 0 — REQUIREMENTS & PREPARATION
+## 🟢 PHASE 0 — REQUIREMENTS & PREPARATION (completed)
 
 - [ ] Meet with boss to confirm:
   - [ ] Farm type(s) (poultry, fishery, crop, mixed)
@@ -105,11 +105,11 @@ Do not rush this section.
 - [ ] Collect existing Excel sheets
 - [ ] Extract all formulas from Excel
 - [ ] Define MVP scope clearly
-- [ ] List reports needed (daily / weekly / monthly)
+
 
 ---
 
-## 🟢 PHASE 1 — PROJECT SETUP & AUTHENTICATION
+## 🟢 PHASE 1 — PROJECT SETUP & AUTHENTICATION (completed)
 
 ### Project Setup
 - [ ] Initialize Next.js project (App Router)
@@ -123,14 +123,12 @@ Do not rush this section.
 - [ ] Create base layout (dashboard shell)
 
 ### Database
-- [ ] Setup PostgreSQL database
-- [ ] Install Prisma
-- [ ] Initialize Prisma schema
+- [ ] Setup Superbase database
 - [ ] Create User model
 - [ ] Run first migration
 
 ### Authentication
-- [ ] Install NextAuth (Auth.js)
+- [ ] Install superbase (Auth.js)
 - [ ] Setup credentials-based login
 - [ ] Hash passwords securely
 - [ ] Add role field to user model
@@ -252,13 +250,4 @@ Do not rush this section.
 - Current Phase: __________
 
 
-⚠️ Important Advice (from experience)
-
-Do not overbuild configurable formulas on day 1
-
-Validate calculations against Excel every time
-
-Keep everything server-side
-
-Lock scope early
 

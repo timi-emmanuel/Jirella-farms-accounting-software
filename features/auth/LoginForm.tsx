@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
 
 export function LoginForm() {
  const router = useRouter()
@@ -36,67 +40,57 @@ export function LoginForm() {
  }
 
  return (
-  <div className="grid gap-6 w-full max-w-sm">
+  <Card className="w-full border-none shadow-2xl bg-white/95 backdrop-blur-sm">
+   <CardHeader className="space-y-1">
+    <CardTitle className="text-2xl font-bold tracking-tight text-center">Sign In</CardTitle>
+    <CardDescription className="text-center">
+     Enter your credentials to access the system
+    </CardDescription>
+   </CardHeader>
    <form onSubmit={handleSubmit}>
-    <div className="grid gap-4">
+    <CardContent className="grid gap-4">
      <div className="grid gap-2">
-      <label
-       className="text-sm font-medium leading-none"
-       htmlFor="email"
-      >
-       Email
-      </label>
-      <input
-       className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+      <Label htmlFor="email">Email</Label>
+      <Input
        id="email"
-       placeholder="name@example.com"
+       name="email"
        type="email"
+       placeholder="name@example.com"
        autoCapitalize="none"
        autoComplete="email"
        autoCorrect="off"
-       name="email"
        disabled={loading}
        required
       />
      </div>
      <div className="grid gap-2">
-      <label
-       className="text-sm font-medium leading-none"
-       htmlFor="password"
-      >
-       Password
-      </label>
-      <input
-       className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+      <Label htmlFor="password">Password</Label>
+      <Input
        id="password"
-       placeholder="password"
-       type="password"
-       autoCapitalize="none"
-       autoComplete="current-password"
        name="password"
+       type="password"
+       placeholder="••••••••"
+       autoComplete="current-password"
        disabled={loading}
        required
       />
      </div>
      {error && (
-      <div className="text-sm font-medium text-red-500">
+      <div className="text-sm font-medium text-destructive animate-in fade-in slide-in-from-top-1">
        {error}
       </div>
      )}
-     <button
-      className={cn(
-       "inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 cursor-pointer",
-       "bg-slate-900 text-white shadow hover:bg-slate-900/90 h-9 px-4 py-2"
-      )}
+    </CardContent>
+    <CardFooter>
+     <Button
+      className="w-full bg-green-700 hover:bg-green-800 transition-all mt-3"
       disabled={loading}
      >
-      {loading && (
-       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-      )}
+      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
       Sign In
-     </button>
-    </div>
+     </Button>
+    </CardFooter>
    </form>
-  </div>
+  </Card>
  )
 }
