@@ -37,7 +37,7 @@ const navigation: NavigationItem[] = [
     icon: Factory, // Changed to Factory for better context
     subItems: [
       { name: 'Inventory', href: '/feed-mill/rm-inventory', icon: Package },
-      { name: 'Recipes', href: '/feed-mill/recipe-master', icon: Beaker },
+      { name: 'Recipes Master', href: '/feed-mill/recipe-master', icon: Beaker },
       { name: 'Production', href: '/feed-mill/production', icon: Factory },
       { name: 'Sales', href: '/feed-mill/sales', icon: ShoppingCart },
     ]
@@ -125,6 +125,9 @@ export function Sidebar() {
               {hasSubItems && isOpen && (
                 <div className="ml-4 pl-4 border-l border-white/5 space-y-1 my-1">
                   {item.subItems!.map((sub) => {
+                    // Hide Recipes for non-admins
+                    if (sub.name === 'Recipes' && !isAdmin) return null;
+
                     const isSubActive = pathname === sub.href;
                     return (
                       <Link

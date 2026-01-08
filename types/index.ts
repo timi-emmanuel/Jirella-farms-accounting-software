@@ -92,6 +92,8 @@ export interface ProductionLog {
  recipeId: string;
  quantityProduced: number; // In KG
  costPerKg: number; // Historical cost audit
+ cost15kg?: number;
+ cost25kg?: number;
  createdAt: string;
  updatedAt: string;
  // Relations

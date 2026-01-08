@@ -114,6 +114,9 @@ export function InventoryGrid() {
 
         if (error) {
             alert("Failed to save ledger change: " + error.message);
+        } else {
+            // Refresh data to ensure UI matches the true DB state
+            loadData();
         }
     };
 
@@ -144,6 +147,24 @@ export function InventoryGrid() {
             filter: false,
             cellRenderer: (p: any) => Number(p.value || 0).toFixed(2)
         },
+        { 
+            field: "usedInProduction" as const, 
+            headerName: "Used (kg)", 
+            editable: true, 
+            type: 'numericColumn', 
+            flex: 0.8,  
+            filter: false, 
+            cellRenderer: (p: any) => Number(p.value || 0).toFixed(2) 
+        },
+        {
+            headerName: "Current Stock (kg)",
+            field: "currentStock" as const, // SHOW THE TRUE DB STOCK
+            type: 'numericColumn',
+            flex: 1,
+            cellStyle: { fontWeight: '700', color: '#10b981' },
+            cellRenderer: (p: any) => Number(p.value || 0).toFixed(2),
+            filter: false
+        },
         {
             field: "averageCost" as const, headerName: "Price (₦/kg)", editable: true, type: 'numericColumn', flex: 1,
             filter: false,
@@ -156,33 +177,13 @@ export function InventoryGrid() {
             valueGetter: (p: any) => calculateEntryTotal(Number(p.data.purchasedQuantity), Number(p.data.averageCost)),
             cellRenderer: (p: any) => `₦${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             filter: false
-        },
-        { field: "usedInProduction" as const, headerName: "Used (kg)", editable: true, type: 'numericColumn', flex: 0.8, filter: false, cellRenderer: (p: any) => Number(p.value || 0).toFixed(2) },
-        {
-            headerName: "Closing (kg)",
-            type: 'numericColumn',
-            flex: 1,
-            cellStyle: { fontWeight: '700', color: '#10b981' },
-            valueGetter: (p: any) => calculateClosingBalance(
-                Number(p.data.openingStock),
-                Number(p.data.purchasedQuantity),
-                Number(p.data.usedInProduction)
-            ),
-            cellRenderer: (p: any) => Number(p.value).toFixed(2),
-            filter: false
-        },
+        },       
+        
         {
             headerName: "Current Value",
             type: 'numericColumn',
             flex: 1.2,
-            valueGetter: (p: any) => {
-                const closing = calculateClosingBalance(
-                    Number(p.data.openingStock),
-                    Number(p.data.purchasedQuantity),
-                    Number(p.data.usedInProduction)
-                );
-                return calculateInventoryValue(closing, Number(p.data.averageCost));
-            },
+            valueGetter: (p: any) => calculateInventoryValue(Number(p.data.currentStock), Number(p.data.averageCost)),
             cellRenderer: (p: any) => `₦${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             filter: false
         },

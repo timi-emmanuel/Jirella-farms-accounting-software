@@ -168,6 +168,11 @@ button{
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: #64748b;
 }
+
+.table-scrollbar {
+  scrollbar-width: none;
+}
+
 html {
   scroll-behavior: smooth;
 }

@@ -24,6 +24,7 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { Loader2 } from 'lucide-react';
 import { calculateBatchCost } from '@/lib/calculations/recipe';
+import { useUserRole } from '@/hooks/useUserRole';
 
 // Register modules
 ModuleRegistry.registerModules([
@@ -59,83 +60,66 @@ interface RecipeRow {
 }
 
 export function RecipeGrid() {
-    const [rowData, setRowData] = useState<RecipeRow[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { isAdmin, loading: roleLoading } = useUserRole();
 
     // Column Definitions: Defines the columns to be displayed.
-    const [colDefs, setColDefs] = useState<ColDef<RecipeRow>[]>([
-        {
-            field: "name",
-            headerName: "Recipe Name",
-            editable: true,
-            flex: 1,
-            minWidth: 200
-        },
-        // { 
-        //  field: "description",
-        //  headerName: "Description", 
-        //  editable: true, 
-        //  flex: 2,
-        //  minWidth: 250 
-        // },
-        {
-            field: "targetBatchSize",
-            headerName: "Batch Size (kg)",
-            editable: true,
-            filter: false,
-            flex: 0.8,
-            minWidth: 120,
-            type: 'numericColumn',
-            cellStyle: { textAlign: "center" },
-            headerClass: "ag-center-header"
-        },
-        {
-            headerName: "Total Batch Cost",
-            type: 'numericColumn',
-            flex: 1,
-            minWidth: 150,
-            cellStyle: { fontWeight: 'bold' },
-            valueGetter: (params: any) => {
-                const row = params.data as RecipeRow;
-                if (!row.items || row.items.length === 0) return 0;
+    const colDefs = useMemo<ColDef<RecipeRow>[]>(() => {
+        const columns: ColDef<RecipeRow>[] = [
+            {
+                field: "name",
+                headerName: "Recipe Name",
+                editable: isAdmin,
+                flex: 1,
+                minWidth: 200
+            },
+            {
+                field: "targetBatchSize",
+                headerName: "Batch Size (kg)",
+                editable: isAdmin,
+                filter: false,
+                flex: 0.8,
+                minWidth: 120,
+                type: 'numericColumn',
+                cellStyle: { textAlign: "center" },
+                headerClass: "ag-center-header"
+            }
+        ];
 
-                return calculateBatchCost(
-                    row.items.map(item => ({
-                        percentage: item.percentage,
-                        averageCost: item.ingredient?.averageCost || 0
-                    })),
-                    row.targetBatchSize || 0
-                );
-            },
-            cellRenderer: (params: any) => `₦${Number(params.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-        },
-        {
-            headerName: "Formula",
-            filter: false,
-            cellRenderer: (params: any) => {
-                return (
-                    <a
-                        href={`/feed-mill/recipe-master/${params.data.id}`}
-                        className="text-blue-600 hover:underline text-sm font-medium"
-                    >
-                        Edit Ingredients →
-                    </a>
-                );
-            },
-            minWidth: 160
-        },
-        {
+        if (isAdmin) {
+            columns.push({
+                headerName: "Formula",
+                filter: false,
+                cellRenderer: (params: any) => {
+                    return (
+                        <a
+                            href={`/feed-mill/recipe-master/${params.data.id}`}
+                            className="text-blue-600 hover:underline text-sm font-medium"
+                        >
+                            Edit Ingredients →
+                        </a>
+                    );
+                },
+                minWidth: 160
+            });
+        }
+
+        columns.push({
             field: "isActive",
             headerName: "Active",
-            editable: true,
+            editable: isAdmin,
             filter: false,
             width: 90,
             minWidth: 80,
             cellStyle: { textAlign: "center" },
             headerClass: "ag-center-header",
             cellRenderer: (params: any) => params.value ? '✅' : '❌'
-        }
-    ]);
+        });
+
+        return columns;
+    }, [isAdmin]);
+
+    const [rowData, setRowData] = useState<RecipeRow[]>([]);
+    const [loading, setLoading] = useState(true);
 
     const defaultColDef = useMemo(() => {
         return {
@@ -217,14 +201,16 @@ export function RecipeGrid() {
 
     return (
         <div className="flex flex-col h-full space-y-2">
-            <div className="flex justify-end px-2">
-                <button
-                    onClick={onAddRow}
-                    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm transition"
-                >
-                    + New Recipe
-                </button>
-            </div>
+            {isAdmin && (
+                <div className="flex justify-end px-2">
+                    <button
+                        onClick={onAddRow}
+                        className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm transition"
+                    >
+                        + New Recipe
+                    </button>
+                </div>
+            )}
             <div className="ag-theme-quartz flex-1">
                 <AgGridReact
                     rowData={rowData}

@@ -4,6 +4,7 @@ import { roundTo2 } from "@/lib/utils";
 // Derived from 3. PRODUCTION (FEED MILL) in CALCULATION.md
 
 interface IngredientRequirement {
+ id: string;
  name: string;
  percentage: number;
  averageCost: number;
@@ -26,6 +27,7 @@ export function calculateProductionBatch(
   totalCost += cost;
 
   return {
+   id: ing.id,
    name: ing.name,
    qty,
    cost

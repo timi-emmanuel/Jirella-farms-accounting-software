@@ -28,6 +28,7 @@ import {
   calculateBagCost,
   calculateBatchTotal
 } from '@/lib/calculations/production';
+import { cn } from '@/lib/utils';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -84,10 +85,10 @@ export function ProductionGrid() {
       .select('*, recipe:Recipe(name)')
       .order('date', { ascending: false });
 
-    // Fetch Recipes with ingredients and costs
+    // Fetch Recipes with ingredients, costs, and current stock levels
     const { data: recipeData } = await supabase
       .from('Recipe')
-      .select('*, items:RecipeItem(percentage, ingredient:Ingredient(name, unit, averageCost))')
+      .select('*, items:RecipeItem(percentage, ingredient:Ingredient(id, name, unit, averageCost, currentStock))')
       .eq('isActive', true)
       .order('name');
 
@@ -100,26 +101,55 @@ export function ProductionGrid() {
     loadData();
   }, []);
 
+  // Refresh data when modal opens to ensure fresh stock levels
+  useEffect(() => {
+    if (showAddLog) {
+      loadData();
+    }
+  }, [showAddLog]);
+
   const selectedRecipe = useMemo(() =>
     recipes.find(r => r.id === selectedRecipeId),
     [recipes, selectedRecipeId]
   );
 
-  // Live Calculations
+  // Live Calculations & Validation
   const calculations = useMemo(() => {
     if (!selectedRecipe || !quantity || Number(quantity) <= 0) return null;
 
     const recipeItems = (selectedRecipe as any).items || (selectedRecipe as any).RecipeItem || [];
     if (!recipeItems || recipeItems.length === 0) return null;
 
-    return calculateProductionBatch(
+    const baseCalcs = calculateProductionBatch(
       recipeItems.map((item: any) => ({
+        id: item.ingredient?.id || '',
         name: item.ingredient?.name || 'Unknown',
         percentage: Number(item.percentage) || 0,
         averageCost: Number(item.ingredient?.averageCost) || 0
       })),
       Number(quantity)
     );
+
+    if (!baseCalcs) return null;
+
+    // Add availability info using precise ID matching
+    const ingredientsWithValidation = baseCalcs.ingredientsNeeded.map((needed: any) => {
+      const item = recipeItems.find((ri: any) => ri.ingredient?.id === needed.id);
+      const available = Number(item?.ingredient?.currentStock) || 0;
+      return {
+        ...needed,
+        available,
+        isShort: available < needed.qty
+      };
+    });
+
+    const hasShortage = ingredientsWithValidation.some(i => i.isShort);
+
+    return {
+      ...baseCalcs,
+      ingredientsNeeded: ingredientsWithValidation,
+      hasShortage
+    };
   }, [selectedRecipe, quantity]);
 
   const handleProduce = async (e: React.FormEvent) => {
@@ -129,15 +159,16 @@ export function ProductionGrid() {
 
     const supabase = createClient();
 
-    const { error } = await supabase.from('ProductionLog').insert([{
-      recipeId: selectedRecipeId,
-      quantityProduced: Number(quantity),
-      costPerKg: calculations.costPerKg,
-      date: new Date().toISOString().split('T')[0]
-    }]);
+    // Use RPC for atomic transactional production
+    const { error } = await supabase.rpc('handle_production', {
+      p_recipe_id: selectedRecipeId,
+      p_quantity_produced: Number(quantity),
+      p_cost_per_kg: calculations.costPerKg,
+      p_date: new Date().toISOString().split('T')[0]
+    });
 
     if (error) {
-      alert("Error logging production: " + error.message);
+      alert("Production Failed: " + error.message);
     } else {
       setShowAddLog(false);
       setQuantity("");
@@ -167,6 +198,7 @@ export function ProductionGrid() {
       headerName: "Qty Produced (kg)",
       type: 'numericColumn',
       flex: 1,
+      filter: 'false',
     },
     {
       headerName: "Total Batch Cost (₦)",
@@ -179,21 +211,25 @@ export function ProductionGrid() {
     {
       field: "costPerKg" as const,
       headerName: "Cost/kg (₦)",
-      type: 'numericColumn', flex: 1,
+      type: 'numericColumn', 
+      flex: 1,
+      filter: 'false',
       cellRenderer: (p: any) => `₦${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     },
     {
       headerName: "Cost/15kg Bag (₦)",
       type: 'numericColumn',
       flex: 1,
-      valueGetter: (p: any) => calculateBagCost(Number(p.data.costPerKg), 15),
+      filter: 'false',
+      valueGetter: (p: any) => p.data.cost15kg || calculateBagCost(Number(p.data.costPerKg), 15),
       cellRenderer: (p: any) => `₦${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     },
     {
       headerName: "Cost/25kg Bag (₦)",
       type: 'numericColumn',
       flex: 1,
-      valueGetter: (p: any) => calculateBagCost(Number(p.data.costPerKg), 25),
+      filter: 'false',
+      valueGetter: (p: any) => p.data.cost25kg || calculateBagCost(Number(p.data.costPerKg), 25),
       cellRenderer: (p: any) => `₦${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     }
   ];
@@ -216,7 +252,7 @@ export function ProductionGrid() {
               New Production Run
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto table-scrollbar">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold tracking-tight">Log Production</DialogTitle>
             </DialogHeader>
@@ -259,11 +295,36 @@ export function ProductionGrid() {
                         Ingredient Requirements
                       </span>
                     </div>
-                    <div className="p-4 space-y-2">
-                      {calculations.ingredientsNeeded.map((ing: any, idx: number) => (
-                        <div key={idx} className="flex justify-between text-sm py-1 border-b border-slate-200 last:border-0 hover:bg-slate-200/50 transition-colors">
-                          <span className="text-slate-600 font-medium">{ing.name}</span>
-                          <span className="text-slate-900 font-bold">{ing.qty.toFixed(2)} kg</span>
+                    <div className="p-4 space-y-3">
+                      {calculations.ingredientsNeeded.map((ing: any, idx: number) =>
+                      (
+                        <div key={idx} className="space-y-1">
+                          <div className="flex justify-between text-sm items-center">
+                            <span className="text-slate-600 font-medium">{ing.name}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Required:</span>
+                              <span className="text-slate-900 font-bold">{ing.qty.toFixed(2)} kg</span>
+                            </div>
+                          </div>
+                          <div className="flex justify-between text-[11px] items-center">
+                            <span className={ing.isShort ? "text-rose-500 font-bold" : "text-emerald-600 font-medium"}>
+                              Available: {ing.available.toFixed(2)} kg
+                            </span>
+                            {ing.isShort && (
+                              <span className="text-rose-600 font-black animate-pulse">
+                                Short by {(ing.qty - ing.available).toFixed(2)} kg
+                              </span>
+                            )}
+                          </div>
+                          <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                            <div
+                              className={cn(
+                                "h-full transition-all duration-500",
+                                ing.isShort ? "bg-rose-500" : "bg-emerald-500"
+                              )}
+                              style={{ width: `${Math.min((ing.available / ing.qty) * 100, 100)}%` }}
+                            />
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -298,20 +359,43 @@ export function ProductionGrid() {
                     </div>
                   </div>
                 </div>
-              ) : (
-                <div className="h-24 border-2 border-dashed rounded-xl flex items-center justify-center text-slate-400 italic text-sm">
-                  {selectedRecipeId && quantity && Number(quantity) > 0
-                    ? "No ingredients found for this recipe."
-                    : "Select a recipe and enter quantity to see breakdown"}
-                </div>
-              )}
+              ) :
+                (
+                  <div className="h-24 border-2 border-dashed rounded-xl flex items-center justify-center text-slate-400 italic text-sm">
+                    {selectedRecipeId && quantity && Number(quantity) > 0
+                      ? "No ingredients found for this recipe."
+                      : "Select a recipe and enter quantity to see breakdown"}
+                  </div>
+                )}
 
               <DialogFooter>
-                <Button type="submit" disabled={submitting || !calculations} className="w-full bg-emerald-600 hover:bg-emerald-700 py-6 text-base font-semibold transition-all">
-                  {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Factory className="w-4 h-4 mr-2" />}
-                  Confirm Production
-                </Button>
+                  <div className="w-full flex flex-col gap-4">
+                    {calculations?.hasShortage && (
+                      <div className="w-full p-3 bg-rose-50 border border-rose-100 rounded-lg flex items-center gap-3 text-rose-700 text-sm font-medium animate-in slide-in-from-bottom-2">
+                        <Info className="w-4 h-4 text-rose-500 shrink-0" />
+                        Cannot produce: Insufficient stock for some ingredients.
+                      </div>
+                    )}
+
+                    <Button
+                      type="submit"
+                      disabled={submitting || !calculations || calculations.hasShortage}
+                      className={cn(
+                        "w-full py-6 text-base font-semibold transition-all shadow-lg",
+                        calculations?.hasShortage
+                          ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
+                          : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200"
+                      )}
+                    >
+                      {submitting
+                        ? <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        : <Factory className="w-4 h-4 mr-2" />
+                      }
+                      Confirm Production
+                    </Button>
+                  </div>
               </DialogFooter>
+
             </form>
           </DialogContent>
         </Dialog>

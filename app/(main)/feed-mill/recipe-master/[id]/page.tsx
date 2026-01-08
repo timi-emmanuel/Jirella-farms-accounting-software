@@ -11,7 +11,35 @@ export default async function RecipeDetailPage({ params }: PageProps) {
  const { id } = await params;
  const supabase = await createClient();
 
- // Fetch Recipe details
+ // 1. Get Auth User
+ const { data: { user } } = await supabase.auth.getUser();
+
+ if (!user) {
+  notFound();
+ }
+
+ // 2. Get Profile to check role
+ const { data: profile } = await supabase
+  .from('users')
+  .select('role')
+  .eq('id', user.id)
+  .single();
+
+ if (!profile || profile.role !== 'ADMIN') {
+  return (
+   <div className="flex items-center justify-center h-full">
+    <div className="text-center space-y-2">
+     <h1 className="text-2xl font-bold text-gray-800">Permission Denied</h1>
+     <p className="text-gray-500">Only administrators can view or edit recipe formulas.</p>
+     <a href="/feed-mill/recipe-master" className="text-blue-600 hover:underline block mt-4">
+      ← Back to Recipe Master
+     </a>
+    </div>
+   </div>
+  );
+ }
+
+ // 3. Fetch Recipe details
  const { data: recipe, error } = await supabase
   .from("Recipe")
   .select("*")
