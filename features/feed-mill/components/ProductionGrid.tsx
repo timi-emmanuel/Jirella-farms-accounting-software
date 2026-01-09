@@ -183,13 +183,15 @@ export function ProductionGrid() {
       field: "date" as const,
       headerName: "Date",
       flex: 1,
-      minWidth: 120
+      minWidth: 120,
+      filter: true
     },
     {
       field: "recipeId" as const,
       headerName: "Feed Type",
       flex: 1.5,
       minWidth: 180,
+      filter: true,
       valueFormatter: (p: any) => p.data.recipe?.name || 'Unknown',
       cellStyle: { fontWeight: '600', color: '#0f172a' }
     },
@@ -198,7 +200,6 @@ export function ProductionGrid() {
       headerName: "Qty Produced (kg)",
       type: 'numericColumn',
       flex: 1,
-      filter: 'false',
     },
     {
       headerName: "Total Batch Cost (₦)",
@@ -211,16 +212,14 @@ export function ProductionGrid() {
     {
       field: "costPerKg" as const,
       headerName: "Cost/kg (₦)",
-      type: 'numericColumn', 
+      type: 'numericColumn',
       flex: 1,
-      filter: 'false',
       cellRenderer: (p: any) => `₦${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     },
     {
       headerName: "Cost/15kg Bag (₦)",
       type: 'numericColumn',
       flex: 1,
-      filter: 'false',
       valueGetter: (p: any) => p.data.cost15kg || calculateBagCost(Number(p.data.costPerKg), 15),
       cellRenderer: (p: any) => `₦${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     },
@@ -228,7 +227,6 @@ export function ProductionGrid() {
       headerName: "Cost/25kg Bag (₦)",
       type: 'numericColumn',
       flex: 1,
-      filter: 'false',
       valueGetter: (p: any) => p.data.cost25kg || calculateBagCost(Number(p.data.costPerKg), 25),
       cellRenderer: (p: any) => `₦${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     }
@@ -247,12 +245,12 @@ export function ProductionGrid() {
       <div className="flex justify-end">
         <Dialog open={showAddLog} onOpenChange={setShowAddLog}>
           <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all hover:scale-105 active:scale-95 px-6">
-              <Plus className="w-4 h-4 mr-2" />
+            <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all hover:scale-105 active:scale-95 px-6 mr-4">
+              <Plus className="w-4 h-4 " />
               New Production Run
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto table-scrollbar">
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto modal-scrollbar">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold tracking-tight">Log Production</DialogTitle>
             </DialogHeader>
@@ -369,31 +367,31 @@ export function ProductionGrid() {
                 )}
 
               <DialogFooter>
-                  <div className="w-full flex flex-col gap-4">
-                    {calculations?.hasShortage && (
-                      <div className="w-full p-3 bg-rose-50 border border-rose-100 rounded-lg flex items-center gap-3 text-rose-700 text-sm font-medium animate-in slide-in-from-bottom-2">
-                        <Info className="w-4 h-4 text-rose-500 shrink-0" />
-                        Cannot produce: Insufficient stock for some ingredients.
-                      </div>
-                    )}
+                <div className="w-full flex flex-col gap-4">
+                  {calculations?.hasShortage && (
+                    <div className="w-full p-3 bg-rose-50 border border-rose-100 rounded-lg flex items-center gap-3 text-rose-700 text-sm font-medium animate-in slide-in-from-bottom-2">
+                      <Info className="w-4 h-4 text-rose-500 shrink-0" />
+                      Cannot produce: Insufficient stock for some ingredients.
+                    </div>
+                  )}
 
-                    <Button
-                      type="submit"
-                      disabled={submitting || !calculations || calculations.hasShortage}
-                      className={cn(
-                        "w-full py-6 text-base font-semibold transition-all shadow-lg",
-                        calculations?.hasShortage
-                          ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
-                          : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200"
-                      )}
-                    >
-                      {submitting
-                        ? <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                        : <Factory className="w-4 h-4 mr-2" />
-                      }
-                      Confirm Production
-                    </Button>
-                  </div>
+                  <Button
+                    type="submit"
+                    disabled={submitting || !calculations || calculations.hasShortage}
+                    className={cn(
+                      "w-full py-6 text-base font-semibold transition-all shadow-lg",
+                      calculations?.hasShortage
+                        ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
+                        : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200"
+                    )}
+                  >
+                    {submitting
+                      ? <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      : <Factory className="w-4 h-4 mr-2" />
+                    }
+                    Confirm Production
+                  </Button>
+                </div>
               </DialogFooter>
 
             </form>
@@ -408,7 +406,7 @@ export function ProductionGrid() {
           columnDefs={colDefs}
           defaultColDef={{
             sortable: true,
-            filter: true,
+            filter: false,
             wrapHeaderText: true,
             autoHeaderHeight: true,
           }}

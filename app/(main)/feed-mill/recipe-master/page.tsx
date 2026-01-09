@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { RecipeGrid } from "@/features/feed-mill/components/RecipeGrid";
 import { notFound } from "next/navigation";
+import { Info } from "lucide-react";
 
 export default async function RecipeMasterPage() {
  const supabase = await createClient();
@@ -32,13 +33,20 @@ export default async function RecipeMasterPage() {
    </div>
   );
  }
-
+ 
  return (
   <div className="h-full flex flex-col space-y-4">
+
    <div className="flex items-center justify-between">
     <h1 className="text-2xl font-bold tracking-tight">Recipe Master</h1>
-    <p className="text-sm text-gray-400">Manage feed formulas and batch sizes</p>
+    <p className="text-sm text-gray-600 flex items-center">
+     <span><Info className="w-4 h-4 mr-1" /></span>
+     <span>Double click on a recipe to edit it</span>
+    </p>
+    
    </div>
+   <p className="text-sm text-gray-600">Click on the "Formula" column to edit the ingredients</p>
+
    <div className="flex-1 overflow-hidden">
     <RecipeGrid />
    </div>

@@ -171,14 +171,14 @@ export function SalesGrid() {
   {
    field: "date" as const,
    headerName: "Date",
-   editable: true,
+   editable: false,
    flex: 1,
    minWidth: 120
   },
   {
    field: "recipeId" as const,
    headerName: "Product Name",
-   editable: true,
+   editable: false,
    flex: 1.5,
    minWidth: 180,
    filter: false,
@@ -193,7 +193,7 @@ export function SalesGrid() {
   {
    field: "unitsSold" as const,
    headerName: "Qty Sold (Bags)",
-   editable: true,
+   editable: false,
    type: 'numericColumn',
    flex: 1,
    filter: false,
@@ -201,7 +201,7 @@ export function SalesGrid() {
   {
    field: "unitSellingPrice" as const,
    headerName: "S.P per Bag (₦)",
-   editable: true,
+   editable: false,
    type: 'numericColumn', flex: 1,
    cellRenderer: (p: any) => `₦${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
    filter: false,
@@ -209,7 +209,8 @@ export function SalesGrid() {
   {
    field: "unitCostPrice" as const,
    headerName: "Cost per Bag (₦)",
-   editable: true, type: 'numericColumn', flex: 1,
+   editable: false,
+   type: 'numericColumn', flex: 1,
    cellRenderer: (p: any) => `₦${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
    filter: false,
   },
@@ -248,7 +249,7 @@ export function SalesGrid() {
   }
  ];
 
- if (loading && rowData.length === 0) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin w-5 h-5 text-emerald-600" /></div>;
+ if (loading && rowData.length === 0) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin w-10 h-10 text-emerald-600" /></div>;
 
  const estRevenue = calculateRevenue(Number(newSale.unitsSold), Number(newSale.unitSellingPrice));
  const estProfit = calculateGrossProfit(estRevenue, calculateCOGS(Number(newSale.unitsSold), Number(newSale.unitCostPrice)));
@@ -258,12 +259,12 @@ export function SalesGrid() {
    <div className="flex justify-end">
     <Dialog open={showAddSale} onOpenChange={setShowAddSale}>
      <DialogTrigger asChild>
-      <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all hover:scale-105 active:scale-95 px-6">
-       <Plus className="w-4 h-4 mr-2" />
+      <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all hover:scale-105 active:scale-95 px-6 mr-4">
+       <Plus className="w-4 h-4 " />
        Log New Sale
       </Button>
      </DialogTrigger>
-     <DialogContent className="sm:max-w-[425px]">
+     <DialogContent className="sm:max-w-[425px] max-h-[85vh] overflow-y-auto modal-scrollbar">
       <DialogHeader>
        <DialogTitle className="text-xl font-bold tracking-tight">Log New Sale</DialogTitle>
       </DialogHeader>

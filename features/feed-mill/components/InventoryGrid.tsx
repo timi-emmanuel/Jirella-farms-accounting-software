@@ -191,7 +191,7 @@ export function InventoryGrid() {
             field: "updatedAt" as const,
             headerName: "Last Updated",
             flex: 1,
-            cellRenderer: (p: any) => <span className="text-slate-400 text-xs">{new Date(p.value).toLocaleDateString()}</span>,
+            cellRenderer: (p: any) => <span className="text-slate-600 text-sm">{new Date(p.value).toLocaleDateString()}</span>,
             filter: false
         }
     ];
@@ -256,8 +256,8 @@ export function InventoryGrid() {
             <div className="flex justify-end">
                 <Dialog open={showAddStock} onOpenChange={setShowAddStock}>
                     <DialogTrigger asChild>
-                        <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all hover:scale-105 active:scale-95 px-6">
-                            <Plus className="w-4 h-4 mr-2" />
+                        <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all hover:scale-105 active:scale-95 px-6 mr-4">
+                            <Plus className="w-4 h-4 " />
                             Purchase Entry
                         </Button>
                     </DialogTrigger>

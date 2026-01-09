@@ -15,7 +15,9 @@ import {
   Beaker,
   Factory,
   ShoppingCart,
-  Settings
+  Settings,
+  Menu,
+  X
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useUserRole } from "@/hooks/useUserRole"
@@ -46,33 +48,20 @@ const navigation: NavigationItem[] = [
   { name: 'Users', href: '/admin/users', icon: Users },
 ]
 
-export function Sidebar() {
-  const pathname = usePathname();
-  const [openMenus, setOpenMenus] = useState<string[]>(['Feed Mill']);
-  const { role, loading, isAdmin } = useUserRole();
-  const router = useRouter();
+interface SidebarContentProps {
+  pathname: string;
+  openMenus: string[];
+  toggleMenu: (name: string) => void;
+  handleSignOut: () => Promise<void>;
+  isAdmin: boolean;
+  role: string | null;
+  onLinkClick?: () => void;
+}
 
-  const toggleMenu = (name: string) => {
-    setOpenMenus(prev =>
-      prev.includes(name) ? prev.filter(i => i !== name) : [...prev, name]
-    )
-  }
-
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    router.replace("/login");
-  };
-
-  if (loading) return <div className="w-64 bg-[#0a0f0d] h-full shadow-xl"></div>;
-
+function SidebarContent({ pathname, openMenus, toggleMenu, handleSignOut, isAdmin, role, onLinkClick }: SidebarContentProps) {
   return (
-    <div className="flex h-full flex-col bg-[#0a0f0d] text-slate-300 w-64 shadow-2xl z-20 border-r border-white/5 custom-scrollbar">
-      <div className="flex h-20 items-center px-6 border-b border-white/5">
+    <div className="flex flex-col h-full bg-[#0a0f0d] text-slate-300 w-full">
+      <div className="flex h-20 items-center px-6 border-b border-white/5 shrink-0">
         <div className="flex flex-col">
           <span className="text-xl font-black text-white tracking-tighter">
             JIRELLA <span className="text-emerald-500">FARMS</span>
@@ -110,6 +99,7 @@ export function Sidebar() {
               ) : (
                 <Link
                   href={item.href}
+                  onClick={onLinkClick}
                   className={cn(
                     "group flex items-center px-3 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200",
                     isActive
@@ -133,6 +123,7 @@ export function Sidebar() {
                       <Link
                         key={sub.name}
                         href={sub.href}
+                        onClick={onLinkClick}
                         className={cn(
                           "group flex items-center px-3 py-2 text-xs font-medium rounded-md transition-all",
                           isSubActive
@@ -152,7 +143,7 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="p-4 border-t border-white/5 space-y-4">
+      <div className="p-4 border-t border-white/5 space-y-4 shrink-0">
         <button
           onClick={handleSignOut}
           className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg text-slate-400 hover:bg-destructive/10 hover:text-destructive transition-all group"
@@ -170,5 +161,92 @@ export function Sidebar() {
         </div>
       </div>
     </div>
+  );
+}
+
+export function Sidebar() {
+  const pathname = usePathname();
+  const [openMenus, setOpenMenus] = useState<string[]>(['Feed Mill']);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const { role, loading, isAdmin } = useUserRole();
+  const router = useRouter();
+
+  const toggleMenu = (name: string) => {
+    setOpenMenus(prev =>
+      prev.includes(name) ? prev.filter(i => i !== name) : [...prev, name]
+    )
+  }
+
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.replace("/login");
+  };
+
+  if (loading) return (
+    <>
+      <div className="hidden md:block w-64 bg-[#0a0f0d] h-full shadow-xl"></div>
+      <div className="md:hidden h-14 bg-[#0a0f0d]"></div>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile Toggle */}
+      <div className="md:hidden fixed top-4 left-4 z-50">
+        <button
+          onClick={() => setIsMobileOpen(true)}
+          className="bg-[#0a0f0d] text-white p-2 rounded-lg shadow-lg border border-white/10"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+      </div>
+
+      {/* Mobile Drawer Overlay */}
+      {isMobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+            onClick={() => setIsMobileOpen(false)}
+          />
+
+          {/* Drawer */}
+          <div className="absolute left-0 top-0 bottom-0 w-64 bg-[#0a0f0d] shadow-2xl animate-in slide-in-from-left duration-300">
+            <button
+              onClick={() => setIsMobileOpen(false)}
+              className="absolute top-6 right-4 text-slate-400 hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <SidebarContent
+              pathname={pathname}
+              openMenus={openMenus}
+              toggleMenu={toggleMenu}
+              handleSignOut={handleSignOut}
+              isAdmin={isAdmin}
+              role={role}
+              onLinkClick={() => setIsMobileOpen(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Desktop Sidebar */}
+      <div className="hidden md:flex h-full w-64 shrink-0 shadow-2xl z-20 border-r border-white/5 bg-[#0a0f0d]">
+        <SidebarContent
+          pathname={pathname}
+          openMenus={openMenus}
+          toggleMenu={toggleMenu}
+          handleSignOut={handleSignOut}
+          isAdmin={isAdmin}
+          role={role}
+        />
+      </div>
+    </>
   )
 }
