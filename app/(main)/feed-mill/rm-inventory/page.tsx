@@ -8,7 +8,7 @@ export default function InventoryPage() {
      Inventory <span className="text-emerald-600">Ledger</span>
     </h1>
     <p className="text-slate-500 text-sm font-medium">
-     Monitor raw material stock levels, incoming purchases, and production usage.
+     Monitor raw material stock levels, incoming purchases, and production usage/outflow.
     </p>
    </div>
 
