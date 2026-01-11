@@ -17,35 +17,44 @@ import {
   ShoppingCart,
   Settings,
   Menu,
-  X
+  X,
+  Truck, // New icon
+  LayoutGrid, // New icon
+  FlaskConical, // New icon
+  Egg // New icon
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useUserRole } from "@/hooks/useUserRole"
 import { useRouter } from "next/navigation"
 import { createBrowserClient } from "@supabase/ssr"
+import { NAV_CONFIG, TabName } from "@/config/roles" // New import
+import { UserRole } from "@/types"
 
-type NavigationItem = {
-  name: string
-  href: string
-  icon: any
-  subItems?: { name: string; href: string; icon: any }[]
+interface NavigationItem { // Changed from type to interface
+  name: TabName; // Updated type
+  href: string;
+  icon: any;
+  subItems?: { name: string; href: string; icon: any }[];
 }
 
 const navigation: NavigationItem[] = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutGrid }, // Icon changed
   {
     name: 'Feed Mill',
-    href: '#',
-    icon: Factory, // Changed to Factory for better context
+    href: '/feed-mill', // href changed
+    icon: Factory,
     subItems: [
       { name: 'Inventory', href: '/feed-mill/rm-inventory', icon: Package },
-      { name: 'Recipes Master', href: '/feed-mill/recipe-master', icon: Beaker },
+      { name: 'Recipes', href: '/feed-mill/recipe-master', icon: FlaskConical }, // Name and icon changed
       { name: 'Production', href: '/feed-mill/production', icon: Factory },
       { name: 'Sales', href: '/feed-mill/sales', icon: ShoppingCart },
     ]
   },
-  { name: 'Poultry', href: '/poultry', icon: Home },
+  { name: 'Poultry', href: '/poultry', icon: Egg }, // Icon changed
+  { name: 'Store', href: '/store', icon: Package }, // New item
+  { name: 'Procurement', href: '/procurement', icon: Truck }, // New item
   { name: 'Users', href: '/admin/users', icon: Users },
+  { name: 'Reports', href: '/reports', icon: Beaker }, // New item
 ]
 
 interface SidebarContentProps {
@@ -54,7 +63,7 @@ interface SidebarContentProps {
   toggleMenu: (name: string) => void;
   handleSignOut: () => Promise<void>;
   isAdmin: boolean;
-  role: string | null;
+  role: UserRole | null;
   onLinkClick?: () => void;
 }
 
@@ -74,7 +83,11 @@ function SidebarContent({ pathname, openMenus, toggleMenu, handleSignOut, isAdmi
 
       <nav className="flex-1 space-y-1.5 px-3 py-6 overflow-y-auto custom-scrollbar">
         {navigation.map((item) => {
-          if (item.name === 'Users' && !isAdmin) return null;
+          // Check if user has access to this top-level tab
+          if (role && !NAV_CONFIG[role]?.includes(item.name)) return null;
+
+          // Special case logic for specific items can remain if needed, but NAV_CONFIG is primary source
+          if (item.name === 'Users' && !isAdmin && role !== 'ID_CREATOR') return null;
 
           const isActive = pathname === item.href;
           const isOpen = openMenus.includes(item.name);
@@ -117,6 +130,8 @@ function SidebarContent({ pathname, openMenus, toggleMenu, handleSignOut, isAdmi
                   {item.subItems!.map((sub) => {
                     // Hide Recipes for non-admins
                     if (sub.name === 'Recipes' && !isAdmin) return null;
+                    // Logic to hide Sales if not accountant/admin? 
+                    // For now, let's keep sub-items visible if parent is visible, or add sub-item config.
 
                     const isSubActive = pathname === sub.href;
                     return (

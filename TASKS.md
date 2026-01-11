@@ -1,253 +1,289 @@
-# TASKS.md
-Farm Management & Proceeds Calculation System
+Yes — this is 100% feasible, and importantly: it’s not over-engineering.
+What your boss is asking for is a proper role-based, workflow-driven system, which fits perfectly with the SaaS direction you’re already thinking about.
 
-This file tracks development tasks and progress for the project.
+Below is a clean, AI-agent-friendly README you can drop into your project.
+It’s written so an AI (or another dev) can clearly understand what to build, why, and how the pieces connect.
 
-## ROADMAP (START → MVP)
+📦 Role-Based Operations System – README
+Overview
 
-### DAY 0 — PREPARATION
-- Confirm requirements with boss
-- Collect Excel sheets
-- Extract formulas
-- Lock MVP scope
+This update introduces role-based access control, departmental workflows, and activity logging across the application.
+The goal is to align the software with real operational processes across Feed Mill, Poultry, Store, and Procurement units.
 
----
+The system will ensure:
 
-### DAYS 1–2 — PROJECT SETUP (done)
-- Create Next.js app
-- Setup Tailwind & shadcn/ui
-- Setup Prisma & PostgreSQL
-- Create repo structure
-- Setup environment variables
+Users only see tabs relevant to their role
 
----
+Requests follow a clear approval flow
 
-### DAYS 3–4 — AUTH & ROLES (done)
-- Implement superbase auth (credentials)
-- Create User model with role
-- Build login page
-- Protect routes with middleware
-- Seed admin user
+Inventory-related actions are traceable
 
----
+Admin has full control over users and roles
 
-### DAYS 5–6 — DASHBOARD & NAVIGATION (done)
-- Dashboard layout
-- Sidebar navigation
-- Role-based menu visibility
-- Empty pages for all tabs
+1️⃣ User Roles & Access Control
+Roles
 
----
+The system supports the following roles:
 
-### DAYS 7–9 — AG GRID FOUNDATION (done)
-- Install AG Grid
-- Build first editable grid (Recipe Master)
-- Inline editing
-- Auto-calculated columns
-- Save data to backend
+Admin
 
-Build ONE grid perfectly before cloning.
+Feed Mill Staff
 
----
+Poultry Staff
 
-### DAYS 10–12 — FEED MILL MODULE
-- Ingredients CRUD
-- Recipe Master (grid)
-- Production batches
-- Batch cost calculation
-
----
-
-### DAYS 13–14 — POULTRY MODULE
-- Flocks
-- Daily records (grid)
-- Mortality tracking
-- Simple aggregations
+Accountant
 
----
+Procurement Manager
 
-### DAYS 15–16 — REPORTS & DASHBOARD
-- Daily summary
-- Weekly / monthly totals
-- Role-based visibility
+Store Keeper
 
----
-
-### DAYS 17–18 — POLISHING
-- Validation
-- Error handling
-- Loading states
-- Access control checks
-- Test with real data
+Role-to-Tab Mapping
+Role	Accessible Tabs
+Admin	All tabs
+Feed Mill Staff	Feed Mill
+Poultry Staff	Poultry
+Accountant	Feed Mill, Poultry, Sales, Reports
+Store Keeper	Store
+Procurement Manager	Procurement
 
----
+Tabs not assigned to a user’s role must be hidden from the sidebar and blocked at route level.
 
-### DAYS 19–20 — DEPLOYMENT
-- Deploy to Vercel
-- Setup production database
-- Run migrations
-- Demo MVP to boss
-
-Note:
-Feed Mill module is the most complex part of the system.
-Expect more iteration here than other modules.
-Do not rush this section.
-
-
----
-
-## 🟢 PHASE 0 — REQUIREMENTS & PREPARATION (completed)
-
-- [ ] Meet with boss to confirm:
-  - [ ] Farm type(s) (poultry, fishery, crop, mixed)
-  - [ ] Required user roles
-  - [ ] Fixed vs changing formulas
-- [ ] Collect existing Excel sheets
-- [ ] Extract all formulas from Excel
-- [ ] Define MVP scope clearly
-
-
----
-
-## 🟢 PHASE 1 — PROJECT SETUP & AUTHENTICATION (completed)
-
-### Project Setup
-- [ ] Initialize Next.js project (App Router)
-- [ ] Setup Git repository
-- [ ] Configure environment variables
-- [ ] Install core dependencies
-
-### UI & Styling
-- [ ] Install Tailwind CSS
-- [ ] Setup shadcn/ui
-- [ ] Create base layout (dashboard shell)
-
-### Database
-- [ ] Setup Superbase database
-- [ ] Create User model
-- [ ] Run first migration
-
-### Authentication
-- [ ] Install superbase (Auth.js)
-- [ ] Setup credentials-based login
-- [ ] Hash passwords securely
-- [ ] Add role field to user model
-- [ ] Protect routes with middleware
-
----
-
-## 🟢 PHASE 2 — CORE DATA MODELS & CRUD
-
-### Database Models
-- [ ] Feed records model
-- [ ] Expenses model
-- [ ] Sales model
-- [ ] Livestock model (basic)
-- [ ] Migrate database changes
-
-### API Routes
-- [ ] Create feed CRUD endpoints
-- [ ] Create expense CRUD endpoints
-- [ ] Create sales CRUD endpoints
-- [ ] Create livestock CRUD endpoints
-- [ ] Add server-side validation
-
-### UI Forms
-- [ ] Feed entry form
-- [ ] Expense entry form
-- [ ] Sales entry form
-- [ ] Livestock entry form
-- [ ] Edit & delete actions
-
----
-
-## 🟢 PHASE 3 — BUSINESS LOGIC & CALCULATIONS
-
-### Formula Implementation
-- [ ] Translate Excel formulas to JS
-- [ ] Implement feed cost calculation
-- [ ] Implement total expenses calculation
-- [ ] Implement revenue calculation
-- [ ] Implement profit/proceeds calculation
-
-### Validation
-- [ ] Validate calculations against Excel
-- [ ] Handle zero/empty data cases
-- [ ] Prevent client-side manipulation
-
----
-
-## 🟢 PHASE 4 — REPORTS & DASHBOARDS
-
-### Aggregation Logic
-- [ ] Daily summaries
-- [ ] Weekly summaries
-- [ ] Monthly summaries
-- [ ] Server-side aggregation queries
-
-### Dashboard UI
-- [ ] Admin dashboard
-- [ ] Manager dashboard
-- [ ] Staff dashboard
-- [ ] Role-based data visibility
-
-### Charts & Tables
-- [ ] Revenue charts
-- [ ] Expense breakdown charts
-- [ ] Profit trend charts
-- [ ] Summary tables
-
----
-
-## 🟢 PHASE 5 — POLISHING & TESTING
-
-### UX Improvements
-- [ ] Loading states
-- [ ] Empty states
-- [ ] Error messages
-- [ ] Confirmation dialogs
-
-### Security & Stability
-- [ ] Role-based API protection
-- [ ] Input sanitization
-- [ ] Server-side checks
-- [ ] Test with real farm data
-
----
-
-## 🟢 PHASE 6 — DEPLOYMENT & HANDOVER
-
-### Deployment
-- [ ] Setup production database
-- [ ] Deploy app to Vercel
-- [ ] Configure environment variables
-- [ ] Run production migrations
-
-### Handover
-- [ ] Seed admin account
-- [ ] Write basic usage notes
-- [ ] Demo system to boss
-- [ ] Collect feedback
-- [ ] Plan next iteration
-
----
-
-## 🔮 FUTURE / OPTIONAL TASKS
-
-- [ ] Configurable formulas stored in DB
-- [ ] Excel export
-- [ ] Audit logs
-- [ ] Inventory alerts
-- [ ] Multi-farm support
-- [ ] Notifications
-- [ ] Mobile-first optimization
-
----
-
-## ✅ STATUS
-- Start Date: __________
-- Target MVP Completion: __________
-- Current Phase: __________
+Admin Capabilities
 
+Create users
 
+Assign one or more roles
 
+Activate / deactivate users
+
+View system activity logs
+
+2️⃣ Sidebar & Navigation Rules
+
+Sidebar tabs are rendered based on the logged-in user’s role
+
+Each role sees only what they are permitted to access
+
+Routes are protected both:
+
+UI-level (hidden tabs)
+
+Backend-level (authorization checks)
+
+3️⃣ Store & Procurement Workflow
+
+Two new tabs are introduced:
+
+🏬 Store Tab (Store Keeper)
+
+The Store Keeper:
+
+Views current inventory levels
+
+Creates Store Requests when items are needed
+
+Store Request Fields
+
+Item
+
+Quantity
+
+Purpose / notes
+
+Status (auto-set to pending)
+
+Requested by
+
+Timestamp
+
+Store Request Status
+
+pending → awaiting procurement
+
+received → items delivered and confirmed
+
+Store Keeper cannot approve requests, only create and confirm receipt.
+
+🛒 Procurement Tab (Procurement Manager)
+
+Procurement Manager:
+
+Views all store requests
+
+Approves or rejects requests
+
+Procurement Status Flow
+
+pending → newly submitted by store
+
+approved → procurement authorized
+
+Upon approval:
+
+Procurement proceeds externally
+
+Once items arrive, Store Keeper marks the request as received
+
+Inventory stock is updated
+
+Workflow Summary
+Store Keeper
+  → Creates Request (pending)
+     → Procurement Manager
+        → Approves Request (approved)
+           → Items Delivered
+              → Store Keeper Marks as Received
+                 → Inventory Updated
+
+4️⃣ Inventory Impact Rules
+
+Inventory is not updated at approval
+
+Inventory is updated only when Store Keeper marks items as received
+
+This prevents false stock inflation
+
+5️⃣ Activity Logging (Audit Trail)
+
+The system maintains a User Activity Log.
+
+Logged Actions Include:
+
+User login
+
+User creation
+
+Role assignment
+
+Store request creation
+
+Request approval
+
+Production execution
+
+Inventory updates
+
+Sales recording
+
+Log Fields
+
+User ID
+
+User role
+
+Action type
+
+Resource affected
+
+Timestamp
+
+Optional metadata (e.g. quantities, item IDs)
+
+This log is:
+
+Viewable by Admin
+
+Read-only
+
+Useful for audits and accountability
+
+6️⃣ Authorization Rules (Backend)
+
+All sensitive actions must be protected by role checks:
+
+Examples:
+
+Only Admin → create users
+
+Only Store Keeper → create store requests
+
+Only Procurement Manager → approve procurement
+
+Only Feed Mill Staff → execute production
+
+Unauthorized access must return:
+
+403 Forbidden
+
+7️⃣ Data Models (Conceptual)
+User
+
+id
+
+name
+
+email
+
+roles[]
+
+status
+
+createdAt
+
+StoreRequest
+
+id
+
+itemId
+
+quantity
+
+status
+
+requestedBy
+
+approvedBy
+
+receivedBy
+
+timestamps
+
+ActivityLog
+
+id
+
+userId
+
+action
+
+entityType
+
+entityId
+
+metadata
+
+timestamp
+
+8️⃣ Design Principles
+
+Role-first UI rendering
+
+Explicit workflow states
+
+No silent inventory changes
+
+Every critical action is traceable
+
+Simple, real-world-aligned processes
+
+9️⃣ Non-Goals (Out of Scope for Now)
+
+Complex RBAC permissions matrix
+
+Multi-company support
+
+Financial accounting automation
+
+Supplier management (future feature)
+
+✅ Summary
+
+This system transforms the app from:
+
+“a collection of tabs”
+
+into:
+
+a real operational platform that mirrors how the business works
+
+It is scalable, auditable, and suitable for future SaaS growth.

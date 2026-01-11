@@ -43,5 +43,5 @@ next-env.d.ts
 /lib/generated/prisma
 
 README.md
-TASKS.md
+# TASKS.md
 SYSTEM_DESIGN.md

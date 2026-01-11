@@ -1,13 +1,44 @@
 
-export type UserRole = 'ADMIN' | 'MANAGER' | 'STAFF';
+
+export type UserRole = 'ADMIN' | 'MANAGER' | 'ID_CREATOR' | 'FEED_MILL_STAFF' | 'POULTRY_STAFF' | 'ACCOUNTANT' | 'PROCUREMENT_MANAGER' | 'STORE_KEEPER' | 'STAFF';
 export type UnitOfMeasure = 'KG' | 'TON' | 'LITER' | 'BAG';
 export type TransactionType = 'PURCHASE' | 'USAGE' | 'ADJUSTMENT' | 'RETURN';
+export type StoreRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'RECEIVED';
 
 export interface UserProfile {
  id: string;
  email: string;
  role: UserRole;
  createdAt: string;
+}
+
+export interface StoreRequest {
+ id: string;
+ itemId: string;
+ itemName: string;
+ quantity: number;
+ unit: string;
+ purpose: string | null;
+ status: StoreRequestStatus;
+ requestedBy: string; // User ID
+ approvedBy?: string; // User ID
+ createdAt: string;
+ updatedAt: string;
+ // Relations (optional based on fetch)
+ requester?: UserProfile;
+ approver?: UserProfile;
+}
+
+export interface ActivityLog {
+ id: string;
+ userId: string;
+ action: string;
+ entityType: string;
+ entityId?: string;
+ metadata?: any;
+ timestamp: string;
+ // Relation
+ user?: UserProfile;
 }
 
 export interface Ingredient {
