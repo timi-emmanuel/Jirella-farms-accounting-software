@@ -41,11 +41,11 @@ export default async function RecipeMasterPage() {
     <h1 className="text-2xl font-bold tracking-tight">Recipe Master</h1>
     <p className="text-sm text-gray-600 flex items-center">
      <span><Info className="w-4 h-4 mr-1" /></span>
-     <span>Double click on a recipe to edit it</span>
+     <span>Use the Formula link to edit ingredients</span>
     </p>
     
    </div>
-   <p className="text-sm text-gray-600">Click on the "Formula" column to edit the ingredients</p>
+   <p className="text-sm text-gray-600">This screen is for editing formulas and deleting recipes.</p>
 
    <div className="flex-1 overflow-hidden">
     <RecipeGrid />

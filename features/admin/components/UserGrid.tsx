@@ -5,7 +5,8 @@ import { AgGridReact } from 'ag-grid-react';
 import "ag-grid-community/styles/ag-theme-quartz.css";
 import {
  ColDef,
- ModuleRegistry,
+ ModuleRegistry,  
+ CellStyleModule, 
  ClientSideRowModelModule,
  ValidationModule,
  RowSelectionModule,
@@ -17,7 +18,7 @@ import {
  CustomFilterModule,
  themeQuartz
 } from 'ag-grid-community';
-import { Loader2, Plus, UserPlus } from 'lucide-react';
+import { Loader2, Plus, UserPlus, Trash2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { UserProfile, UserRole } from '@/types';
 import {
@@ -37,10 +38,22 @@ import {
  SelectTrigger,
  SelectValue,
 } from "@/components/ui/select"
+import {
+ AlertDialog,
+ AlertDialogAction,
+ AlertDialogCancel,
+ AlertDialogContent,
+ AlertDialogDescription,
+ AlertDialogFooter,
+ AlertDialogHeader,
+ AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ROLES } from '@/config/roles';
+import { logActivity } from '@/lib/logger';
 
 // Register modules
 ModuleRegistry.registerModules([
+ CellStyleModule,
  ClientSideRowModelModule,
  ValidationModule,
  RowSelectionModule,
@@ -57,6 +70,9 @@ export function UserGrid() {
  const [loading, setLoading] = useState(true);
  const [showNewUser, setShowNewUser] = useState(false);
  const [submitting, setSubmitting] = useState(false);
+ const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+ const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
+ const [isDeleting, setIsDeleting] = useState(false);
 
  // New User State
  const [newUser, setNewUser] = useState({
@@ -72,15 +88,15 @@ export function UserGrid() {
    headerName: "Email",
    flex: 1.5,
    minWidth: 200,
-   filter: true
+   filter: false,
   },
   {
    field: "role",
    headerName: "Role",
    flex: 1,
-   filter: true,
+   filter: false,
    cellRenderer: (params: any) => (
-    <span className="px-2 py-1 bg-slate-100 rounded-full text-xs font-bold text-slate-700">
+    <span className="px-2 py-1 bg-slate-200 rounded-full text-xs font-bold text-slate-700">
      {params.value}
     </span>
    )
@@ -91,6 +107,24 @@ export function UserGrid() {
    flex: 1,
    valueFormatter: (p: any) => new Date(p.value).toLocaleDateString() + ' ' + new Date(p.value).toLocaleTimeString(),
    sort: 'desc'
+  },
+  {
+   headerName: "Actions",
+   width: 100,
+   cellRenderer: (params: any) => (
+    <div className="flex justify-center h-full items-center">
+     <button
+      onClick={() => {
+       setUserToDelete(params.data);
+       setDeleteDialogOpen(true);
+      }}
+      className="p-2 text-slate-400 hover:text-red-600 transition-colors rounded-full hover:bg-red-50"
+      title="Delete User"
+     >
+      <Trash2 className="w-4 h-4" />
+     </button>
+    </div>
+   )
   }
  ], []);
 
@@ -129,6 +163,7 @@ export function UserGrid() {
    }
 
    alert("User created successfully!");
+   await logActivity('USER_CREATED', 'User', data.id || 'NEW', `Admin created user: ${newUser.email}`, { email: newUser.email, role: newUser.role });
    setShowNewUser(false);
    setNewUser({ email: '', password: '', name: '', role: '' });
    loadData();
@@ -136,6 +171,33 @@ export function UserGrid() {
    alert(error.message);
   } finally {
    setSubmitting(false);
+  }
+ };
+
+ const handleDeleteUser = async () => {
+  if (!userToDelete) return;
+  setIsDeleting(true);
+
+  try {
+   const res = await fetch(`/api/admin/users?userId=${userToDelete.id}`, {
+    method: 'DELETE',
+   });
+
+   const data = await res.json();
+
+   if (!res.ok) {
+    throw new Error(data.error || 'Failed to delete user');
+   }
+
+   alert("User deleted successfully");
+   await logActivity('USER_DELETED', 'User', userToDelete.id, `Admin deleted user: ${userToDelete.email}`, { email: userToDelete.email, role: userToDelete.role });
+   setDeleteDialogOpen(false);
+   setUserToDelete(null);
+   loadData();
+  } catch (error: any) {
+   alert(error.message);
+  } finally {
+   setIsDeleting(false);
   }
  };
 
@@ -159,7 +221,7 @@ export function UserGrid() {
        Create New User
       </Button>
      </DialogTrigger>
-     <DialogContent className="sm:max-w-[425px]">
+     <DialogContent className="sm:max-w-106.25">
       <DialogHeader>
        <DialogTitle>Create New User</DialogTitle>
       </DialogHeader>
@@ -239,6 +301,34 @@ export function UserGrid() {
      theme={themeQuartz}
     />
    </div>
+
+   <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+    <AlertDialogContent>
+     <AlertDialogHeader>
+      <AlertDialogTitle className="flex items-center text-red-600">
+       <AlertTriangle className="w-5 h-5 mr-2" />
+       Delete User?
+      </AlertDialogTitle>
+      <AlertDialogDescription>
+       Are you sure you want to delete <span className="font-bold text-slate-900">{userToDelete?.email}</span>?
+       This action cannot be undone.
+      </AlertDialogDescription>
+     </AlertDialogHeader>
+     <AlertDialogFooter>
+      <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+      <AlertDialogAction
+       onClick={(e) => {
+        e.preventDefault();
+        handleDeleteUser();
+       }}
+       disabled={isDeleting}
+       className="bg-red-600 hover:bg-red-700 text-white"
+      >
+       {isDeleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Delete User"}
+      </AlertDialogAction>
+     </AlertDialogFooter>
+    </AlertDialogContent>
+   </AlertDialog>
   </div>
  );
 }

@@ -1,289 +1,195 @@
-Yes — this is 100% feasible, and importantly: it’s not over-engineering.
-What your boss is asking for is a proper role-based, workflow-driven system, which fits perfectly with the SaaS direction you’re already thinking about.
+# Inventory Flow Decision — Single Store vs Multi-Location Stock (FeedMill/Poultry + Store + Procurement)
 
-Below is a clean, AI-agent-friendly README you can drop into your project.
-It’s written so an AI (or another dev) can clearly understand what to build, why, and how the pieces connect.
+This document explains two valid inventory models and recommends when to use each.
 
-📦 Role-Based Operations System – README
-Overview
+---
 
-This update introduces role-based access control, departmental workflows, and activity logging across the application.
-The goal is to align the software with real operational processes across Feed Mill, Poultry, Store, and Procurement units.
+## 1) The Two Real-World Models
 
-The system will ensure:
+### Model A: Single Source of Truth (Store-Only Stock)
+- All physical stock is owned by **Store**
+- Feed Mill and Poultry do NOT hold separate stock in the system
+- Modules request items from store OR production deducts from store directly
+- "Module inventory tab" is a filtered view of store stock
 
-Users only see tabs relevant to their role
-
-Requests follow a clear approval flow
-
-Inventory-related actions are traceable
-
-Admin has full control over users and roles
-
-1️⃣ User Roles & Access Control
-Roles
-
-The system supports the following roles:
-
-Admin
-
-Feed Mill Staff
-
-Poultry Staff
-
-Accountant
-
-Procurement Manager
-
-Store Keeper
-
-Role-to-Tab Mapping
-Role	Accessible Tabs
-Admin	All tabs
-Feed Mill Staff	Feed Mill
-Poultry Staff	Poultry
-Accountant	Feed Mill, Poultry, Sales, Reports
-Store Keeper	Store
-Procurement Manager	Procurement
-
-Tabs not assigned to a user’s role must be hidden from the sidebar and blocked at route level.
-
-Admin Capabilities
-
-Create users
-
-Assign one or more roles
-
-Activate / deactivate users
-
-View system activity logs
-
-2️⃣ Sidebar & Navigation Rules
-
-Sidebar tabs are rendered based on the logged-in user’s role
-
-Each role sees only what they are permitted to access
-
-Routes are protected both:
-
-UI-level (hidden tabs)
-
-Backend-level (authorization checks)
-
-3️⃣ Store & Procurement Workflow
-
-Two new tabs are introduced:
-
-🏬 Store Tab (Store Keeper)
-
-The Store Keeper:
-
-Views current inventory levels
-
-Creates Store Requests when items are needed
-
-Store Request Fields
-
-Item
-
-Quantity
-
-Purpose / notes
-
-Status (auto-set to pending)
-
-Requested by
-
-Timestamp
-
-Store Request Status
-
-pending → awaiting procurement
-
-received → items delivered and confirmed
-
-Store Keeper cannot approve requests, only create and confirm receipt.
-
-🛒 Procurement Tab (Procurement Manager)
-
-Procurement Manager:
-
-Views all store requests
-
-Approves or rejects requests
-
-Procurement Status Flow
-
-pending → newly submitted by store
-
-approved → procurement authorized
-
-Upon approval:
-
-Procurement proceeds externally
-
-Once items arrive, Store Keeper marks the request as received
-
-Inventory stock is updated
-
-Workflow Summary
-Store Keeper
-  → Creates Request (pending)
-     → Procurement Manager
-        → Approves Request (approved)
-           → Items Delivered
-              → Store Keeper Marks as Received
-                 → Inventory Updated
-
-4️⃣ Inventory Impact Rules
-
-Inventory is not updated at approval
-
-Inventory is updated only when Store Keeper marks items as received
-
-This prevents false stock inflation
-
-5️⃣ Activity Logging (Audit Trail)
-
-The system maintains a User Activity Log.
-
-Logged Actions Include:
-
-User login
-
-User creation
-
-Role assignment
-
-Store request creation
-
-Request approval
-
-Production execution
-
-Inventory updates
-
-Sales recording
-
-Log Fields
-
-User ID
-
-User role
-
-Action type
-
-Resource affected
-
-Timestamp
-
-Optional metadata (e.g. quantities, item IDs)
-
-This log is:
-
-Viewable by Admin
-
-Read-only
-
-Useful for audits and accountability
-
-6️⃣ Authorization Rules (Backend)
-
-All sensitive actions must be protected by role checks:
-
-Examples:
-
-Only Admin → create users
-
-Only Store Keeper → create store requests
-
-Only Procurement Manager → approve procurement
-
-Only Feed Mill Staff → execute production
-
-Unauthorized access must return:
-
-403 Forbidden
-
-7️⃣ Data Models (Conceptual)
-User
-
-id
-
-name
-
-email
-
-roles[]
-
-status
-
-createdAt
-
-StoreRequest
-
-id
-
-itemId
-
-quantity
-
-status
-
-requestedBy
-
-approvedBy
-
-receivedBy
-
-timestamps
-
-ActivityLog
-
-id
-
-userId
-
-action
-
-entityType
-
-entityId
-
-metadata
-
-timestamp
-
-8️⃣ Design Principles
-
-Role-first UI rendering
-
-Explicit workflow states
-
-No silent inventory changes
-
-Every critical action is traceable
-
-Simple, real-world-aligned processes
-
-9️⃣ Non-Goals (Out of Scope for Now)
-
-Complex RBAC permissions matrix
-
-Multi-company support
-
-Financial accounting automation
-
-Supplier management (future feature)
-
-✅ Summary
-
-This system transforms the app from:
-
-“a collection of tabs”
-
-into:
-
-a real operational platform that mirrors how the business works
-
-It is scalable, auditable, and suitable for future SaaS growth.
+✅ Pros:
+- Simple to build
+- Fewer bugs / mismatches
+- Easier audits
+- Faster MVP
+
+❌ Cons:
+- Not accurate if departments physically keep their own sub-stores
+- Hard to answer: “What is inside Feed Mill store-room vs main store?”
+
+---
+
+### Model B: Multi-Location Inventory (Recommended for realism)
+- Stock exists in multiple “locations”:
+  - STORE (Main warehouse)
+  - FEED_MILL (Feed mill store-room)
+  - POULTRY (Poultry store-room)
+- Each location has its own balance
+- Stock moves via **Transfers**
+
+Example:
+- Maize in FEED_MILL = 1kg
+- Maize in STORE = 5kg
+- Total farm maize = 6kg
+
+✅ Pros:
+- Matches real operations
+- Lets modules work independently until depleted
+- Accurate tracking of where stock physically is
+- Better accountability (“who transferred/received?”)
+
+❌ Cons:
+- More complex than Model A
+- Requires transfer flows, approvals, and reconciliation
+- Needs stronger logging + transaction safety
+
+---
+
+## 2) Is Your Maize Example Correct?
+YES ✅
+
+In Model B:
+- Store inventory is NOT the same as Feed Mill inventory
+- They are separate balances by location
+- Total farm stock is the sum across locations
+
+That is correct and realistic.
+
+---
+
+## 3) Recommended Best Approach (Practical)
+### Start with Model A for MVP, then upgrade to Model B only if needed.
+
+However, if your boss explicitly expects:
+- “Store sends items to feed mill”
+- “Feed mill has its own stock”
+- “Poultry also has its own stock”
+Then you should implement Model B now.
+
+---
+
+## 4) If we choose Model B (Multi-Location), here is the correct flow
+
+### A) Procurement → Store (receiving into the farm)
+1. Procurement approves purchase
+2. Store Keeper receives goods into STORE location
+3. STORE stock increases
+
+### B) Store → Module (transfer to Feed Mill / Poultry)
+1. Module raises request
+2. Store transfers stock to FEED_MILL (or POULTRY)
+3. STORE stock decreases
+4. FEED_MILL stock increases
+
+### C) Module usage (production consumes module stock)
+1. Feed Mill produces feed
+2. Ingredients are deducted from FEED_MILL location stock
+3. Finished goods increase (in finished goods location or feed mill output)
+
+Escalation rule:
+- If STORE cannot fulfill transfer, STORE creates procurement request.
+
+---
+
+## 5) Data Model for Model B (Codex should build this)
+
+### Inventory Items (Master)
+`inventory_items`
+- id, name, unit, category, is_active, timestamps
+
+### Locations
+`inventory_locations`
+- id
+- name: `STORE`, `FEED_MILL`, `POULTRY`
+- is_active
+
+### Inventory Ledger (Truth)
+`inventory_ledger`
+- id
+- item_id
+- location_id
+- type: `RECEIPT` | `TRANSFER_IN` | `TRANSFER_OUT` | `USAGE` | `ADJUSTMENT`
+- quantity (positive)
+- direction: `IN` | `OUT`
+- unit_cost (for receipts)
+- reference_type + reference_id
+- created_by
+- created_at
+
+### Transfer Requests
+`transfer_requests`
+- id
+- from_location_id (STORE)
+- to_location_id (FEED_MILL or POULTRY)
+- status: `PENDING` | `APPROVED` | `REJECTED` | `COMPLETED`
+- requested_by
+- approved_by
+- completed_by
+- notes
+- timestamps
+
+`transfer_request_lines`
+- id
+- transfer_request_id
+- item_id
+- quantity_requested
+- quantity_transferred
+
+### Procurement Requests (only from STORE)
+`procurement_requests`
+- id
+- status: `PENDING` | `APPROVED` | `REJECTED` | `RECEIVED`
+- created_by (storekeeper)
+- approved_by (procurement)
+- received_by (storekeeper)
+- notes
+- timestamps
+
+`procurement_request_lines`
+- id
+- procurement_request_id
+- item_id
+- quantity_requested
+- quantity_received
+- unit_cost_at_receipt
+
+---
+
+## 6) UI Implications (What Codex should build)
+
+### Store pages
+- Store Inventory (location=STORE)
+- Transfer Requests (outgoing to modules)
+- Procurement Requests (escalations)
+
+### Feed Mill pages
+- Feed Mill Inventory (location=FEED_MILL)
+- Request transfer from STORE
+- Production consumes FEED_MILL stock
+
+### Poultry pages
+- Poultry Inventory (location=POULTRY)
+- Request transfer from STORE
+- Poultry usage consumes POULTRY stock
+
+---
+
+## 7) Integrity Rules (Non-Negotiable)
+- Stock changes must be transactional
+- Never allow negative stock in a location
+- Transfer completion creates:
+  - ledger OUT in STORE
+  - ledger IN in destination
+- Procurement receiving creates:
+  - ledger IN in STORE
+- Production usage creates:
+  - ledger OUT in module location
+
+---
+
+#

@@ -11,25 +11,36 @@ export function useUserRole() {
 
  useEffect(() => {
   const fetchRole = async () => {
-   const supabase = createClient();
+   try {
+    const supabase = createClient();
 
-   // 1. Get Auth User
-   const { data: { user } } = await supabase.auth.getUser();
+    // 1. Get Auth User
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-   if (user) {
-    // 2. Get Profile from public.users
-    const { data, error } = await supabase
-     .from('users')
-     .select('*')
-     .eq('id', user.id)
-     .single();
+    if (authError) throw authError;
 
-    if (data) {
-     setRole(data.role);
-     setProfile(data);
+    if (user) {
+     // 2. Get Profile from public.users
+     const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+     if (error && error.code !== 'PGRST116') { // Ignore "Row not found" if that's the case, but unexpected for logged in user
+      console.error("Error fetching user profile:", error);
+     }
+
+     if (data) {
+      setRole(data.role);
+      setProfile(data);
+     }
     }
+   } catch (error) {
+    console.error("useUserRole error:", error);
+   } finally {
+    setLoading(false);
    }
-   setLoading(false);
   };
 
   fetchRole();

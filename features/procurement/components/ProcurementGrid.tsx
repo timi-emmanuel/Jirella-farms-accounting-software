@@ -6,6 +6,7 @@ import "ag-grid-community/styles/ag-theme-quartz.css";
 import {
  ColDef,
  ModuleRegistry,
+ CellStyleModule,
  ClientSideRowModelModule,
  ValidationModule,
  RowSelectionModule,
@@ -17,13 +18,23 @@ import {
  CustomFilterModule,
  themeQuartz
 } from 'ag-grid-community';
-import { createClient } from '@/lib/supabase/client';
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
-import { StoreRequest } from '@/types';
 import { Button } from '@/components/ui/button';
+import {
+ AlertDialog,
+ AlertDialogAction,
+ AlertDialogCancel,
+ AlertDialogContent,
+ AlertDialogDescription,
+ AlertDialogFooter,
+ AlertDialogHeader,
+ AlertDialogTitle,
+ AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 // Register modules
 ModuleRegistry.registerModules([
+ CellStyleModule,
  ClientSideRowModelModule,
  ValidationModule,
  RowSelectionModule,
@@ -35,57 +46,74 @@ ModuleRegistry.registerModules([
  CustomFilterModule
 ]);
 
+type ProcurementLine = {
+ item?: { name?: string; unit?: string };
+ quantityRequested: number;
+};
+
+type ProcurementRequestRow = {
+ id: string;
+ status: string;
+ notes?: string | null;
+ createdAt: string;
+ lines?: ProcurementLine[];
+};
+
 export function ProcurementGrid() {
- const [rowData, setRowData] = useState<StoreRequest[]>([]);
+ const [rowData, setRowData] = useState<ProcurementRequestRow[]>([]);
  const [loading, setLoading] = useState(true);
  const [processingId, setProcessingId] = useState<string | null>(null);
 
- const handleAction = async (request: StoreRequest, action: 'APPROVED' | 'REJECTED') => {
-  setProcessingId(request.id);
-  const supabase = createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-
-  const { error } = await supabase
-   .from('StoreRequest')
-   .update({
-    status: action,
-    approvedBy: user?.id,
-    updatedAt: new Date().toISOString()
-   })
-   .eq('id', request.id);
-
-  if (error) {
-   alert(`Failed to ${action.toLowerCase()} request: ` + error.message);
+ const loadRequests = async () => {
+  setLoading(true);
+  const response = await fetch('/api/procurement/requests');
+  const payload = await response.json().catch(() => ({}));
+  if (response.ok) {
+   setRowData(payload.requests || []);
   } else {
-   // Remove from list if we only show PENDING, or update status if we show all
-   // For procurement worklist, usually pending is mostly relevant, but let's just update local state
-   setRowData(prev => prev.map(r => r.id === request.id ? { ...r, status: action } : r));
+   console.error('Failed to load procurement requests:', payload.error || response.statusText);
+  }
+  setLoading(false);
+ };
+
+ const handleAction = async (request: ProcurementRequestRow, action: 'APPROVED' | 'REJECTED') => {
+  setProcessingId(request.id);
+  const endpoint = action === 'APPROVED'
+   ? `/api/procurement/requests/${request.id}/approve`
+   : `/api/procurement/requests/${request.id}/reject`;
+
+  const response = await fetch(endpoint, { method: 'POST' });
+
+  if (!response.ok) {
+   const payload = await response.json().catch(() => ({}));
+   alert(`Failed to ${action.toLowerCase()} request: ` + (payload.error || response.statusText));
+  } else {
+   await loadRequests();
   }
   setProcessingId(null);
  };
 
- const colDefs = useMemo<ColDef<StoreRequest>[]>(() => [
+ const colDefs = useMemo<ColDef<ProcurementRequestRow>[]>(() => [
   {
-   field: "itemName",
    headerName: "Item Requested",
    flex: 1.5,
    minWidth: 150,
-   filter: true
+   filter: true,
+   valueGetter: (p: any) => p.data.lines?.[0]?.item?.name || 'Unknown'
   },
   {
-   field: "quantity",
    headerName: "Qty",
    width: 100,
-   type: 'numericColumn'
+   type: 'numericColumn',
+   valueGetter: (p: any) => p.data.lines?.[0]?.quantityRequested ?? 0
   },
   {
-   field: "unit",
    headerName: "Unit",
    width: 80,
+   valueGetter: (p: any) => p.data.lines?.[0]?.item?.unit || ''
   },
   {
-   field: "purpose",
+   field: "notes",
    headerName: "Purpose",
    flex: 2,
    minWidth: 200,
@@ -115,27 +143,56 @@ export function ProcurementGrid() {
    sortable: false,
    filter: false,
    cellRenderer: (params: any) => {
-    const request = params.data as StoreRequest;
+    const request = params.data as ProcurementRequestRow;
     if (request.status !== 'PENDING') return null;
 
     const isProcessing = processingId === request.id;
 
     return (
      <div className="flex items-center gap-2 h-full">
-      <Button
-       size="sm"
-       className="bg-emerald-600 hover:bg-emerald-700 h-8 px-2"
-       onClick={() => handleAction(request, 'APPROVED')}
-       disabled={isProcessing}
-      >
-       {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-1" />}
-       Approve
-      </Button>
+      <AlertDialog>
+       <AlertDialogTrigger asChild>
+        <Button
+         size="sm"
+         className="bg-emerald-600 hover:bg-emerald-700 h-8 px-2"
+         disabled={isProcessing}
+        >
+         {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-1" />}
+         Approve
+        </Button>
+       </AlertDialogTrigger>
+       <AlertDialogContent>
+        <AlertDialogHeader>
+         <AlertDialogTitle>Approve Request</AlertDialogTitle>
+         <AlertDialogDescription>
+          Are you sure you want to approve this request for <strong>{request.lines?.[0]?.quantityRequested} {request.lines?.[0]?.item?.unit} of {request.lines?.[0]?.item?.name}</strong>?
+          <br /><br />
+          <span className="text-amber-600 font-bold">Note: This will NOT update inventory stock yet.</span>
+          <br />
+          Stock will be updated only when the Store Keeper marks items as "Received".
+         </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+         <AlertDialogCancel>Cancel</AlertDialogCancel>
+         <AlertDialogAction
+          className="bg-emerald-600"
+          onClick={() => handleAction(request, 'APPROVED')}
+         >
+          Confirm Approval
+         </AlertDialogAction>
+        </AlertDialogFooter>
+       </AlertDialogContent>
+      </AlertDialog>
+
       <Button
        size="sm"
        variant="destructive"
        className="h-8 px-2"
-       onClick={() => handleAction(request, 'REJECTED')}
+       onClick={() => {
+        if (confirm("Reject this request?")) {
+         handleAction(request, 'REJECTED');
+        }
+       }}
        disabled={isProcessing}
       >
        <XCircle className="w-4 h-4 mr-1" />
@@ -148,18 +205,6 @@ export function ProcurementGrid() {
  ], [processingId]);
 
  useEffect(() => {
-  const loadRequests = async () => {
-   setLoading(true);
-   const supabase = createClient();
-   const { data, error } = await supabase
-    .from('StoreRequest')
-    .select('*')
-    // .eq('status', 'PENDING') // Optionally filter only pending
-    .order('createdAt', { ascending: false });
-
-   if (data) setRowData(data as any);
-   setLoading(false);
-  };
   loadRequests();
  }, []);
 

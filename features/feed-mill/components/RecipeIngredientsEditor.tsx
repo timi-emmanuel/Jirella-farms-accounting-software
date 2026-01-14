@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Loader2, Plus, Trash2, Save, Info } from "lucide-react";
 import { Ingredient } from "@/types";
-import { validateRecipePercentages, calculateBatchCost, calculateUnitCost } from "@/lib/calculations/recipe";
+import { validateRecipePercentages } from "@/lib/calculations/recipe";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,22 +24,19 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 
 interface EditorProps {
     recipeId: string;
-    targetBatchSize: number;
 }
 
 interface RowItem {
     id?: string;
     ingredientId: string;
     percentage: string; // Use string for input handling
-    ingredientName?: string;
-    unitPrice?: number;
 }
 
-export function RecipeIngredientsEditor({ recipeId, targetBatchSize }: EditorProps) {
+export function RecipeIngredientsEditor({ recipeId }: EditorProps) {
     const [rows, setRows] = useState<RowItem[]>([]);
     const [allIngredients, setAllIngredients] = useState<Ingredient[]>([]);
     const [loading, setLoading] = useState(true);
@@ -66,7 +63,7 @@ export function RecipeIngredientsEditor({ recipeId, targetBatchSize }: EditorPro
             .from('RecipeItem')
             .select(`
         *,
-        ingredient:Ingredient(name, unit, averageCost) 
+        ingredient:Ingredient(name, unit) 
       `)
             .eq('recipeId', recipeId);
 
@@ -79,9 +76,7 @@ export function RecipeIngredientsEditor({ recipeId, targetBatchSize }: EditorPro
             const formatted: RowItem[] = items.map((item: any) => ({
                 id: item.id,
                 ingredientId: item.ingredientId,
-                percentage: item.percentage.toString(),
-                ingredientName: item.ingredient.name,
-                unitPrice: item.ingredient.averageCost || 0
+                percentage: item.percentage.toString()
             }));
             setRows(formatted);
         }
@@ -90,7 +85,7 @@ export function RecipeIngredientsEditor({ recipeId, targetBatchSize }: EditorPro
     };
 
     const handleAddRow = () => {
-        setRows([...rows, { ingredientId: "", percentage: "0", unitPrice: 0 }]);
+        setRows([...rows, { ingredientId: "", percentage: "0" }]);
     };
 
     const handleRemoveRow = (index: number) => {
@@ -101,12 +96,6 @@ export function RecipeIngredientsEditor({ recipeId, targetBatchSize }: EditorPro
 
     const handleChange = (index: number, field: keyof RowItem, value: any) => {
         const newRows = [...rows];
-        if (field === 'ingredientId') {
-            const ing = allIngredients.find(i => i.id === value);
-            if (ing) {
-                newRows[index].unitPrice = ing.averageCost || 0;
-            }
-        }
         newRows[index] = { ...newRows[index], [field]: value };
         setRows(newRows);
     };
@@ -140,10 +129,7 @@ export function RecipeIngredientsEditor({ recipeId, targetBatchSize }: EditorPro
         setSaving(false);
     };
 
-    const calcItems = rows.map(r => ({ percentage: Number(r.percentage) || 0, averageCost: r.unitPrice || 0 }));
     const totalPercentage = rows.reduce((sum, r) => sum + (Number(r.percentage) || 0), 0);
-    const totalCost = calculateBatchCost(calcItems, targetBatchSize);
-    const costPerKg = calculateUnitCost(calcItems);
 
     if (loading) return (
         <div className="flex items-center justify-center p-20">
@@ -167,16 +153,11 @@ export function RecipeIngredientsEditor({ recipeId, targetBatchSize }: EditorPro
                         <TableRow>
                             <TableHead className="w-[300px] ">Ingredient</TableHead>
                             <TableHead className="text-right ">Inclusion %</TableHead>
-                            <TableHead className="text-right">Kg Required</TableHead>
-                            <TableHead className="text-right">Unit Cost</TableHead>
-                            <TableHead className="text-right">Total Cost</TableHead>
                             <TableHead className="w-[50px]"></TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {rows.map((row, idx) => {
-                            const weight = (Number(row.percentage) / 100) * targetBatchSize;
-                            const lineCost = weight * (row.unitPrice || 0);
                             return (
                                 <TableRow key={idx} className="group">
                                     <TableCell>
@@ -203,15 +184,6 @@ export function RecipeIngredientsEditor({ recipeId, targetBatchSize }: EditorPro
                                             step="0.01"
                                         />
                                     </TableCell>
-                                    <TableCell className="text-right font-mono text-slate-600">
-                                        {weight.toFixed(2)} kg
-                                    </TableCell>
-                                    <TableCell className="text-right font-mono text-slate-500 text-xs">
-                                        ₦{row.unitPrice?.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                    </TableCell>
-                                    <TableCell className="text-right font-mono font-semibold">
-                                        ₦{lineCost.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                    </TableCell>
                                     <TableCell>
                                         <Button
                                             variant="ghost"
@@ -236,15 +208,6 @@ export function RecipeIngredientsEditor({ recipeId, targetBatchSize }: EditorPro
                             <TableCell className={cn("text-right font-bold", isPercentageBalanced ? "text-green-600" : "text-destructive")}>
                                 {totalPercentage.toFixed(2)}%
                             </TableCell>
-                            <TableCell className="text-right font-semibold">
-                                {(totalPercentage / 100 * targetBatchSize).toFixed(2)} kg
-                            </TableCell>
-                            <TableCell colSpan={2} className="text-right">
-                                <div className="flex flex-col">
-                                    <span className="text-xs text-slate-500 uppercase font-bold tracking-tight">Total Batch Cost</span>
-                                    <span className="text-lg font-bold">₦{totalCost.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                </div>
-                            </TableCell>
                             <TableCell></TableCell>
                         </TableRow>
                     </TableFooter>
@@ -257,10 +220,6 @@ export function RecipeIngredientsEditor({ recipeId, targetBatchSize }: EditorPro
                     Formula must sum to <span className="font-bold mx-1 text-slate-700">100%</span> to be valid.
                 </div>
                 <div className="flex items-center gap-4">
-                    <div className="text-right mr-4">
-                        <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Cost Per Kg</p>
-                        <p className="text-xl font-bold text-green-700">₦{costPerKg.toLocaleString('en-NG', { minimumFractionDigits: 2 })}</p>
-                    </div>
                     <Button
                         onClick={handleSave}
                         disabled={saving || !isPercentageBalanced}
@@ -274,3 +233,5 @@ export function RecipeIngredientsEditor({ recipeId, targetBatchSize }: EditorPro
         </div>
     )
 }
+
+

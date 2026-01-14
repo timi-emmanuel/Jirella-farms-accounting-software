@@ -70,10 +70,13 @@ export function ProductionGrid() {
   const [loading, setLoading] = useState(true);
   const [showAddLog, setShowAddLog] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [balanceMap, setBalanceMap] = useState<Record<string, { qty: number; avgCost: number }>>({});
 
   // Form state
   const [selectedRecipeId, setSelectedRecipeId] = useState<string>("");
   const [quantity, setQuantity] = useState<string>("");
+  const [bagSizeKg, setBagSizeKg] = useState<string>("");
+  const [bagsProduced, setBagsProduced] = useState<string>("");
 
   const loadData = async () => {
     setLoading(true);
@@ -85,15 +88,37 @@ export function ProductionGrid() {
       .select('*, recipe:Recipe(name)')
       .order('date', { ascending: false });
 
-    // Fetch Recipes with ingredients, costs, and current stock levels
+    // Fetch Recipes with ingredients and costs
     const { data: recipeData } = await supabase
       .from('Recipe')
-      .select('*, items:RecipeItem(percentage, ingredient:Ingredient(id, name, unit, averageCost, currentStock))')
+      .select('*, items:RecipeItem(percentage, ingredient:Ingredient(id, name, unit, averageCost))')
       .eq('isActive', true)
       .order('name');
 
     if (logData) setRowData(logData as any);
     if (recipeData) setRecipes(recipeData as any);
+
+    const { data: location } = await supabase
+      .from('InventoryLocation')
+      .select('id')
+      .eq('code', 'FEED_MILL')
+      .single();
+
+    if (location) {
+      const { data: balances } = await supabase
+        .from('InventoryBalance')
+        .select('itemId, quantityOnHand, averageUnitCost')
+        .eq('locationId', location.id);
+
+      const map: Record<string, { qty: number; avgCost: number }> = {};
+      (balances || []).forEach((b: any) => {
+        map[b.itemId] = {
+          qty: Number(b.quantityOnHand || 0),
+          avgCost: Number(b.averageUnitCost || 0)
+        };
+      });
+      setBalanceMap(map);
+    }
     setLoading(false);
   };
 
@@ -113,29 +138,38 @@ export function ProductionGrid() {
     [recipes, selectedRecipeId]
   );
 
+  const quantityKg = useMemo(() => {
+    const size = Number(bagSizeKg);
+    const bags = Number(bagsProduced);
+    if (size > 0 && bags > 0) return size * bags;
+    return Number(quantity);
+  }, [bagSizeKg, bagsProduced, quantity]);
+
   // Live Calculations & Validation
   const calculations = useMemo(() => {
-    if (!selectedRecipe || !quantity || Number(quantity) <= 0) return null;
+    if (!selectedRecipe || !quantityKg || Number(quantityKg) <= 0) return null;
 
     const recipeItems = (selectedRecipe as any).items || (selectedRecipe as any).RecipeItem || [];
     if (!recipeItems || recipeItems.length === 0) return null;
 
     const baseCalcs = calculateProductionBatch(
-      recipeItems.map((item: any) => ({
-        id: item.ingredient?.id || '',
-        name: item.ingredient?.name || 'Unknown',
-        percentage: Number(item.percentage) || 0,
-        averageCost: Number(item.ingredient?.averageCost) || 0
-      })),
-      Number(quantity)
+      recipeItems.map((item: any) => {
+        const balance = balanceMap[item.ingredient?.id || ''];
+        return {
+          id: item.ingredient?.id || '',
+          name: item.ingredient?.name || 'Unknown',
+          percentage: Number(item.percentage) || 0,
+          averageCost: Number(balance?.avgCost || 0)
+        };
+      }),
+      Number(quantityKg)
     );
 
     if (!baseCalcs) return null;
 
     // Add availability info using precise ID matching
     const ingredientsWithValidation = baseCalcs.ingredientsNeeded.map((needed: any) => {
-      const item = recipeItems.find((ri: any) => ri.ingredient?.id === needed.id);
-      const available = Number(item?.ingredient?.currentStock) || 0;
+      const available = Number(balanceMap[needed.id]?.qty || 0);
       return {
         ...needed,
         available,
@@ -150,28 +184,34 @@ export function ProductionGrid() {
       ingredientsNeeded: ingredientsWithValidation,
       hasShortage
     };
-  }, [selectedRecipe, quantity]);
+  }, [selectedRecipe, quantityKg, balanceMap]);
 
   const handleProduce = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedRecipeId || !quantity || Number(quantity) <= 0 || !calculations) return;
+    if (!selectedRecipeId || !quantityKg || Number(quantityKg) <= 0 || !calculations) return;
     setSubmitting(true);
 
-    const supabase = createClient();
-
-    // Use RPC for atomic transactional production
-    const { error } = await supabase.rpc('handle_production', {
-      p_recipe_id: selectedRecipeId,
-      p_quantity_produced: Number(quantity),
-      p_cost_per_kg: calculations.costPerKg,
-      p_date: new Date().toISOString().split('T')[0]
+    const response = await fetch('/api/production/feed-mill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        recipeId: selectedRecipeId,
+        quantityProduced: Number(quantityKg),
+        costPerKg: calculations.costPerKg,
+        producedAt: new Date().toISOString().split('T')[0],
+        bagSizeKg: bagSizeKg ? Number(bagSizeKg) : null,
+        bagsProduced: bagsProduced ? Number(bagsProduced) : null
+      })
     });
 
-    if (error) {
-      alert("Production Failed: " + error.message);
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      alert("Production Failed: " + (payload.error || response.statusText));
     } else {
       setShowAddLog(false);
       setQuantity("");
+      setBagSizeKg("");
+      setBagsProduced("");
       setSelectedRecipeId("");
       loadData();
     }
@@ -278,7 +318,33 @@ export function ProductionGrid() {
                     placeholder="e.g. 1000"
                     className="bg-slate-50/50 border-slate-200"
                     onChange={(e) => setQuantity(e.target.value)}
+                    disabled={Number(bagSizeKg) > 0 && Number(bagsProduced) > 0}
                     required
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="bagSize">Bag Size (optional)</Label>
+                  <Select value={bagSizeKg} onValueChange={setBagSizeKg}>
+                    <SelectTrigger className="w-full bg-slate-50/50 border-slate-200">
+                      <SelectValue placeholder="Select bag size" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="15">15kg</SelectItem>
+                      <SelectItem value="25">25kg</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="bagsProduced">Bags Produced (optional)</Label>
+                  <Input
+                    id="bagsProduced"
+                    type="number"
+                    value={bagsProduced}
+                    placeholder="e.g. 40"
+                    className="bg-slate-50/50 border-slate-200"
+                    onChange={(e) => setBagsProduced(e.target.value)}
                   />
                 </div>
               </div>
@@ -301,16 +367,16 @@ export function ProductionGrid() {
                             <span className="text-slate-600 font-medium">{ing.name}</span>
                             <div className="flex items-center gap-2">
                               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Required:</span>
-                              <span className="text-slate-900 font-bold">{ing.qty.toFixed(2)} kg</span>
+                              <span className="text-slate-900 font-bold">{ing.qty.toFixed(3)} kg</span>
                             </div>
                           </div>
                           <div className="flex justify-between text-[11px] items-center">
                             <span className={ing.isShort ? "text-rose-500 font-bold" : "text-emerald-600 font-medium"}>
-                              Available: {ing.available.toFixed(2)} kg
+                              Available: {ing.available.toFixed(3)} kg
                             </span>
                             {ing.isShort && (
                               <span className="text-rose-600 font-black animate-pulse">
-                                Short by {(ing.qty - ing.available).toFixed(2)} kg
+                                Short by {(ing.qty - ing.available).toFixed(3)} kg
                               </span>
                             )}
                           </div>

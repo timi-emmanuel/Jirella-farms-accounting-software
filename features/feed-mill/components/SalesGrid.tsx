@@ -31,6 +31,7 @@ import {
  calculateGrossProfit,
  calculateSaleMetrics
 } from '@/lib/calculations/sales';
+import { logActivity } from '@/lib/logger';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -130,6 +131,15 @@ export function SalesGrid() {
    alert("Failed to save sale: " + error.message);
   } else {
    loadData(); // Re-fetch for calculated columns (COGS, Revenue etc from DB/Grid)
+
+   // Log update
+   const recipeName = recipes.find(r => r.id === updatedRow.recipeId)?.name;
+   logActivity('SALE_UPDATED', 'FeedMillSale', updatedRow.id, `Sale Updated: ${updatedRow.date} - ${recipeName} (${updatedRow.unitsSold} bags)`, {
+    old: event.oldValue,
+    new: event.newValue,
+    field: event.colDef.field,
+    saleId: updatedRow.id
+   }, undefined);
   }
  };
 
@@ -163,6 +173,13 @@ export function SalesGrid() {
     date: new Date().toISOString().split('T')[0]
    });
    loadData();
+
+   // Log creation
+   const recipeName = recipes.find(r => r.id === newSale.recipeId)?.name || 'Unknown Product';
+   logActivity('SALE_LOGGED', 'FeedMillSale', 'NEW', `Sale Logged: ${saleToInsert.date} - ${recipeName} (${saleToInsert.unitsSold} bags)`, {
+    ...saleToInsert,
+    recipeName
+   }, undefined);
   }
   setSubmitting(false);
  };

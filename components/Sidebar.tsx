@@ -21,7 +21,8 @@ import {
   Truck, // New icon
   LayoutGrid, // New icon
   FlaskConical, // New icon
-  Egg // New icon
+  Egg,
+  Activity // New icon
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useUserRole } from "@/hooks/useUserRole"
@@ -41,20 +42,28 @@ const navigation: NavigationItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutGrid }, // Icon changed
   {
     name: 'Feed Mill',
-    href: '/feed-mill', // href changed
+    href: '/feed-mill', 
     icon: Factory,
     subItems: [
       { name: 'Inventory', href: '/feed-mill/rm-inventory', icon: Package },
-      { name: 'Recipes', href: '/feed-mill/recipe-master', icon: FlaskConical }, // Name and icon changed
+      { name: 'Recipes', href: '/feed-mill/recipe-master', icon: FlaskConical }, 
       { name: 'Production', href: '/feed-mill/production', icon: Factory },
       { name: 'Sales', href: '/feed-mill/sales', icon: ShoppingCart },
     ]
   },
-  { name: 'Poultry', href: '/poultry', icon: Egg }, // Icon changed
-  { name: 'Store', href: '/store', icon: Package }, // New item
-  { name: 'Procurement', href: '/procurement', icon: Truck }, // New item
+  {
+    name: 'Poultry',
+    href: '/poultry/inventory',
+    icon: Egg,
+    subItems: [
+      { name: 'Inventory', href: '/poultry/inventory', icon: Package },
+    ]
+  },
+  { name: 'Store', href: '/store', icon: Package },  
+  { name: 'Procurement', href: '/procurement', icon: Truck }, 
+  { name: 'Sales', href: '/sales', icon: ShoppingCart },
   { name: 'Users', href: '/admin/users', icon: Users },
-  { name: 'Reports', href: '/reports', icon: Beaker }, // New item
+  { name: 'Activity Logs', href: '/activity-logs', icon: Activity },  
 ]
 
 interface SidebarContentProps {
@@ -87,7 +96,7 @@ function SidebarContent({ pathname, openMenus, toggleMenu, handleSignOut, isAdmi
           if (role && !NAV_CONFIG[role]?.includes(item.name)) return null;
 
           // Special case logic for specific items can remain if needed, but NAV_CONFIG is primary source
-          if (item.name === 'Users' && !isAdmin && role !== 'ID_CREATOR') return null;
+          if (item.name === 'Users' && !isAdmin) return null;
 
           const isActive = pathname === item.href;
           const isOpen = openMenus.includes(item.name);

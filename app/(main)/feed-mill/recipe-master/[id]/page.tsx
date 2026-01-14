@@ -53,18 +53,15 @@ export default async function RecipeDetailPage({ params }: PageProps) {
  return (
   <div className="flex flex-col space-y-4 h-full">
    <div className="flex items-center justify-between border-b pb-4">
-    <div>
+   <div>
      <h1 className="text-2xl font-bold tracking-tight">{recipe.name}</h1>
      <p className="text-muted-foreground">{recipe.description || "No description"}</p>
-    </div>
-    <div className="text-sm font-medium">
-     Batch Size: <span className="font-mono">{recipe.targetBatchSize}kg</span>
-    </div>
    </div>
+  </div>
 
-   <div className="flex-1 overflow-auto">
-    <RecipeIngredientsEditor recipeId={id} targetBatchSize={recipe.targetBatchSize} />
-   </div>
+  <div className="flex-1 overflow-auto">
+    <RecipeIngredientsEditor recipeId={id} />
+  </div>
   </div>
  );
 }

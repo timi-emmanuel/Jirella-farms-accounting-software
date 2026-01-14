@@ -166,3 +166,65 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ error: error.message }, { status: 500 });
  }
 }
+
+export async function DELETE(req: NextRequest) {
+ try {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+   return NextResponse.json({ error: 'Server Configuration Error: Missing Supabase Env Vars' }, { status: 500 });
+  }
+
+  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+   auth: {
+    autoRefreshToken: false,
+    persistSession: false
+   }
+  });
+
+  // 1. Verify the requester is an ADMIN
+  const supabase = await createServerClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { data: requesterProfile } = await supabaseAdmin
+   .from('users')
+   .select('role')
+   .eq('id', user.id)
+   .single();
+
+  if (requesterProfile?.role !== 'ADMIN') {
+   return NextResponse.json({ error: 'Forbidden: Admins only' }, { status: 403 });
+  }
+
+  // 2. Parse query params for user ID to delete
+  const { searchParams } = new URL(req.url);
+  const userId = searchParams.get('userId');
+
+  if (!userId) {
+   return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
+  }
+
+  // Prevent self-deletion
+  if (userId === user.id) {
+   return NextResponse.json({ error: 'Cannot delete your own admin account' }, { status: 400 });
+  }
+
+  // 3. Delete user from Supabase Auth
+  const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+
+  if (deleteError) {
+   return NextResponse.json({ error: deleteError.message }, { status: 400 });
+  }
+
+  return NextResponse.json({ message: 'User deleted successfully' });
+
+ } catch (error: any) {
+  console.error("API Error:", error);
+  return NextResponse.json({ error: error.message }, { status: 500 });
+ }
+}

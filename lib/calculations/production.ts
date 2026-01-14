@@ -1,4 +1,4 @@
-import { roundTo2 } from "@/lib/utils";
+import { roundTo2, roundTo3 } from "@/lib/utils";
 
 // lib/calculations/production.ts
 // Derived from 3. PRODUCTION (FEED MILL) in CALCULATION.md
@@ -22,7 +22,7 @@ export function calculateProductionBatch(
 
  let totalCost = 0;
  const breakdown = ingredients.map(ing => {
-  const qty = roundTo2((ing.percentage / 100) * quantityToProduce);
+  const qty = roundTo3((ing.percentage / 100) * quantityToProduce);
   const cost = roundTo2(qty * ing.averageCost);
   totalCost += cost;
 
@@ -32,7 +32,7 @@ export function calculateProductionBatch(
    qty,
    cost
   };
- }).filter(item => item.qty > 0);
+ });
 
  const costPerKg = roundTo2(totalCost / quantityToProduce);
 

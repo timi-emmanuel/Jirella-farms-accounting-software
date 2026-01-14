@@ -1,226 +1,281 @@
-# RULES.md
-Feed Mill Management System – Core Engineering & Domain Rules
+# Inventory Architecture Decision — Store vs Module Inventories (Codex Build Spec)
 
-This document defines the non-negotiable rules that guide the design, implementation, and evolution of the Feed Mill system.  
-Any feature, refactor, or optimization **must comply** with these rules.
+This document answers:
+- Should Feed Mill and Poultry have their own inventory tabs?
+- Or should Store Inventory be the single source of truth?
+- What is the best operational flow (Store ↔ Modules ↔ Procurement)?
+- How to implement CRUD without creating conflicting stock truths?
 
----
-
-## 1. Source of Truth Rules
-
-### 1.1 Backend is the Source of Truth
-- All authoritative calculations must happen on the backend (database / server logic).
-- The frontend must never be trusted as the final authority for any numeric result.
-
-> If UI and backend values differ, the backend value is correct.
+Goal: avoid double-counting, keep flows realistic, and keep the system scalable to SaaS.
 
 ---
 
-### 1.2 UI Calculations Are Feedback Only
-Frontend calculations exist solely for:
-- user feedback
-- previews
-- form validation hints
+## 1) Recommended Approach (Best Practice)
 
-They must **never** be relied upon for:
-- persistence
-- reporting
-- auditing
-- financial decisions
+✅ **Use ONE unified Inventory system (Store as the single source of truth)**  
+and let module pages (Feed Mill / Poultry) show **filtered views** of that same inventory.
 
----
+### Why this is best
+- Prevents having 2–3 different “stocks” for the same item (double-counting nightmare)
+- Ensures every item has exactly one quantity on hand
+- Makes audit + accountability simple
+- Matches real-world operations: the store/warehouse owns stock truth
 
-## 2. Data Storage Rules
-
-### 2.1 Store Raw Inputs Only
-Only persist **raw, user-entered values**, such as:
-- ingredient percentages
-- batch size
-- unit prices
-- quantities
-
-❌ Do NOT store:
-- total cost
-- cost per kg
-- computed weights
-- derived summaries
+> If Feed Mill and Store both track “Maize stock”, your numbers will diverge and you’ll fight it forever.
 
 ---
 
-### 2.2 Derived Values Must Be Recomputable
-Every derived value must be:
-- reproducible
-- deterministic
-- explainable from stored inputs
+## 2) How modules should “have inventory tabs” without separate inventories
 
-If a value cannot be recomputed from stored data, it should not be stored.
+### Correct design
+- **Store Inventory = the inventory**
+- Feed Mill inventory tab = **view** of store inventory filtered by category or “allowed items”
+- Poultry inventory tab = **view** of store inventory filtered similarly
 
----
-
-### 2.3 Never Mutate Historical Data
-Once data is used for:
-- production
-- sales
-- reports
-
-It must not change retroactively.
-
-Future changes require:
-- versioning
-- snapshots
-- or explicit overrides
+This gives module managers the UX they want (their own tab), but avoids multiple sources of truth.
 
 ---
 
-## 3. Excel Alignment Rules
+## 3) Operational Flow (What you described is correct, with 1 tweak)
 
-### 3.1 Excel Is the Reference Standard
-Existing Excel sheets are the **validation baseline**.
+Your idea:
+> Module managers reach out to Store when they’re out; if Store can’t replenish, Store reaches out to Procurement.
 
-All system calculations must be verifiable against:
-- current Excel formulas
-- historical Excel outputs
+✅ This is the best flow.
 
-If results differ:
-> The system is wrong until proven otherwise.
+### Improved version (with proper statuses)
+Module Manager requests items from Store (ISSUE REQUEST)
+↓
+Store Keeper issues stock if available (ISSUED)
+↓
+If Store is short:
+Store Keeper creates procurement request (PROCUREMENT REQUEST)
+↓
+Procurement approves/rejects (APPROVED/REJECTED)
+↓
+When items arrive:
+Store Keeper receives into inventory (RECEIVED)
+↓
+Store Keeper then issues to module (ISSUED)
 
----
-
-### 3.2 Excel Logic Must Be Explainable
-Every Excel formula used must be:
-- explainable in plain English
-- translatable to backend logic (SQL / TypeScript)
-
-Unexplainable or opaque formulas are not allowed.
-
----
-
-## 4. Calculation Rules
-
-### 4.1 Percentages Must Sum to 100%
-- Recipe formulations must total exactly **100%**
-- UI should warn
-- Backend must enforce
-
-Invalid formulations must never be saved.
+Key rule:
+- Procurement increases inventory only on **RECEIPT**
+- Modules decrease inventory only through **ISSUE/USAGE**
 
 ---
 
-### 4.2 Batch Size Drives All Calculations
-- Batch size is the multiplier for all weights and costs.
-- Changing batch size must:
-  - not mutate stored ingredient data
-  - only affect computed outputs
+## 4) What to build: Two types of "Requests"
+
+### A) Module → Store: Issue Request (Internal)
+Purpose: module asking store for items to use in operations/production.
+
+Statuses:
+- `PENDING` (requested by module)
+- `APPROVED` (storekeeper accepted request)
+- `ISSUED` (items given out; inventory reduced)
+- `REJECTED` (storekeeper rejects request)
+- `CANCELLED`
+
+### B) Store → Procurement: Procurement Request (External)
+Purpose: store asking procurement to buy items.
+
+Statuses:
+- `PENDING`
+- `APPROVED`
+- `REJECTED`
+- `RECEIVED` (storekeeper confirms delivery; inventory increases)
 
 ---
 
-### 4.3 No Silent Unit Conversions
-- All units must be explicit (kg, g, ₦/kg, ₦/ton)
-- Any conversion must be:
-  - documented
-  - centralized
-  - deterministic
+## 5) Inventory CRUD — What is allowed where?
 
-No hidden or implicit conversions.
+### Unified Store Inventory CRUD (true CRUD)
+Store keeper can:
+- Create inventory items (master data)
+- Update metadata (name, category, reorder level, unit)
+- Archive items
 
----
+Stock changes are NOT direct edits; they are movements:
+- Receive stock
+- Issue stock
+- Adjust stock (with reason)
 
-## 5. Database Integrity Rules
+### Module Inventory Tabs (Feed Mill / Poultry)
+Modules should NOT “CRUD stock” directly.
 
-### 5.1 No Orphan Records
-- Every RecipeItem must reference:
-  - a valid Recipe
-  - a valid Ingredient
+Instead, modules can:
+- View items + available quantity
+- Submit Issue Requests to Store
+- View request history
+- For production:
+  - production consumes inventory via server function (ledger OUT)
 
-Use:
-- foreign keys
-- constraints
-- referential integrity
-
----
-
-### 5.2 Deletions Must Be Intentional
-Bulk delete + reinsert (e.g. recipe items) is allowed **only if**:
-- data is not historical
-- the operation is logically atomic
-
-Future enhancement:
-- transactions
-- versioned formulas
+This prevents:
+- module staff editing numbers manually
+- conflicting stock quantities across tabs
 
 ---
 
-## 6. Authentication & Authorization Rules
+## 6) How to keep “Feed Mill inventory tab” useful without separate stock
 
-### 6.1 Authentication ≠ Authorization
-- Supabase Auth handles identity
-- Application logic handles:
-  - roles
-  - permissions
-  - access control
+Feed Mill tab should show:
+- Ingredients relevant to feed formulas
+- Available stock quantity
+- Low stock warning
+- Button: `Request from Store`
 
-Never rely on frontend role checks alone.
+Poultry tab should show:
+- Poultry-specific items (meds, feed, equipment)
+- Available stock
+- Button: `Request from Store`
 
----
-
-### 6.2 Backend Must Enforce Permissions
-- UI hiding is not security
-- Sensitive operations must be protected by:
-  - backend logic
-  - database policies (RLS)
+Both tabs read from the same tables:
+- `inventory_items`
+- computed `stock_on_hand` from ledger or snapshot
 
 ---
 
-## 7. Domain-Specific Rules (Feed Mill)
+## 7) Database Model (Minimal, Scalable)
 
-### 7.1 Ingredients Are Global
-- Ingredients are master data
-- Recipes reference ingredients
-- Ingredient data must not be duplicated per recipe
+### Inventory Items (Master)
+`inventory_items`
+- id, name, category, unit, reorder_level, is_active, timestamps
+
+### Inventory Ledger (Truth)
+`inventory_ledger`
+- id
+- item_id
+- type: `RECEIPT` | `ISSUE` | `ADJUSTMENT` | `PRODUCTION_USAGE`
+- direction: `IN` | `OUT`
+- quantity
+- unit_cost (for receipts)
+- reference_type + reference_id
+- created_by
+- created_at
+
+Stock on hand is:
+`SUM(IN) - SUM(OUT)` per item  
+(or maintain `inventory_balances` snapshot later)
+
+### Issue Requests (Module → Store)
+`issue_requests`
+- id
+- requested_by (user)
+- requesting_module: `FEED_MILL` | `POULTRY`
+- status
+- notes
+- timestamps
+
+`issue_request_lines`
+- id
+- issue_request_id
+- item_id
+- requested_qty
+- issued_qty (filled on issuance)
+
+### Procurement Requests (Store → Procurement)
+`procurement_requests`
+- id
+- created_by (storekeeper)
+- status
+- notes
+- timestamps
+
+`procurement_request_lines`
+- id
+- procurement_request_id
+- item_id
+- requested_qty
+- received_qty
+- unit_cost_at_receipt
+
+### Activity Logs
+`activity_logs`
+- id, user_id, action, entity_type, entity_id, metadata(json), created_at
 
 ---
 
-### 7.2 Costs Are Time-Sensitive
-- Ingredient costs can change over time
-- Recipes should reflect **current costs** by default
+## 8) Route / UI Structure (What Codex builds)
 
-Future enhancement:
-- cost snapshots per production run
+### Store Section
+Route: `/store`
+Tabs:
+- `/store/inventory`
+- `/store/requests`
+- `/store/procurement-requests` (optional, store view)
 
----
+Inventory page:
+- grid of items + stock
+- actions: Receive / Issue / Adjust
+Requests page:
+- list Issue Requests from modules
+- approve/reject/issue actions
+- when issuing:
+  - validate stock
+  - write ledger OUT entries
+  - update request status to ISSUED
+Procurement requests:
+- create procurement request when stock is insufficient
 
-## 8. Transparency & Debugging Rules
+### Procurement Section
+Route: `/procurement`
+- list pending procurement requests
+- approve/reject with comments
+- does not change inventory
 
-### 8.1 Every Number Must Be Explainable
-For any number shown, the system must be able to answer:
-- which ingredients contributed?
-- at what percentage?
-- at what unit price?
-- at what weight?
+### Feed Mill Inventory View
+Route: `/feed-mill/inventory`
+- filtered inventory view (category FEED_MILL or shared)
+- create issue request to store
 
-Black-box numbers are forbidden.
-
----
-
-### 8.2 Prefer Explicit Over Clever
-- Simple, readable logic is preferred
-- Avoid compact but unreadable formulas
-
-Clarity > cleverness.
-
----
-
-## 9. Absolute Non-Negotiables (TL;DR)
-
-These rules must **never** be broken:
-
-- Backend is the source of truth
-- Store raw inputs only
-- UI calculations are feedback
-- Excel is the validation reference
-- Percentages must equal 100%
-- Never store derived totals
-- Every number must be explainable
+### Poultry Inventory View
+Route: `/poultry/inventory`
+- filtered inventory view (category POULTRY or shared)
+- create issue request to store
 
 ---
 
+## 9) API / Server-side Requirements (Avoid RLS/Client issues)
+
+All writes must be server-side endpoints:
+- `POST /api/issue-requests` (module creates request)
+- `POST /api/issue-requests/:id/approve` (storekeeper)
+- `POST /api/issue-requests/:id/issue` (storekeeper; creates ledger OUT)
+- `POST /api/procurement-requests` (storekeeper creates procurement request)
+- `POST /api/procurement-requests/:id/approve|reject` (procurement manager)
+- `POST /api/procurement-requests/:id/receive` (storekeeper; creates ledger IN)
+
+Production endpoints:
+- validate and create ledger OUT entries of type `PRODUCTION_USAGE`
+
+All of these must also write `activity_logs` entries server-side.
+
+---
+
+## 10) Why NOT a "Store Reserve + Module Inventory" split?
+
+If you maintain:
+- Store stock AND Feed Mill stock AND Poultry stock separately
+
+You will need:
+- transfers
+- reconciliation
+- double ledger systems
+- constant mismatch resolution
+
+This becomes ERP-level complexity quickly.
+
+✅ A single inventory + issue request flow gives the same real-world behavior with far less complexity.
+
+---
+
+## Success Criteria
+
+- Only one inventory truth exists
+- Modules can request stock from store
+- Store can issue stock, or escalate to procurement
+- Procurement approves purchases; receiving increases stock
+- Production and usage deduct stock safely
+- Admin can audit who did what and when
+
+---

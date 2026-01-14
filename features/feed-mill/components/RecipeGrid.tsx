@@ -22,9 +22,9 @@ import {
     themeQuartz
 } from 'ag-grid-community';
 import { createClient } from '@/lib/supabase/client';
-import { Loader2, Plus, Trash2, AlertTriangle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Loader2, Trash2, AlertTriangle } from 'lucide-react';
 import { useUserRole } from '@/hooks/useUserRole';
+import { logActivity } from '@/lib/logger';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -70,7 +70,7 @@ interface RecipeRow {
 }
 
 export function RecipeGrid() {
-    const { isAdmin, loading: roleLoading } = useUserRole();
+    const { isAdmin } = useUserRole();
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [recipeToDelete, setRecipeToDelete] = useState<RecipeRow | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -81,27 +81,15 @@ export function RecipeGrid() {
             {
                 field: "name",
                 headerName: "Recipe Name",
-                editable: isAdmin,
                 flex: 1,
                 minWidth: 200
-            },
-            {
-                field: "targetBatchSize",
-                headerName: "Batch Size (kg)",
-                editable: isAdmin,
-                filter: false,
-                flex: 0.8,
-                minWidth: 120,
-                type: 'numericColumn',
-                cellStyle: { textAlign: "center" },
-                headerClass: "ag-center-header"
             }
         ];
 
-        if (isAdmin) {
-            columns.push({
+        columns.push({
                 headerName: "Formula",
                 filter: false,
+                flex: 1,
                 cellRenderer: (params: any) => {
                     return (
                         <a
@@ -112,22 +100,8 @@ export function RecipeGrid() {
                         </a>
                     );
                 },
-                minWidth: 160
+            
             });
-        }
-
-        columns.push({
-            field: "isActive",
-            headerName: "Active",
-            editable: isAdmin,
-            filter: false,
-            width: 90,
-            minWidth: 80,
-            cellStyle: { textAlign: "center" },
-            headerClass: "ag-center-header",
-            cellRenderer: (params: any) => params.value ? '✅' : '❌'
-        });
-
         if (isAdmin) {
             columns.push({
                 headerName: "Actions",
@@ -164,53 +138,6 @@ export function RecipeGrid() {
             sortable: true,
         };
     }, []);
-
-    const onCellValueChanged = async (event: any) => {
-        const updatedRow = event.data;
-        const supabase = createClient();
-
-        // Optimistic update handled by Grid, now save to DB
-        const { error } = await supabase
-            .from('Recipe')
-            .upsert({
-                id: updatedRow.id,
-                name: updatedRow.name,
-                description: updatedRow.description,
-                targetBatchSize: updatedRow.targetBatchSize,
-                isActive: updatedRow.isActive,
-                updatedAt: new Date().toISOString()
-            });
-
-        if (error) {
-            console.error("Error saving recipe:", error);
-            alert("Failed to save changes: " + error.message);
-        }
-    };
-
-    const onAddRow = async () => {
-        // Create a new empty row in Supabase first (or local)
-        const supabase = createClient();
-        console.log("Attempting to create recipe...");
-        const { data, error } = await supabase
-            .from('Recipe')
-            .insert({
-                name: `New Recipe ${Math.floor(Math.random() * 10000)}`,
-                targetBatchSize: 1000,
-                isActive: true
-            })
-            .select()
-            .single();
-
-        if (data) {
-            console.log("Recipe created:", data);
-            setRowData([...rowData, data]);
-        } else if (error) {
-            console.error("Error creating recipe:", error);
-            // Alert nicely
-            alert(`Failed to create recipe: ${error.message || JSON.stringify(error)}`);
-        }
-    };
-
     const handleDelete = async () => {
         if (!recipeToDelete) return;
         setIsDeleting(true);
@@ -224,6 +151,7 @@ export function RecipeGrid() {
         if (error) {
             alert("Failed to delete recipe: " + error.message);
         } else {
+            await logActivity('RECIPE_DELETED', 'Recipe', recipeToDelete.id, `Deleted recipe: ${recipeToDelete.name}`, { name: recipeToDelete.name }, undefined);
             setRowData(prev => prev.filter(r => r.id !== recipeToDelete.id));
             setDeleteDialogOpen(false);
             setRecipeToDelete(null);
@@ -258,17 +186,6 @@ export function RecipeGrid() {
 
     return (
         <div className="flex flex-col h-full space-y-2">
-            {isAdmin && (
-                <div className="flex justify-end px-2">
-                    <Button
-                        onClick={onAddRow}
-                        className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all hover:scale-105 active:scale-95 px-6 mr-4"
-                    >
-                        <Plus className="w-4 h-4 " />
-                        New Recipe
-                    </Button>
-                </div>
-            )}
             <div className="ag-theme-quartz flex-1">
                 <AgGridReact
                     rowData={rowData}
@@ -276,7 +193,6 @@ export function RecipeGrid() {
                     defaultColDef={defaultColDef}
                     rowSelection="single"
                     pagination={true}
-                    onCellValueChanged={onCellValueChanged}
                     rowStyle={{ cursor: 'pointer' }}
                     theme={themeQuartz} // Explicitly set theme to suppress warning, or use "legacy" string if preferred
                 />
@@ -313,3 +229,6 @@ export function RecipeGrid() {
         </div>
     );
 }
+
+
+
