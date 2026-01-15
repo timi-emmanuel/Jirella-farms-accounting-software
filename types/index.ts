@@ -141,6 +141,7 @@ export interface FeedMillSale {
 }
 
 export type ProductModule = 'FEED_MILL' | 'POULTRY';
+export type ExpenseModule = 'FEED_MILL' | 'POULTRY';
 
 export interface Product {
  id: string;
@@ -200,4 +201,61 @@ export interface ProductionLog {
  updatedAt: string;
  // Relations
  recipe?: Recipe;
+}
+
+export type PoultryFlockStatus = 'ACTIVE' | 'CLOSED';
+
+export interface PoultryFlock {
+ id: string;
+ name: string;
+ breed?: string | null;
+ initialCount: number;
+ currentCount: number;
+ startDate: string;
+ status: PoultryFlockStatus;
+ createdAt: string;
+ updatedAt: string;
+}
+
+export interface PoultryDailyLog {
+ id: string;
+ flockId: string;
+ date: string;
+ eggsCollected: number;
+ eggsDamaged: number;
+ mortality: number;
+ feedItemId?: string | null;
+ feedConsumedKg: number;
+ notes?: string | null;
+ createdAt: string;
+ updatedAt: string;
+ flock?: PoultryFlock;
+ feedItem?: Ingredient;
+}
+
+export interface Expense {
+ id: string;
+ module: ExpenseModule;
+ category: string;
+ amount: number;
+ spentAt: string;
+ notes?: string | null;
+ createdBy?: string | null;
+ createdAt: string;
+}
+
+export interface PoultryDashboardMetrics {
+ totalEggs: number;
+ totalDamaged: number;
+ totalMortality: number;
+ totalFeedKg: number;
+ currentLiveBirds: number;
+ henDayProduction: number;
+ feedPerBirdG: number;
+ fcrPerDozen: number;
+ costPerCrate: number;
+ totalSales: number;
+ totalCogs: number;
+ totalExpenses: number;
+ profit: number;
 }

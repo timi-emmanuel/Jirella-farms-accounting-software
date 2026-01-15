@@ -1,195 +1,262 @@
-# Inventory Flow Decision — Single Store vs Multi-Location Stock (FeedMill/Poultry + Store + Procurement)
+# Poultry Module (Layers) — Implementation Spec (Codex Ready)
 
-This document explains two valid inventory models and recommends when to use each.
+This spec translates the boss/Gemini poultry blueprint into implementable features.
+Focus: daily operations + inventory control + sales/expenses + core KPIs.
 
----
-
-## 1) The Two Real-World Models
-
-### Model A: Single Source of Truth (Store-Only Stock)
-- All physical stock is owned by **Store**
-- Feed Mill and Poultry do NOT hold separate stock in the system
-- Modules request items from store OR production deducts from store directly
-- "Module inventory tab" is a filtered view of store stock
-
-✅ Pros:
-- Simple to build
-- Fewer bugs / mismatches
-- Easier audits
-- Faster MVP
-
-❌ Cons:
-- Not accurate if departments physically keep their own sub-stores
-- Hard to answer: “What is inside Feed Mill store-room vs main store?”
+Source intent: Daily Log is the “heart” of the system; it must record egg production, mortality, feeding, and enforce “no feeding beyond available stock.”:contentReference[oaicite:1]{index=1}
 
 ---
 
-### Model B: Multi-Location Inventory (Recommended for realism)
-- Stock exists in multiple “locations”:
-  - STORE (Main warehouse)
-  - FEED_MILL (Feed mill store-room)
-  - POULTRY (Poultry store-room)
-- Each location has its own balance
-- Stock moves via **Transfers**
-
-Example:
-- Maize in FEED_MILL = 1kg
-- Maize in STORE = 5kg
-- Total farm maize = 6kg
-
-✅ Pros:
-- Matches real operations
-- Lets modules work independently until depleted
-- Accurate tracking of where stock physically is
-- Better accountability (“who transferred/received?”)
-
-❌ Cons:
-- More complex than Model A
-- Requires transfer flows, approvals, and reconciliation
-- Needs stronger logging + transaction safety
+## 0) Roles & Access (tab-based)
+- POULTRY_STAFF: can create daily logs, view poultry dashboards, request items from Store, view own module reports.
+- STORE_KEEPER: can approve/fulfil internal requisitions (Store → Poultry transfers), receive procurement deliveries into STORE.
+- PROCUREMENT_MANAGER: can approve procurement requests (no inventory changes).
+- ACCOUNTANT: can view financial summaries, enter overhead expenses, view P&L.
+- ADMIN: full access, manage users/roles, activity logs.
 
 ---
 
-## 2) Is Your Maize Example Correct?
-YES ✅
+## 1) Core Poultry Feature Modules
 
-In Model B:
-- Store inventory is NOT the same as Feed Mill inventory
-- They are separate balances by location
-- Total farm stock is the sum across locations
-
-That is correct and realistic.
-
----
-
-## 3) Recommended Best Approach (Practical)
-### Start with Model A for MVP, then upgrade to Model B only if needed.
-
-However, if your boss explicitly expects:
-- “Store sends items to feed mill”
-- “Feed mill has its own stock”
-- “Poultry also has its own stock”
-Then you should implement Model B now.
-
----
-
-## 4) If we choose Model B (Multi-Location), here is the correct flow
-
-### A) Procurement → Store (receiving into the farm)
-1. Procurement approves purchase
-2. Store Keeper receives goods into STORE location
-3. STORE stock increases
-
-### B) Store → Module (transfer to Feed Mill / Poultry)
-1. Module raises request
-2. Store transfers stock to FEED_MILL (or POULTRY)
-3. STORE stock decreases
-4. FEED_MILL stock increases
-
-### C) Module usage (production consumes module stock)
-1. Feed Mill produces feed
-2. Ingredients are deducted from FEED_MILL location stock
-3. Finished goods increase (in finished goods location or feed mill output)
-
-Escalation rule:
-- If STORE cannot fulfill transfer, STORE creates procurement request.
-
----
-
-## 5) Data Model for Model B (Codex should build this)
-
-### Inventory Items (Master)
-`inventory_items`
-- id, name, unit, category, is_active, timestamps
-
-### Locations
-`inventory_locations`
-- id
-- name: `STORE`, `FEED_MILL`, `POULTRY`
-- is_active
-
-### Inventory Ledger (Truth)
-`inventory_ledger`
-- id
-- item_id
-- location_id
-- type: `RECEIPT` | `TRANSFER_IN` | `TRANSFER_OUT` | `USAGE` | `ADJUSTMENT`
-- quantity (positive)
-- direction: `IN` | `OUT`
-- unit_cost (for receipts)
-- reference_type + reference_id
-- created_by
-- created_at
-
-### Transfer Requests
-`transfer_requests`
-- id
-- from_location_id (STORE)
-- to_location_id (FEED_MILL or POULTRY)
-- status: `PENDING` | `APPROVED` | `REJECTED` | `COMPLETED`
-- requested_by
-- approved_by
-- completed_by
+### A) Daily Log (Core Production)
+The system must store a daily record per Pen/House (or per Flock if pens not used).
+Required fields:
+- date
+- flockId (or penId)
+- eggsCollectedTotal
+- eggsDamaged
+- (optional phase 2) egg size breakdown: small/medium/jumbo
+- mortalityCount
+- feedType (inventory item reference)
+- feedConsumedKg
 - notes
-- timestamps
 
-`transfer_request_lines`
-- id
-- transfer_request_id
-- item_id
-- quantity_requested
-- quantity_transferred
+Critical behavior:
+- Auto-update current bird count when mortality is recorded.:contentReference[oaicite:2]{index=2}
+- System check: feeding must not exceed available stock (see inventory rules).:contentReference[oaicite:3]{index=3}
 
-### Procurement Requests (only from STORE)
-`procurement_requests`
+---
+
+### B) Inventory & Store Requests (Feed Request System)
+Inventory is location-scoped (Model B):
+- STORE
+- POULTRY
+- FEED_MILL
+
+Workflow intent:
+- Stock In: record purchases/receiving for feed, medicine, egg trays.:contentReference[oaicite:4]{index=4}
+- Requisition / internal request:
+  Farm Manager requests → Store Manager approves → inventory decreases → cost allocated to flock.:contentReference[oaicite:5]{index=5}
+
+Implementation mapping (recommended):
+- Poultry consumes stock from POULTRY location.
+- Poultry stock is replenished only via STORE → POULTRY TRANSFER.
+- Procurement only creates/approves purchase requests; only STORE receiving increases STORE stock.
+
+Optional phase 2:
+- Threshold alerts (“Only 3 days of Layer Mash left”).:contentReference[oaicite:6]{index=6}
+
+---
+
+### C) Financial Module (Sales + Expenses + P&L)
+Required:
+- Sales: eggs, spent layers (old birds), manure (optional).:contentReference[oaicite:7]{index=7}
+- Expenses: labour, fuel/power, maintenance, vaccination, etc.:contentReference[oaicite:8]{index=8}
+- P&L: real-time = Total Sales − (COGS + Overheads).:contentReference[oaicite:9]{index=9}
+- Cost per crate analysis: must compute cost to produce a crate based on feed usage and cost. :contentReference[oaicite:10]{index=10}:contentReference[oaicite:11]{index=11}
+
+---
+
+### D) Standard Poultry KPIs (Dashboard Metrics)
+Must include:
+- FCR analysis: kg feed required per dozen eggs.:contentReference[oaicite:12]{index=12}
+- Hen-Day Production % (HDP).:contentReference[oaicite:13]{index=13}
+- (phase 2) vaccination schedule + flock lifecycle + multi-pen comparison.:contentReference[oaicite:14]{index=14}
+
+---
+
+## 2) Data Model (Postgres/Supabase)
+
+### A) Flocks
+Table: `PoultryFlock`
+Fields:
+- id (uuid)
+- name / batchName (e.g., "Batch A - Jan 2026")
+- breed (optional)
+- initialCount
+- currentCount (store OR compute; see rule below)
+- startDate / dateHatched
+- status: ACTIVE | CLOSED
+
+Gemini-intent bird count logic:
+CurrentCount = InitialCount − totalMortality − soldBirds.:contentReference[oaicite:15]{index=15}
+
+---
+
+### B) Daily Logs
+Table: `PoultryDailyLog`
+Fields (minimum):
 - id
-- status: `PENDING` | `APPROVED` | `REJECTED` | `RECEIVED`
-- created_by (storekeeper)
-- approved_by (procurement)
-- received_by (storekeeper)
+- flockId
+- date (unique per flock per day)
+- eggsCollected
+- eggsDamaged
+- mortality
+- feedItemId (InventoryItem reference)
+- feedConsumedKg
 - notes
-- timestamps
-
-`procurement_request_lines`
-- id
-- procurement_request_id
-- item_id
-- quantity_requested
-- quantity_received
-- unit_cost_at_receipt
 
 ---
 
-## 6) UI Implications (What Codex should build)
+### C) Inventory (Ledger-based, location-scoped)
+Use your existing unified inventory system:
 
-### Store pages
-- Store Inventory (location=STORE)
-- Transfer Requests (outgoing to modules)
-- Procurement Requests (escalations)
+Tables (recommended):
+- `InventoryItem` (master list: maize, layer mash, drugs, egg trays, etc.)
+- `InventoryLocation` (STORE, POULTRY, FEED_MILL)
+- `InventoryLedger` (all movements; has itemId + locationId + qty + unitCost + refType)
 
-### Feed Mill pages
-- Feed Mill Inventory (location=FEED_MILL)
-- Request transfer from STORE
-- Production consumes FEED_MILL stock
-
-### Poultry pages
-- Poultry Inventory (location=POULTRY)
-- Request transfer from STORE
-- Poultry usage consumes POULTRY stock
+Important costing note:
+Store `unitCostAtTime` on ledger OUT lines so “cost per crate” remains historically accurate if prices change (Gemini hints at this).:contentReference[oaicite:16]{index=16}
 
 ---
 
-## 7) Integrity Rules (Non-Negotiable)
-- Stock changes must be transactional
-- Never allow negative stock in a location
-- Transfer completion creates:
-  - ledger OUT in STORE
-  - ledger IN in destination
-- Procurement receiving creates:
-  - ledger IN in STORE
-- Production usage creates:
-  - ledger OUT in module location
+### D) Requisitions / Transfers
+Tables:
+- `StockTransferRequest` (PENDING, APPROVED, REJECTED, FULFILLED)
+- `StockTransferLine` (itemId, qty)
+
+Fulfillment action creates ledger movements:
+- STORE: OUT
+- POULTRY: IN
+and writes `unitCostAtTime`.
 
 ---
 
-#
+### E) Poultry Finished Goods (Egg Stock)
+Option 1 (recommended): represent eggs as an InventoryItem (`EGGS`) stocked at location POULTRY via ledger IN.
+- Daily egg collection → ledger IN (quantity in eggs or crates)
+- Egg sales → ledger OUT
+
+---
+
+### F) Sales & Expenses
+If you already have a unified sales table:
+- add `module = POULTRY`
+- productType: EGGS | SPENT_LAYERS | MANURE
+- qty, unit, unitPrice, total
+
+Expenses:
+- `Expense` with `module = POULTRY` and category
+
+---
+
+## 3) Required Calculations (Backend Source of Truth)
+
+### A) Hen-Day Production (HDP %)
+HDP = (eggsCollectedToday / currentLiveBirds) * 100.:contentReference[oaicite:17]{index=17}
+
+Warning rule (optional):
+- If HDP < 85% during peak lay → flag alert.:contentReference[oaicite:18]{index=18}
+
+### B) Feed per Bird (grams)
+feedPerBirdG = (feedConsumedKg * 1000) / currentLiveBirds.:contentReference[oaicite:19]{index=19}
+
+### C) FCR per Dozen Eggs
+FCR = totalFeedKg / (totalEggs / 12).:contentReference[oaicite:20]{index=20}
+
+### D) Cost per Crate (feed-driven cost)
+- crates = totalEggs / 30
+- totalFeedCost = Σ(feedConsumedKg * unitCostAtTime)
+- costPerCrate = totalFeedCost / crates
+
+Gemini math summary: crates = eggs/30 and feed cost uses price/kg from inventory.:contentReference[oaicite:21]{index=21}
+
+---
+
+## 4) Workflows (What happens when user clicks Save)
+
+### A) Save Daily Log (Transaction)
+Input: eggs, mortality, feed type, feed kg.
+Steps:
+1) Validate flock exists.
+2) Validate available POULTRY stock for feedItem >= feedConsumedKg.
+   - If insufficient → block save with error (do not partially update).
+   (Gemini intent: system must not allow recording feed if store is empty / insufficient.):contentReference[oaicite:22]{index=22}
+3) Write daily log row.
+4) Write inventory ledger OUT at POULTRY for feed consumption
+   - store unitCostAtTime from valuation method
+5) Update flock currentCount if mortality > 0 (or compute currentCount from events).
+
+All of the above must be atomic (single DB transaction).
+
+---
+
+### B) Request Feed (Poultry → Store)
+1) Poultry staff creates StockTransferRequest to move items from STORE → POULTRY.
+2) Store keeper approves and fulfills:
+   - ledger STORE OUT + POULTRY IN
+   - cost allocated to flock if provided.:contentReference[oaicite:23]{index=23}
+
+---
+
+### C) Receive Procurement (Procurement → Store)
+1) Store creates procurement request (PENDING) — no stock change.
+2) Procurement manager approves (APPROVED) — no stock change.
+3) Store marks received (RECEIVED) — ledger STORE IN + unit cost captured.
+
+(“Receive Stock” is the only step that changes STORE inventory.)
+
+---
+
+### D) Record Egg Production (optional separation)
+Option 1: eggs are implied from daily log and posted to finished stock automatically on save.
+- When saving daily log: create ledger IN for EGGS at POULTRY location.
+
+Option 2: separate “Egg Stock Entry” page.
+(Option 1 is simpler and matches the daily workflow.)
+
+---
+
+### E) Sales
+- Egg sale creates ledger OUT for EGGS from POULTRY.
+- Bird sale reduces flock count (if you track spent layers as sales).:contentReference[oaicite:24]{index=24}
+
+---
+
+## 5) UI Pages / Routes (App Router)
+
+Under `(main)`:
+- `/poultry/dashboard`
+- `/poultry/flocks`
+- `/poultry/daily-log`
+- `/poultry/inventory` (location=POULTRY)
+- `/poultry/requests` (create transfer requests)
+- `/poultry/sales`
+- `/poultry/expenses`
+
+Store/Procurement:
+- `/store/inventory` (location=STORE)
+- `/store/requests` (fulfil poultry/feedmill transfers)
+- `/procurement/requests` (approve purchases)
+
+---
+
+## 6) MVP Checklist (Done when)
+- Can create a flock and see current count.
+- Can enter daily logs (eggs + mortality + feed kg/type).
+- System blocks feeding if poultry inventory is insufficient.:contentReference[oaicite:25]{index=25}
+- Saving daily log deducts POULTRY feed stock.
+- Eggs recorded increase egg stock (POULTRY).
+- Can record egg sales and see stock reduce.
+- Dashboard shows HDP%, FCR/dozen, mortality, cost per crate, basic P&L.:contentReference[oaicite:26]{index=26}
+
+---
+
+## 7) Non-Goals (Phase 2)
+- Vaccination & medication calendar/scheduling.:contentReference[oaicite:27]{index=27}
+- Full flock lifecycle tracking (D.O.C → Point of lay → spent).:contentReference[oaicite:28]{index=28}
+- Multi-pen comparisons / advanced analytics.:contentReference[oaicite:29]{index=29}
+- Threshold alerts / days-of-stock warning.:contentReference[oaicite:30]{index=30}
+
+---

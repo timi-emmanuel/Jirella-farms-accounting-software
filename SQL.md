@@ -160,6 +160,45 @@ CREATE TABLE IF NOT EXISTS "FinishedGoodsLedger" (
   "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Poultry
+CREATE TABLE IF NOT EXISTS "PoultryFlock" (
+  "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  "name" TEXT NOT NULL,
+  "breed" TEXT,
+  "initialCount" INTEGER NOT NULL DEFAULT 0,
+  "currentCount" INTEGER NOT NULL DEFAULT 0,
+  "startDate" DATE NOT NULL DEFAULT CURRENT_DATE,
+  "status" TEXT NOT NULL DEFAULT 'ACTIVE' CHECK ("status" IN ('ACTIVE', 'CLOSED')),
+  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "PoultryDailyLog" (
+  "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  "flockId" UUID NOT NULL REFERENCES "PoultryFlock"("id") ON DELETE CASCADE,
+  "date" DATE NOT NULL,
+  "eggsCollected" INTEGER NOT NULL DEFAULT 0,
+  "eggsDamaged" INTEGER NOT NULL DEFAULT 0,
+  "mortality" INTEGER NOT NULL DEFAULT 0,
+  "feedItemId" UUID REFERENCES "Ingredient"("id") ON DELETE SET NULL,
+  "feedConsumedKg" NUMERIC NOT NULL DEFAULT 0,
+  "notes" TEXT,
+  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT "PoultryDailyLog_flock_date_key" UNIQUE ("flockId", "date")
+);
+
+CREATE TABLE IF NOT EXISTS "Expense" (
+  "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  "module" TEXT NOT NULL CHECK ("module" IN ('FEED_MILL', 'POULTRY')),
+  "category" TEXT NOT NULL,
+  "amount" NUMERIC NOT NULL,
+  "spentAt" DATE NOT NULL DEFAULT CURRENT_DATE,
+  "notes" TEXT,
+  "createdBy" UUID REFERENCES auth.users(id),
+  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS "Sale" (
   "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   "productId" UUID NOT NULL REFERENCES "Product"("id") ON DELETE RESTRICT,
@@ -458,6 +497,178 @@ BEGIN
     p_notes,
     p_created_by
   );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Poultry daily log (atomic)
+CREATE OR REPLACE FUNCTION handle_poultry_daily_log(
+  p_flock_id UUID,
+  p_log_date DATE,
+  p_eggs_collected INTEGER,
+  p_eggs_damaged INTEGER,
+  p_mortality INTEGER,
+  p_feed_item_id UUID,
+  p_feed_consumed_kg NUMERIC,
+  p_notes TEXT,
+  p_created_by UUID,
+  p_eggs_product_id UUID
+) RETURNS UUID AS $$
+DECLARE
+  v_log_id UUID;
+  v_location_id UUID;
+  v_feed_unit_cost NUMERIC;
+  v_current_count INTEGER;
+  v_initial_count INTEGER;
+  v_eggs_net INTEGER;
+  v_stock RECORD;
+  v_has_stock BOOLEAN := false;
+  v_current_qty NUMERIC;
+  v_current_avg NUMERIC;
+  v_unit_cost NUMERIC;
+  v_next_qty NUMERIC;
+  v_next_avg NUMERIC;
+BEGIN
+  IF p_log_date IS NULL THEN
+    p_log_date := CURRENT_DATE;
+  END IF;
+
+  IF p_eggs_collected IS NULL OR p_eggs_collected < 0 THEN
+    RAISE EXCEPTION 'Eggs collected must be zero or greater';
+  END IF;
+  IF p_eggs_damaged IS NULL OR p_eggs_damaged < 0 THEN
+    RAISE EXCEPTION 'Eggs damaged must be zero or greater';
+  END IF;
+  IF p_mortality IS NULL OR p_mortality < 0 THEN
+    RAISE EXCEPTION 'Mortality must be zero or greater';
+  END IF;
+
+  SELECT id INTO v_location_id FROM "InventoryLocation" WHERE "code" = 'POULTRY';
+  IF v_location_id IS NULL THEN
+    RAISE EXCEPTION 'Poultry location not found';
+  END IF;
+
+  SELECT "currentCount", "initialCount"
+  INTO v_current_count, v_initial_count
+  FROM "PoultryFlock"
+  WHERE id = p_flock_id
+  FOR UPDATE;
+
+  IF v_current_count IS NULL THEN
+    RAISE EXCEPTION 'Flock not found';
+  END IF;
+
+  INSERT INTO "PoultryDailyLog" (
+    "flockId",
+    "date",
+    "eggsCollected",
+    "eggsDamaged",
+    "mortality",
+    "feedItemId",
+    "feedConsumedKg",
+    "notes"
+  ) VALUES (
+    p_flock_id,
+    p_log_date,
+    COALESCE(p_eggs_collected, 0),
+    COALESCE(p_eggs_damaged, 0),
+    COALESCE(p_mortality, 0),
+    p_feed_item_id,
+    COALESCE(p_feed_consumed_kg, 0),
+    p_notes
+  ) RETURNING id INTO v_log_id;
+
+  IF p_feed_item_id IS NOT NULL AND COALESCE(p_feed_consumed_kg, 0) > 0 THEN
+    SELECT "averageUnitCost"
+    INTO v_feed_unit_cost
+    FROM "InventoryBalance"
+    WHERE "itemId" = p_feed_item_id AND "locationId" = v_location_id;
+
+    v_feed_unit_cost := COALESCE(v_feed_unit_cost, 0);
+
+    PERFORM apply_inventory_movement(
+      p_feed_item_id,
+      v_location_id,
+      'USAGE',
+      'OUT',
+      COALESCE(p_feed_consumed_kg, 0),
+      v_feed_unit_cost,
+      'POULTRY_DAILY_LOG',
+      v_log_id::text,
+      p_notes,
+      p_created_by
+    );
+  END IF;
+
+  IF COALESCE(p_mortality, 0) > 0 THEN
+    UPDATE "PoultryFlock"
+    SET "currentCount" = GREATEST(COALESCE(v_current_count, v_initial_count) - p_mortality, 0),
+        "updatedAt" = NOW()
+    WHERE id = p_flock_id;
+  END IF;
+
+  v_eggs_net := GREATEST(COALESCE(p_eggs_collected, 0) - COALESCE(p_eggs_damaged, 0), 0);
+  IF v_eggs_net > 0 AND p_eggs_product_id IS NOT NULL THEN
+    SELECT *
+    INTO v_stock
+    FROM "FinishedGoodsInventory"
+    WHERE "productId" = p_eggs_product_id AND "locationId" = v_location_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+      v_has_stock := false;
+      v_current_qty := 0;
+      v_current_avg := 0;
+    ELSE
+      v_has_stock := true;
+      v_current_qty := COALESCE(v_stock."quantityOnHand", 0);
+      v_current_avg := COALESCE(v_stock."averageUnitCost", 0);
+    END IF;
+
+    IF COALESCE(p_feed_consumed_kg, 0) > 0 THEN
+      v_unit_cost := ROUND((COALESCE(p_feed_consumed_kg, 0) * COALESCE(v_feed_unit_cost, 0)) / v_eggs_net, 2);
+    ELSE
+      v_unit_cost := v_current_avg;
+    END IF;
+
+    v_next_qty := v_current_qty + v_eggs_net;
+    v_next_avg := CASE
+      WHEN v_next_qty > 0 THEN ((v_current_qty * v_current_avg) + (v_eggs_net * v_unit_cost)) / v_next_qty
+      ELSE v_unit_cost
+    END;
+
+    IF v_has_stock = false THEN
+      INSERT INTO "FinishedGoodsInventory" ("productId", "locationId", "quantityOnHand", "averageUnitCost")
+      VALUES (p_eggs_product_id, v_location_id, v_eggs_net, v_unit_cost);
+    ELSE
+      UPDATE "FinishedGoodsInventory"
+      SET "quantityOnHand" = v_next_qty,
+          "averageUnitCost" = ROUND(v_next_avg::numeric, 2),
+          "updatedAt" = NOW()
+      WHERE "productId" = p_eggs_product_id AND "locationId" = v_location_id;
+    END IF;
+
+    INSERT INTO "FinishedGoodsLedger" (
+      "productId",
+      "locationId",
+      "type",
+      "quantity",
+      "unitCostAtTime",
+      "referenceType",
+      "referenceId",
+      "createdBy"
+    ) VALUES (
+      p_eggs_product_id,
+      v_location_id,
+      'PRODUCTION_IN',
+      v_eggs_net,
+      v_unit_cost,
+      'POULTRY_DAILY_LOG',
+      v_log_id::text,
+      p_created_by
+    );
+  END IF;
+
+  RETURN v_log_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -819,6 +1030,9 @@ ALTER TABLE "FinishedGoodsInventory" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "FinishedGoodsLedger" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Sale" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "ActivityLog" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "PoultryFlock" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "PoultryDailyLog" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Expense" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
 -- Policies (create only if missing)
@@ -1008,6 +1222,45 @@ DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'PoultryFlock'
+      AND policyname = 'Allow all for authenticated users'
+  ) THEN
+    CREATE POLICY "Allow all for authenticated users"
+    ON "PoultryFlock"
+    FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'PoultryDailyLog'
+      AND policyname = 'Allow all for authenticated users'
+  ) THEN
+    CREATE POLICY "Allow all for authenticated users"
+    ON "PoultryDailyLog"
+    FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'Expense'
+      AND policyname = 'Allow all for authenticated users'
+  ) THEN
+    CREATE POLICY "Allow all for authenticated users"
+    ON "Expense"
+    FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
     WHERE schemaname = 'public' AND tablename = 'StoreRequest'
       AND policyname = 'Enable read access for authenticated users'
   ) THEN
@@ -1177,3 +1430,9 @@ CREATE INDEX IF NOT EXISTS "Sale_soldAt_idx"
   ON "Sale" ("soldAt");
 CREATE INDEX IF NOT EXISTS "Sale_module_idx"
   ON "Sale" ("module");
+CREATE INDEX IF NOT EXISTS "PoultryDailyLog_flock_date_idx"
+  ON "PoultryDailyLog" ("flockId", "date");
+CREATE INDEX IF NOT EXISTS "PoultryDailyLog_date_idx"
+  ON "PoultryDailyLog" ("date");
+CREATE INDEX IF NOT EXISTS "Expense_module_date_idx"
+  ON "Expense" ("module", "spentAt");

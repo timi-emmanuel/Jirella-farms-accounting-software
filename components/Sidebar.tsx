@@ -22,7 +22,9 @@ import {
   LayoutGrid, // New icon
   FlaskConical, // New icon
   Egg,
-  Activity // New icon
+  Activity, // New icon
+  ClipboardList,
+  Wallet
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useUserRole } from "@/hooks/useUserRole"
@@ -53,10 +55,16 @@ const navigation: NavigationItem[] = [
   },
   {
     name: 'Poultry',
-    href: '/poultry/inventory',
+    href: '/poultry/dashboard',
     icon: Egg,
     subItems: [
+      { name: 'Dashboard', href: '/poultry/dashboard', icon: LayoutDashboard },
+      { name: 'Flocks', href: '/poultry/flocks', icon: Users },
+      { name: 'Daily Log', href: '/poultry/daily-log', icon: ClipboardList },
       { name: 'Inventory', href: '/poultry/inventory', icon: Package },
+      { name: 'Requests', href: '/poultry/requests', icon: ClipboardList },
+      { name: 'Sales', href: '/poultry/sales', icon: ShoppingCart },
+      { name: 'Expenses', href: '/poultry/expenses', icon: Wallet },
     ]
   },
   { name: 'Store', href: '/store', icon: Package },  
