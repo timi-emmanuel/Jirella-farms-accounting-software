@@ -90,6 +90,19 @@ export async function GET(request: NextRequest) {
       (ledger || []).forEach((entry: any) => {
         totalFeedCost += Number(entry.quantity || 0) * Number(entry.unitCost || 0);
       });
+
+      const { data: fgLedger } = await admin
+        .from('FinishedGoodsLedger')
+        .select('quantity, unitCostAtTime, createdAt')
+        .eq('locationId', location.id)
+        .eq('type', 'USAGE')
+        .eq('referenceType', 'POULTRY_DAILY_LOG')
+        .gte('createdAt', `${from}T00:00:00`)
+        .lte('createdAt', `${to}T23:59:59`);
+
+      (fgLedger || []).forEach((entry: any) => {
+        totalFeedCost += Number(entry.quantity || 0) * Number(entry.unitCostAtTime || 0);
+      });
     }
 
     const crates = totalEggs > 0 ? totalEggs / 30 : 0;

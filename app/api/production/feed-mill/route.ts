@@ -95,6 +95,7 @@ export async function POST(request: NextRequest) {
    : `${recipe.name} (Bulk)`;
   const productUnit = hasBagInfo ? 'BAG' : 'KG';
   const producedQty = roundTo2(hasBagInfo ? bags : roundedQtyProduced);
+  const unitSizeKg = hasBagInfo ? size : null;
   const unitCostAtTime = roundTo2(hasBagInfo ? roundedCostPerKg * size : roundedCostPerKg);
 
   const { data: product, error: productError } = await admin
@@ -111,6 +112,7 @@ export async function POST(request: NextRequest) {
      name: productName,
      module: 'FEED_MILL',
      unit: productUnit,
+     unitSizeKg,
      active: true
     })
     .select('*')

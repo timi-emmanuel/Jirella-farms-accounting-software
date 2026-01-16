@@ -1,262 +1,364 @@
-# Poultry Module (Layers) — Implementation Spec (Codex Ready)
+# Feed Mill → Poultry Feed Usage Flow (Model B) — Update Spec for Codex
 
-This spec translates the boss/Gemini poultry blueprint into implementable features.
-Focus: daily operations + inventory control + sales/expenses + core KPIs.
+This spec updates the current design so that:
+- Feed Mill **produces finished feed**
+- Poultry **consumes finished feed**
+- Some finished feed is **sold to the public**
+- Not all feed produced is consumed internally
 
-Source intent: Daily Log is the “heart” of the system; it must record egg production, mortality, feeding, and enforce “no feeding beyond available stock.”:contentReference[oaicite:1]{index=1}
-
----
-
-## 0) Roles & Access (tab-based)
-- POULTRY_STAFF: can create daily logs, view poultry dashboards, request items from Store, view own module reports.
-- STORE_KEEPER: can approve/fulfil internal requisitions (Store → Poultry transfers), receive procurement deliveries into STORE.
-- PROCUREMENT_MANAGER: can approve procurement requests (no inventory changes).
-- ACCOUNTANT: can view financial summaries, enter overhead expenses, view P&L.
-- ADMIN: full access, manage users/roles, activity logs.
+This reflects real farm operations:
+- Feed Mill output is a finished product (bags/kg)
+- Poultry feeding should not “re-produce” feed
+- Internal usage happens via transfer from Feed Mill to Poultry
 
 ---
 
-## 1) Core Poultry Feature Modules
+## 1) Core Decision
 
-### A) Daily Log (Core Production)
-The system must store a daily record per Pen/House (or per Flock if pens not used).
-Required fields:
-- date
-- flockId (or penId)
-- eggsCollectedTotal
-- eggsDamaged
-- (optional phase 2) egg size breakdown: small/medium/jumbo
-- mortalityCount
-- feedType (inventory item reference)
-- feedConsumedKg
-- notes
+✅ Finished feeds produced in Feed Mill are **Finished Goods**.
 
-Critical behavior:
-- Auto-update current bird count when mortality is recorded.:contentReference[oaicite:2]{index=2}
-- System check: feeding must not exceed available stock (see inventory rules).:contentReference[oaicite:3]{index=3}
+Examples:
+- Layers Mash 25kg
+- Grower Mash 25kg
+- Starter Mash 15kg
+
+Finished goods can go to:
+1. **Internal consumption** (transfer to POULTRY)
+2. **External sales** (public sales)
 
 ---
 
-### B) Inventory & Store Requests (Feed Request System)
-Inventory is location-scoped (Model B):
-- STORE
-- POULTRY
-- FEED_MILL
+## 2) Locations (Model B)
 
-Workflow intent:
-- Stock In: record purchases/receiving for feed, medicine, egg trays.:contentReference[oaicite:4]{index=4}
-- Requisition / internal request:
-  Farm Manager requests → Store Manager approves → inventory decreases → cost allocated to flock.:contentReference[oaicite:5]{index=5}
+Inventory is location-scoped:
+- `STORE` (optional central warehouse)
+- `FEED_MILL` (finished feed stock is here after production)
+- `POULTRY` (feed stock available for feeding birds)
 
-Implementation mapping (recommended):
-- Poultry consumes stock from POULTRY location.
-- Poultry stock is replenished only via STORE → POULTRY TRANSFER.
-- Procurement only creates/approves purchase requests; only STORE receiving increases STORE stock.
-
-Optional phase 2:
-- Threshold alerts (“Only 3 days of Layer Mash left”).:contentReference[oaicite:6]{index=6}
+For MVP:
+- Finished feed stock starts at `FEED_MILL` after production.
+- Poultry feed stock is replenished only via `FEED_MILL -> POULTRY` transfer.
 
 ---
 
-### C) Financial Module (Sales + Expenses + P&L)
-Required:
-- Sales: eggs, spent layers (old birds), manure (optional).:contentReference[oaicite:7]{index=7}
-- Expenses: labour, fuel/power, maintenance, vaccination, etc.:contentReference[oaicite:8]{index=8}
-- P&L: real-time = Total Sales − (COGS + Overheads).:contentReference[oaicite:9]{index=9}
-- Cost per crate analysis: must compute cost to produce a crate based on feed usage and cost. :contentReference[oaicite:10]{index=10}:contentReference[oaicite:11]{index=11}
+## 3) Data Model (Minimal Changes)
+
+### A) Finished Feed Products
+Represent each produced feed product as a `Product` (or an InventoryItem flagged as finished good).
+
+Option A (recommended): use `products` table + finished goods ledger.
+Option B (simpler MVP): use `inventory_items` for finished feed as well.
+
+Codex should pick ONE approach and apply consistently.
 
 ---
 
-### D) Standard Poultry KPIs (Dashboard Metrics)
-Must include:
-- FCR analysis: kg feed required per dozen eggs.:contentReference[oaicite:12]{index=12}
-- Hen-Day Production % (HDP).:contentReference[oaicite:13]{index=13}
-- (phase 2) vaccination schedule + flock lifecycle + multi-pen comparison.:contentReference[oaicite:14]{index=14}
+## 4) Workflow Overview
+
+### Step 1 — Produce Feed (Feed Mill)
+Input:
+- recipeId
+- quantityProducedKg (or bags + bagSize)
+
+System actions:
+1. Validate raw ingredient availability in `FEED_MILL` location (or STORE depending on how you do raw material storage).
+2. Deduct raw materials from FEED_MILL location (ledger OUT, type=PRODUCTION_USAGE).
+3. Create finished feed stock in FEED_MILL location (ledger IN, type=PRODUCTION_OUTPUT).
+4. Store production costing snapshots:
+   - costPerKg
+   - costPerBag15kg
+   - costPerBag25kg
+
+Result:
+- Finished feed is now available in FEED_MILL for either sale or transfer.
 
 ---
 
-## 2) Data Model (Postgres/Supabase)
+### Step 2 — Transfer Finished Feed to Poultry (Internal Supply)
+When poultry needs feed:
+- Poultry creates a **Transfer Request** from `FEED_MILL -> POULTRY` for a specific finished feed product.
 
-### A) Flocks
-Table: `PoultryFlock`
-Fields:
-- id (uuid)
-- name / batchName (e.g., "Batch A - Jan 2026")
-- breed (optional)
-- initialCount
-- currentCount (store OR compute; see rule below)
-- startDate / dateHatched
-- status: ACTIVE | CLOSED
+Statuses:
+- PENDING
+- APPROVED
+- COMPLETED
 
-Gemini-intent bird count logic:
-CurrentCount = InitialCount − totalMortality − soldBirds.:contentReference[oaicite:15]{index=15}
+On completion:
+1. Deduct finished feed stock from FEED_MILL (ledger OUT, type=TRANSFER_OUT).
+2. Add finished feed stock into POULTRY (ledger IN, type=TRANSFER_IN).
+3. Carry cost information forward (unitCostAtTime) for accurate poultry costing.
 
----
-
-### B) Daily Logs
-Table: `PoultryDailyLog`
-Fields (minimum):
-- id
-- flockId
-- date (unique per flock per day)
-- eggsCollected
-- eggsDamaged
-- mortality
-- feedItemId (InventoryItem reference)
-- feedConsumedKg
-- notes
+Result:
+- Poultry now has feed stock to consume daily.
 
 ---
 
-### C) Inventory (Ledger-based, location-scoped)
-Use your existing unified inventory system:
+### Step 3 — Poultry Daily Feeding Uses Finished Feed Stock
+When poultry logs daily feeding:
+- User selects feed product (e.g., Layers Mash 25kg)
+- enters `feedConsumedKg` (or bags consumed, but internally store as KG)
 
-Tables (recommended):
-- `InventoryItem` (master list: maize, layer mash, drugs, egg trays, etc.)
-- `InventoryLocation` (STORE, POULTRY, FEED_MILL)
-- `InventoryLedger` (all movements; has itemId + locationId + qty + unitCost + refType)
+Validation:
+- Check available stock for that feed product in POULTRY location.
+- If insufficient → block save and show shortage.
 
-Important costing note:
-Store `unitCostAtTime` on ledger OUT lines so “cost per crate” remains historically accurate if prices change (Gemini hints at this).:contentReference[oaicite:16]{index=16}
+On save:
+1. Create PoultryDailyLog record.
+2. Deduct finished feed stock from POULTRY (ledger OUT, type=USAGE).
+3. Compute KPI fields (HDP, FCR, etc.) (derived).
 
----
-
-### D) Requisitions / Transfers
-Tables:
-- `StockTransferRequest` (PENDING, APPROVED, REJECTED, FULFILLED)
-- `StockTransferLine` (itemId, qty)
-
-Fulfillment action creates ledger movements:
-- STORE: OUT
-- POULTRY: IN
-and writes `unitCostAtTime`.
+Result:
+- Poultry feeding cost is based on the produced feed cost, not raw ingredients.
 
 ---
 
-### E) Poultry Finished Goods (Egg Stock)
-Option 1 (recommended): represent eggs as an InventoryItem (`EGGS`) stocked at location POULTRY via ledger IN.
-- Daily egg collection → ledger IN (quantity in eggs or crates)
-- Egg sales → ledger OUT
+### Step 4 — Public Sales from Feed Mill Stock
+Sales of feed to public are recorded from FEED_MILL location.
+
+When logging a sale:
+- Product = finished feed product
+- Location for stock deduction = FEED_MILL
+- Quantity sold (bags or kg)
+- Unit selling price
+
+Validation:
+- Check FEED_MILL finished feed stock >= qty sold
+
+On submit:
+1. Insert Sale record (module=FEED_MILL).
+2. Deduct stock from FEED_MILL (ledger OUT, type=SALE_OUT).
+3. Compute revenue, COGS, profit (derived or stored snapshot for audit).
+
+Result:
+- Feed Mill can sell externally and also supply poultry internally.
 
 ---
 
-### F) Sales & Expenses
-If you already have a unified sales table:
-- add `module = POULTRY`
-- productType: EGGS | SPENT_LAYERS | MANURE
-- qty, unit, unitPrice, total
+## 5) Important Rules (Must Enforce)
 
-Expenses:
-- `Expense` with `module = POULTRY` and category
+1. Poultry does NOT consume raw ingredients directly (maize/soya) in normal flow.
+   - Poultry consumes finished feed products.
 
----
+2. Production creates finished feed stock at FEED_MILL.
+   - That stock is the only source for poultry feed usage and public sales.
 
-## 3) Required Calculations (Backend Source of Truth)
+3. Transfer is required for internal consumption:
+   - Poultry stock increases only via FEED_MILL -> POULTRY transfer.
 
-### A) Hen-Day Production (HDP %)
-HDP = (eggsCollectedToday / currentLiveBirds) * 100.:contentReference[oaicite:17]{index=17}
-
-Warning rule (optional):
-- If HDP < 85% during peak lay → flag alert.:contentReference[oaicite:18]{index=18}
-
-### B) Feed per Bird (grams)
-feedPerBirdG = (feedConsumedKg * 1000) / currentLiveBirds.:contentReference[oaicite:19]{index=19}
-
-### C) FCR per Dozen Eggs
-FCR = totalFeedKg / (totalEggs / 12).:contentReference[oaicite:20]{index=20}
-
-### D) Cost per Crate (feed-driven cost)
-- crates = totalEggs / 30
-- totalFeedCost = Σ(feedConsumedKg * unitCostAtTime)
-- costPerCrate = totalFeedCost / crates
-
-Gemini math summary: crates = eggs/30 and feed cost uses price/kg from inventory.:contentReference[oaicite:21]{index=21}
+4. Costs must be preserved:
+   - Use `unitCostAtTime` carried through transfers and usage to compute cost-per-crate accurately.
 
 ---
 
-## 4) Workflows (What happens when user clicks Save)
+## 6) UI Requirements (Routes)
 
-### A) Save Daily Log (Transaction)
-Input: eggs, mortality, feed type, feed kg.
-Steps:
-1) Validate flock exists.
-2) Validate available POULTRY stock for feedItem >= feedConsumedKg.
-   - If insufficient → block save with error (do not partially update).
-   (Gemini intent: system must not allow recording feed if store is empty / insufficient.):contentReference[oaicite:22]{index=22}
-3) Write daily log row.
-4) Write inventory ledger OUT at POULTRY for feed consumption
-   - store unitCostAtTime from valuation method
-5) Update flock currentCount if mortality > 0 (or compute currentCount from events).
+### Feed Mill
+- `/feed-mill/production` (create production batch)
+- `/feed-mill/stock` (view finished feed stock at FEED_MILL)
+- `/feed-mill/sales` (public sales)
+- `/feed-mill/transfers` (outgoing transfers to POULTRY)
 
-All of the above must be atomic (single DB transaction).
+### Poultry
+- `/poultry/inventory` (view finished feed stock at POULTRY)
+- `/poultry/requests` (request feed from FEED_MILL)
+- `/poultry/daily-log` (daily feeding + eggs + mortality)
 
 ---
 
-### B) Request Feed (Poultry → Store)
-1) Poultry staff creates StockTransferRequest to move items from STORE → POULTRY.
-2) Store keeper approves and fulfills:
-   - ledger STORE OUT + POULTRY IN
-   - cost allocated to flock if provided.:contentReference[oaicite:23]{index=23}
+## 7) MVP Tasks for Codex (Implementation Checklist)
+
+1. Ensure finished feed products exist (one per recipe + bag size).
+2. On feed mill production confirm:
+   - deduct raw materials
+   - add finished feed stock at FEED_MILL
+3. Add transfer request flow for finished feed:
+   - FEED_MILL -> POULTRY
+4. Update Poultry Daily Log:
+   - feed selection should reference finished feed product
+   - validate stock at POULTRY
+   - deduct finished feed on save
+5. Update Sales:
+   - allow public sales from FEED_MILL stock
+   - validate and deduct finished feed stock
+6. Update dashboards and reports:
+   - poultry feed cost uses finished feed cost
+   - feed mill profit separates internal transfer vs public sales (optional)
 
 ---
 
-### C) Receive Procurement (Procurement → Store)
-1) Store creates procurement request (PENDING) — no stock change.
-2) Procurement manager approves (APPROVED) — no stock change.
-3) Store marks received (RECEIVED) — ledger STORE IN + unit cost captured.
+## 8) Notes / Simplifications
 
-(“Receive Stock” is the only step that changes STORE inventory.)
+- Quantity should be stored consistently:
+  - store as KG internally
+  - UI can accept “bags” and convert to KG
+- If you want STORE to be central later:
+  - allow FEED_MILL -> STORE transfers too
+  - and STORE -> POULTRY transfers
+  - but MVP can be direct FEED_MILL -> POULTRY
+
+---
+# Finished Goods (Feed) — Stock Movement & History (Feed Mill)
+
+This section clarifies how **finished feed stock** behaves in the system,
+how its value increases, how it decreases, and how history must be tracked.
+
+This applies specifically to **Feed Mill finished feeds**.
 
 ---
 
-### D) Record Egg Production (optional separation)
-Option 1: eggs are implied from daily log and posted to finished stock automatically on save.
-- When saving daily log: create ledger IN for EGGS at POULTRY location.
+## 1) Core Principle (Non-Negotiable)
 
-Option 2: separate “Egg Stock Entry” page.
-(Option 1 is simpler and matches the daily workflow.)
+Finished feed stock behaves like this:
 
----
+### ✅ Finished Feed Stock INCREASES in only ONE way
+- When feed is **produced** in Feed Mill production.
 
-### E) Sales
-- Egg sale creates ledger OUT for EGGS from POULTRY.
-- Bird sale reduces flock count (if you track spent layers as sales).:contentReference[oaicite:24]{index=24}
+### ❌ Finished Feed Stock DECREASES in exactly TWO ways
+1. When feed is **transferred to Poultry** for bird feeding (internal consumption)
+2. When feed is **sold to the public** (external sales)
 
----
-
-## 5) UI Pages / Routes (App Router)
-
-Under `(main)`:
-- `/poultry/dashboard`
-- `/poultry/flocks`
-- `/poultry/daily-log`
-- `/poultry/inventory` (location=POULTRY)
-- `/poultry/requests` (create transfer requests)
-- `/poultry/sales`
-- `/poultry/expenses`
-
-Store/Procurement:
-- `/store/inventory` (location=STORE)
-- `/store/requests` (fulfil poultry/feedmill transfers)
-- `/procurement/requests` (approve purchases)
+There are **no other valid ways** finished feed stock should change in MVP.
 
 ---
 
-## 6) MVP Checklist (Done when)
-- Can create a flock and see current count.
-- Can enter daily logs (eggs + mortality + feed kg/type).
-- System blocks feeding if poultry inventory is insufficient.:contentReference[oaicite:25]{index=25}
-- Saving daily log deducts POULTRY feed stock.
-- Eggs recorded increase egg stock (POULTRY).
-- Can record egg sales and see stock reduce.
-- Dashboard shows HDP%, FCR/dozen, mortality, cost per crate, basic P&L.:contentReference[oaicite:26]{index=26}
+## 2) Finished Goods Lifecycle
+
+### A) Production (Stock Increase)
+Location: `FEED_MILL`
+
+When a production batch is confirmed:
+1. Raw materials are deducted (ingredients ledger OUT)
+2. Finished feed stock is created (ledger IN)
+
+Ledger entry:
+- type: `PRODUCTION_OUTPUT`
+- direction: `IN`
+- location: `FEED_MILL`
+- quantity: produced feed (kg)
+- unitCostAtTime: cost per kg from production
+
+This is the **only operation that increases finished feed stock**.
 
 ---
 
-## 7) Non-Goals (Phase 2)
-- Vaccination & medication calendar/scheduling.:contentReference[oaicite:27]{index=27}
-- Full flock lifecycle tracking (D.O.C → Point of lay → spent).:contentReference[oaicite:28]{index=28}
-- Multi-pen comparisons / advanced analytics.:contentReference[oaicite:29]{index=29}
-- Threshold alerts / days-of-stock warning.:contentReference[oaicite:30]{index=30}
+### B) Internal Usage — Transfer to Poultry (Stock Decrease)
+Location change: `FEED_MILL → POULTRY`
+
+When Poultry requests feed:
+1. Transfer request is approved
+2. Finished feed stock is reduced at FEED_MILL
+3. Same feed stock is increased at POULTRY
+
+Ledger entries:
+- FEED_MILL:
+  - type: `TRANSFER_OUT`
+  - direction: `OUT`
+- POULTRY:
+  - type: `TRANSFER_IN`
+  - direction: `IN`
+
+This represents **internal consumption preparation**, not a sale.
+
+---
+
+### C) External Usage — Public Sales (Stock Decrease)
+Location: `FEED_MILL`
+
+When feed is sold to customers:
+1. Sale is recorded
+2. Finished feed stock is reduced at FEED_MILL
+
+Ledger entry:
+- type: `SALE_OUT`
+- direction: `OUT`
+- location: `FEED_MILL`
+
+This represents **external revenue generation**.
+
+---
+
+## 3) Finished Goods History (MANDATORY FEATURE)
+
+A **Finished Goods History** view must exist to answer:
+
+> “Why did the finished feed quantity reduce?”
+
+### Feed Mill → Production → Finished Goods Tab
+
+This page must show:
+- current finished feed stock (by product)
+- total produced
+- total transferred to poultry
+- total sold to public
+
+---
+
+## 4) Finished Goods Movement History Table
+
+Each finished feed product must have a **movement history** showing:
+
+Columns:
+- Date
+- Action Type:
+  - `PRODUCED`
+  - `TRANSFERRED_TO_POULTRY`
+  - `SOLD`
+- Quantity (kg / bags)
+- Reference:
+  - Production Batch ID
+  - Transfer Request ID
+  - Sale ID
+- Performed By (user)
+- Location (always FEED_MILL for reductions)
+- Cost per Kg at time (for audit)
+
+This history must be derived from the inventory ledger.
+
+---
+
+## 5) Rules Codex MUST Enforce
+
+1. Finished feed stock can only increase via production.
+2. Finished feed stock can only decrease via:
+   - transfer to poultry
+   - sale to public
+3. Poultry feeding must never deduct directly from FEED_MILL.
+   - It must deduct from POULTRY stock after transfer.
+4. Sales must always deduct from FEED_MILL stock.
+5. Every reduction must have:
+   - a reason
+   - a reference record
+   - a user
+
+No silent stock changes.
+
+---
+
+## 6) Why This Matters (Business Reasoning)
+
+This design allows the boss to answer:
+- How much feed did we produce?
+- How much went to poultry?
+- How much was sold?
+- Where did the stock go?
+- Are we losing feed internally or selling more?
+
+It also:
+- prevents stock manipulation
+- supports audits
+- matches real farm operations
+
+---
+
+## 7) Summary (Mental Model)
+
+Finished feed is like money in a wallet:
+
+- **Earned** only by production
+- **Spent** either internally (poultry) or externally (sales)
+- Every movement must be traceable
+
+If it didn’t get produced, it cannot exist.
+If it reduced, it must have gone somewhere.
 
 ---

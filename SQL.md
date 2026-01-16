@@ -133,6 +133,7 @@ CREATE TABLE IF NOT EXISTS "Product" (
   "name" TEXT NOT NULL UNIQUE,
   "module" TEXT NOT NULL CHECK ("module" IN ('FEED_MILL', 'POULTRY')),
   "unit" TEXT NOT NULL,
+  "unitSizeKg" NUMERIC,
   "active" BOOLEAN DEFAULT TRUE,
   "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -151,7 +152,7 @@ CREATE TABLE IF NOT EXISTS "FinishedGoodsLedger" (
   "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   "productId" UUID NOT NULL REFERENCES "Product"("id") ON DELETE CASCADE,
   "locationId" UUID NOT NULL REFERENCES "InventoryLocation"("id") ON DELETE RESTRICT,
-  "type" TEXT NOT NULL CHECK ("type" IN ('PRODUCTION_IN', 'SALE_OUT', 'ADJUSTMENT')),
+  "type" TEXT NOT NULL CHECK ("type" IN ('PRODUCTION_IN', 'SALE_OUT', 'TRANSFER_IN', 'TRANSFER_OUT', 'USAGE', 'ADJUSTMENT')),
   "quantity" NUMERIC NOT NULL,
   "unitCostAtTime" NUMERIC,
   "referenceType" TEXT,
@@ -181,11 +182,35 @@ CREATE TABLE IF NOT EXISTS "PoultryDailyLog" (
   "eggsDamaged" INTEGER NOT NULL DEFAULT 0,
   "mortality" INTEGER NOT NULL DEFAULT 0,
   "feedItemId" UUID REFERENCES "Ingredient"("id") ON DELETE SET NULL,
+  "feedProductId" UUID REFERENCES "Product"("id") ON DELETE SET NULL,
   "feedConsumedKg" NUMERIC NOT NULL DEFAULT 0,
   "notes" TEXT,
   "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   CONSTRAINT "PoultryDailyLog_flock_date_key" UNIQUE ("flockId", "date")
+);
+
+-- Finished goods transfer requests (Feed Mill -> Poultry)
+CREATE TABLE IF NOT EXISTS "FinishedGoodsTransferRequest" (
+  "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  "fromLocationId" UUID NOT NULL REFERENCES "InventoryLocation"("id") ON DELETE RESTRICT,
+  "toLocationId" UUID NOT NULL REFERENCES "InventoryLocation"("id") ON DELETE RESTRICT,
+  "status" TEXT NOT NULL DEFAULT 'PENDING'
+    CHECK ("status" IN ('PENDING', 'APPROVED', 'REJECTED', 'COMPLETED')),
+  "requestedBy" UUID REFERENCES auth.users(id),
+  "approvedBy" UUID REFERENCES auth.users(id),
+  "completedBy" UUID REFERENCES auth.users(id),
+  "notes" TEXT,
+  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "FinishedGoodsTransferLine" (
+  "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  "transferRequestId" UUID NOT NULL REFERENCES "FinishedGoodsTransferRequest"("id") ON DELETE CASCADE,
+  "productId" UUID NOT NULL REFERENCES "Product"("id") ON DELETE RESTRICT,
+  "quantityRequested" NUMERIC NOT NULL,
+  "quantityTransferred" NUMERIC
 );
 
 CREATE TABLE IF NOT EXISTS "Expense" (
@@ -508,6 +533,7 @@ CREATE OR REPLACE FUNCTION handle_poultry_daily_log(
   p_eggs_damaged INTEGER,
   p_mortality INTEGER,
   p_feed_item_id UUID,
+  p_feed_product_id UUID,
   p_feed_consumed_kg NUMERIC,
   p_notes TEXT,
   p_created_by UUID,
@@ -517,6 +543,7 @@ DECLARE
   v_log_id UUID;
   v_location_id UUID;
   v_feed_unit_cost NUMERIC;
+  v_feed_unit_cost_per_kg NUMERIC;
   v_current_count INTEGER;
   v_initial_count INTEGER;
   v_eggs_net INTEGER;
@@ -524,6 +551,11 @@ DECLARE
   v_has_stock BOOLEAN := false;
   v_current_qty NUMERIC;
   v_current_avg NUMERIC;
+  v_feed_stock RECORD;
+  v_has_feed_stock BOOLEAN := false;
+  v_feed_unit TEXT;
+  v_feed_unit_size NUMERIC;
+  v_feed_qty_units NUMERIC;
   v_unit_cost NUMERIC;
   v_next_qty NUMERIC;
   v_next_avg NUMERIC;
@@ -564,6 +596,7 @@ BEGIN
     "eggsDamaged",
     "mortality",
     "feedItemId",
+    "feedProductId",
     "feedConsumedKg",
     "notes"
   ) VALUES (
@@ -573,11 +606,72 @@ BEGIN
     COALESCE(p_eggs_damaged, 0),
     COALESCE(p_mortality, 0),
     p_feed_item_id,
+    p_feed_product_id,
     COALESCE(p_feed_consumed_kg, 0),
     p_notes
   ) RETURNING id INTO v_log_id;
 
-  IF p_feed_item_id IS NOT NULL AND COALESCE(p_feed_consumed_kg, 0) > 0 THEN
+  IF p_feed_product_id IS NOT NULL AND COALESCE(p_feed_consumed_kg, 0) > 0 THEN
+    SELECT "unit", "unitSizeKg"
+    INTO v_feed_unit, v_feed_unit_size
+    FROM "Product"
+    WHERE id = p_feed_product_id;
+
+    SELECT *
+    INTO v_feed_stock
+    FROM "FinishedGoodsInventory"
+    WHERE "productId" = p_feed_product_id AND "locationId" = v_location_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+      v_has_feed_stock := false;
+      v_current_qty := 0;
+      v_current_avg := 0;
+    ELSE
+      v_has_feed_stock := true;
+      v_current_qty := COALESCE(v_feed_stock."quantityOnHand", 0);
+      v_current_avg := COALESCE(v_feed_stock."averageUnitCost", 0);
+    END IF;
+
+    IF v_current_qty < COALESCE(v_feed_qty_units, 0) THEN
+      RAISE EXCEPTION 'Insufficient feed stock';
+    END IF;
+
+    v_feed_unit_cost := v_current_avg;
+    IF v_feed_unit = 'BAG' AND COALESCE(v_feed_unit_size, 0) > 0 THEN
+      v_feed_qty_units := ROUND((COALESCE(p_feed_consumed_kg, 0) / v_feed_unit_size)::numeric, 2);
+      v_feed_unit_cost_per_kg := COALESCE(v_feed_unit_cost, 0) / v_feed_unit_size;
+    ELSE
+      v_feed_qty_units := COALESCE(p_feed_consumed_kg, 0);
+      v_feed_unit_cost_per_kg := COALESCE(v_feed_unit_cost, 0);
+    END IF;
+    v_next_qty := v_current_qty - COALESCE(v_feed_qty_units, 0);
+
+    UPDATE "FinishedGoodsInventory"
+    SET "quantityOnHand" = v_next_qty,
+        "updatedAt" = NOW()
+    WHERE "productId" = p_feed_product_id AND "locationId" = v_location_id;
+
+    INSERT INTO "FinishedGoodsLedger" (
+      "productId",
+      "locationId",
+      "type",
+      "quantity",
+      "unitCostAtTime",
+      "referenceType",
+      "referenceId",
+      "createdBy"
+    ) VALUES (
+      p_feed_product_id,
+      v_location_id,
+      'USAGE',
+      COALESCE(v_feed_qty_units, 0),
+      v_feed_unit_cost,
+      'POULTRY_DAILY_LOG',
+      v_log_id::text,
+      p_created_by
+    );
+  ELSIF p_feed_item_id IS NOT NULL AND COALESCE(p_feed_consumed_kg, 0) > 0 THEN
     SELECT "averageUnitCost"
     INTO v_feed_unit_cost
     FROM "InventoryBalance"
@@ -625,7 +719,7 @@ BEGIN
     END IF;
 
     IF COALESCE(p_feed_consumed_kg, 0) > 0 THEN
-      v_unit_cost := ROUND((COALESCE(p_feed_consumed_kg, 0) * COALESCE(v_feed_unit_cost, 0)) / v_eggs_net, 2);
+      v_unit_cost := ROUND((COALESCE(p_feed_consumed_kg, 0) * COALESCE(v_feed_unit_cost_per_kg, 0)) / v_eggs_net, 2);
     ELSE
       v_unit_cost := v_current_avg;
     END IF;
@@ -735,6 +829,126 @@ BEGIN
   END LOOP;
 
   UPDATE "TransferRequest"
+  SET status = 'COMPLETED',
+      "completedBy" = p_completed_by,
+      "updatedAt" = NOW()
+  WHERE id = p_request_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Complete finished goods transfer request (atomic)
+CREATE OR REPLACE FUNCTION complete_finished_goods_transfer_request(
+  p_request_id UUID,
+  p_completed_by UUID
+) RETURNS void AS $$
+DECLARE
+  v_request RECORD;
+  v_line RECORD;
+  v_source_avg_cost NUMERIC;
+  v_source_qty NUMERIC;
+  v_dest_qty NUMERIC;
+  v_dest_avg NUMERIC;
+  v_next_qty NUMERIC;
+  v_next_avg NUMERIC;
+BEGIN
+  SELECT * INTO v_request
+  FROM "FinishedGoodsTransferRequest"
+  WHERE id = p_request_id
+  FOR UPDATE;
+
+  IF v_request.id IS NULL THEN
+    RAISE EXCEPTION 'Finished goods transfer request not found';
+  END IF;
+  IF v_request.status <> 'APPROVED' THEN
+    RAISE EXCEPTION 'Finished goods transfer request must be APPROVED';
+  END IF;
+
+  FOR v_line IN
+    SELECT * FROM "FinishedGoodsTransferLine"
+    WHERE "transferRequestId" = p_request_id
+  LOOP
+    SELECT "quantityOnHand", "averageUnitCost"
+    INTO v_source_qty, v_source_avg_cost
+    FROM "FinishedGoodsInventory"
+    WHERE "productId" = v_line."productId" AND "locationId" = v_request."fromLocationId"
+    FOR UPDATE;
+
+    IF COALESCE(v_source_qty, 0) < v_line."quantityRequested" THEN
+      RAISE EXCEPTION 'Insufficient finished goods stock';
+    END IF;
+
+    UPDATE "FinishedGoodsInventory"
+    SET "quantityOnHand" = v_source_qty - v_line."quantityRequested",
+        "updatedAt" = NOW()
+    WHERE "productId" = v_line."productId" AND "locationId" = v_request."fromLocationId";
+
+    SELECT "quantityOnHand", "averageUnitCost"
+    INTO v_dest_qty, v_dest_avg
+    FROM "FinishedGoodsInventory"
+    WHERE "productId" = v_line."productId" AND "locationId" = v_request."toLocationId"
+    FOR UPDATE;
+
+    v_dest_qty := COALESCE(v_dest_qty, 0);
+    v_dest_avg := COALESCE(v_dest_avg, 0);
+    v_next_qty := v_dest_qty + v_line."quantityRequested";
+    v_next_avg := CASE
+      WHEN v_next_qty > 0 THEN ((v_dest_qty * v_dest_avg) + (v_line."quantityRequested" * COALESCE(v_source_avg_cost, 0))) / v_next_qty
+      ELSE COALESCE(v_source_avg_cost, 0)
+    END;
+
+    INSERT INTO "FinishedGoodsInventory" ("productId", "locationId", "quantityOnHand", "averageUnitCost")
+    VALUES (v_line."productId", v_request."toLocationId", v_next_qty, ROUND(v_next_avg::numeric, 2))
+    ON CONFLICT ("productId", "locationId") DO UPDATE SET
+      "quantityOnHand" = EXCLUDED."quantityOnHand",
+      "averageUnitCost" = EXCLUDED."averageUnitCost",
+      "updatedAt" = NOW();
+
+    INSERT INTO "FinishedGoodsLedger" (
+      "productId",
+      "locationId",
+      "type",
+      "quantity",
+      "unitCostAtTime",
+      "referenceType",
+      "referenceId",
+      "createdBy"
+    ) VALUES (
+      v_line."productId",
+      v_request."fromLocationId",
+      'TRANSFER_OUT',
+      v_line."quantityRequested",
+      COALESCE(v_source_avg_cost, 0),
+      'FINISHED_GOODS_TRANSFER',
+      p_request_id::text,
+      p_completed_by
+    );
+
+    INSERT INTO "FinishedGoodsLedger" (
+      "productId",
+      "locationId",
+      "type",
+      "quantity",
+      "unitCostAtTime",
+      "referenceType",
+      "referenceId",
+      "createdBy"
+    ) VALUES (
+      v_line."productId",
+      v_request."toLocationId",
+      'TRANSFER_IN',
+      v_line."quantityRequested",
+      COALESCE(v_source_avg_cost, 0),
+      'FINISHED_GOODS_TRANSFER',
+      p_request_id::text,
+      p_completed_by
+    );
+
+    UPDATE "FinishedGoodsTransferLine"
+    SET "quantityTransferred" = v_line."quantityRequested"
+    WHERE id = v_line.id;
+  END LOOP;
+
+  UPDATE "FinishedGoodsTransferRequest"
   SET status = 'COMPLETED',
       "completedBy" = p_completed_by,
       "updatedAt" = NOW()
@@ -1000,6 +1214,26 @@ ALTER TABLE "Ingredient"
   ADD COLUMN IF NOT EXISTS "usedInProduction" FLOAT DEFAULT 0,
   ADD COLUMN IF NOT EXISTS "trackInFeedMill" BOOLEAN DEFAULT TRUE;
 
+ALTER TABLE "PoultryDailyLog"
+  ADD COLUMN IF NOT EXISTS "feedProductId" UUID REFERENCES "Product"("id") ON DELETE SET NULL;
+
+ALTER TABLE "Product"
+  ADD COLUMN IF NOT EXISTS "unitSizeKg" NUMERIC;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'FinishedGoodsLedger_type_check'
+  ) THEN
+    ALTER TABLE "FinishedGoodsLedger" DROP CONSTRAINT "FinishedGoodsLedger_type_check";
+  END IF;
+END$$;
+
+ALTER TABLE "FinishedGoodsLedger"
+  ADD CONSTRAINT "FinishedGoodsLedger_type_check"
+  CHECK ("type" IN ('PRODUCTION_IN', 'SALE_OUT', 'TRANSFER_IN', 'TRANSFER_OUT', 'USAGE', 'ADJUSTMENT'));
+
 ALTER TABLE "ProductionLog"
   ADD COLUMN IF NOT EXISTS "cost15kg" FLOAT8,
   ADD COLUMN IF NOT EXISTS "cost25kg" FLOAT8;
@@ -1033,6 +1267,8 @@ ALTER TABLE "ActivityLog" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "PoultryFlock" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "PoultryDailyLog" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Expense" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "FinishedGoodsTransferRequest" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "FinishedGoodsTransferLine" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
 -- Policies (create only if missing)
@@ -1388,6 +1624,58 @@ DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'FinishedGoodsTransferRequest'
+      AND policyname = 'Enable read access for authenticated users'
+  ) THEN
+    CREATE POLICY "Enable read access for authenticated users"
+    ON "FinishedGoodsTransferRequest"
+    FOR SELECT TO authenticated USING (true);
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'FinishedGoodsTransferLine'
+      AND policyname = 'Enable read access for authenticated users'
+  ) THEN
+    CREATE POLICY "Enable read access for authenticated users"
+    ON "FinishedGoodsTransferLine"
+    FOR SELECT TO authenticated USING (true);
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'FinishedGoodsTransferRequest'
+      AND policyname = 'Enable insert for authenticated users'
+  ) THEN
+    CREATE POLICY "Enable insert for authenticated users"
+    ON "FinishedGoodsTransferRequest"
+    FOR INSERT TO authenticated WITH CHECK (auth.uid() = "requestedBy");
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'FinishedGoodsTransferLine'
+      AND policyname = 'Enable insert for authenticated users'
+  ) THEN
+    CREATE POLICY "Enable insert for authenticated users"
+    ON "FinishedGoodsTransferLine"
+    FOR INSERT TO authenticated WITH CHECK (true);
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
     WHERE schemaname = 'public' AND tablename = 'users'
       AND policyname = 'Users can read their own profile'
   ) THEN
@@ -1436,3 +1724,7 @@ CREATE INDEX IF NOT EXISTS "PoultryDailyLog_date_idx"
   ON "PoultryDailyLog" ("date");
 CREATE INDEX IF NOT EXISTS "Expense_module_date_idx"
   ON "Expense" ("module", "spentAt");
+CREATE INDEX IF NOT EXISTS "FinishedGoodsTransferRequest_status_idx"
+  ON "FinishedGoodsTransferRequest" ("status");
+CREATE INDEX IF NOT EXISTS "FinishedGoodsTransferLine_request_idx"
+  ON "FinishedGoodsTransferLine" ("transferRequestId");

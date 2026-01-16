@@ -6,6 +6,7 @@ import "ag-grid-community/styles/ag-theme-quartz.css";
 import {
   ColDef,
   ModuleRegistry,
+  CellStyleModule,
   ClientSideRowModelModule,
   ValidationModule,
   PaginationModule,
@@ -39,6 +40,7 @@ import {
 
 ModuleRegistry.registerModules([
   ClientSideRowModelModule,
+  CellStyleModule,
   ValidationModule,
   PaginationModule,
   RowStyleModule,
@@ -63,14 +65,25 @@ export function PoultryFlockGrid() {
 
   const loadData = async () => {
     setLoading(true);
-    const response = await fetch('/api/poultry/flocks');
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      console.error('Flock load error:', payload.error || response.statusText);
-    } else {
-      setRowData(payload.flocks || []);
+    try {
+      const response = await fetch('/api/poultry/flocks');
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        console.error('Flock load error:', payload.error || response.statusText);
+        alert(payload.error || 'Failed to load flocks. Please try again.');
+      } else {
+        setRowData(payload.flocks || []);
+      }
+    } catch (error: any) {
+      console.error('Flock load error:', error);
+      const message =
+        typeof error?.message === 'string' && error.message.toLowerCase().includes('fetch')
+          ? 'Network error: unable to reach the server. Check your connection and try again.'
+          : 'Unexpected error while loading flocks. Please try again.';
+      alert(message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -179,7 +192,7 @@ export function PoultryFlockGrid() {
               New Flock
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[520px]">
+          <DialogContent className="sm:max-w-130">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold tracking-tight flex items-center gap-2">
                 <Users className="w-5 h-5 text-emerald-600" />

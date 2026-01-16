@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const admin = createAdminClient();
     let query = admin
       .from('PoultryDailyLog')
-      .select('*, flock:PoultryFlock(name, currentCount), feedItem:Ingredient(name, unit)')
+      .select('*, flock:PoultryFlock(name, currentCount), feedItem:Ingredient(name, unit), feedProduct:Product(name, unit, unitSizeKg)')
       .order('date', { ascending: false });
 
     if (flockId) query = query.eq('flockId', flockId);
@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
       eggsDamaged,
       mortality,
       feedItemId,
+      feedProductId,
       feedConsumedKg,
       notes
     } = await request.json();
@@ -74,8 +75,8 @@ export async function POST(request: NextRequest) {
     if (damaged > collected) {
       return NextResponse.json({ error: 'Damaged eggs cannot exceed collected' }, { status: 400 });
     }
-    if (feedKg > 0 && !feedItemId) {
-      return NextResponse.json({ error: 'Feed item is required when feed is consumed' }, { status: 400 });
+    if (feedKg > 0 && !feedItemId && !feedProductId) {
+      return NextResponse.json({ error: 'Feed selection is required when feed is consumed' }, { status: 400 });
     }
 
     const admin = createAdminClient();
@@ -112,6 +113,7 @@ export async function POST(request: NextRequest) {
       p_eggs_damaged: Math.round(damaged),
       p_mortality: Math.round(deaths),
       p_feed_item_id: feedItemId ?? null,
+      p_feed_product_id: feedProductId ?? null,
       p_feed_consumed_kg: feedKg,
       p_notes: notes ?? null,
       p_created_by: auth.userId,

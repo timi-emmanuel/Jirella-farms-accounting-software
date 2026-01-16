@@ -148,6 +148,7 @@ export interface Product {
  name: string;
  module: ProductModule;
  unit: string;
+ unitSizeKg?: number | null;
  active: boolean;
  createdAt: string;
  updatedAt: string;
@@ -166,7 +167,7 @@ export interface FinishedGoodsLedger {
  id: string;
  productId: string;
  locationId: string;
- type: 'PRODUCTION_IN' | 'SALE_OUT' | 'ADJUSTMENT';
+ type: 'PRODUCTION_IN' | 'SALE_OUT' | 'TRANSFER_IN' | 'TRANSFER_OUT' | 'USAGE' | 'ADJUSTMENT';
  quantity: number;
  unitCostAtTime?: number;
  referenceType?: string;
@@ -225,12 +226,37 @@ export interface PoultryDailyLog {
  eggsDamaged: number;
  mortality: number;
  feedItemId?: string | null;
+ feedProductId?: string | null;
  feedConsumedKg: number;
  notes?: string | null;
  createdAt: string;
  updatedAt: string;
  flock?: PoultryFlock;
  feedItem?: Ingredient;
+ feedProduct?: Product;
+}
+
+export interface FinishedGoodsTransferRequest {
+ id: string;
+ fromLocationId: string;
+ toLocationId: string;
+ status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'COMPLETED';
+ requestedBy?: string | null;
+ approvedBy?: string | null;
+ completedBy?: string | null;
+ notes?: string | null;
+ createdAt: string;
+ updatedAt: string;
+ lines?: FinishedGoodsTransferLine[];
+}
+
+export interface FinishedGoodsTransferLine {
+ id: string;
+ transferRequestId: string;
+ productId: string;
+ quantityRequested: number;
+ quantityTransferred?: number | null;
+ product?: Product;
 }
 
 export interface Expense {

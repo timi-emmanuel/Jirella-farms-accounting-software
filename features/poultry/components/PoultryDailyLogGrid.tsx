@@ -43,6 +43,7 @@ type FeedItem = {
   id: string;
   name: string;
   unit: string;
+  unitSizeKg?: number | null;
   quantityOnHand: number;
 };
 
@@ -70,7 +71,7 @@ export function PoultryDailyLogGrid() {
     eggsCollected: '',
     eggsDamaged: '',
     mortality: '',
-    feedItemId: '',
+    feedProductId: '',
     feedConsumedKg: '',
     notes: ''
   });
@@ -96,7 +97,7 @@ export function PoultryDailyLogGrid() {
   };
 
   const loadFeedItems = async () => {
-    const response = await fetch('/api/inventory/location?code=POULTRY');
+    const response = await fetch('/api/poultry/feed-items');
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       console.error('Feed items load error:', payload.error || response.statusText);
@@ -123,13 +124,17 @@ export function PoultryDailyLogGrid() {
   }, [showAdd]);
 
   const selectedFeed = useMemo(
-    () => feedItems.find((item) => item.id === form.feedItemId),
-    [feedItems, form.feedItemId]
+    () => feedItems.find((item) => item.id === form.feedProductId),
+    [feedItems, form.feedProductId]
   );
 
-  const feedQty = Number(form.feedConsumedKg || 0);
-  const feedAvailable = Number(selectedFeed?.quantityOnHand || 0);
-  const feedOver = feedQty > 0 && feedQty > feedAvailable;
+  const feedQtyKg = Number(form.feedConsumedKg || 0);
+  const feedUnitSize = Number(selectedFeed?.unitSizeKg || 0);
+  const feedAvailableUnits = Number(selectedFeed?.quantityOnHand || 0);
+  const feedAvailableKg = selectedFeed?.unit === 'BAG' && feedUnitSize > 0
+    ? feedAvailableUnits * feedUnitSize
+    : feedAvailableUnits;
+  const feedOver = feedQtyKg > 0 && feedQtyKg > feedAvailableKg;
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,7 +154,7 @@ export function PoultryDailyLogGrid() {
         eggsCollected: Number(form.eggsCollected || 0),
         eggsDamaged: Number(form.eggsDamaged || 0),
         mortality: Number(form.mortality || 0),
-        feedItemId: form.feedItemId || null,
+        feedProductId: form.feedProductId || null,
         feedConsumedKg: Number(form.feedConsumedKg || 0),
         notes: form.notes || null
       })
@@ -166,7 +171,7 @@ export function PoultryDailyLogGrid() {
         eggsCollected: '',
         eggsDamaged: '',
         mortality: '',
-        feedItemId: '',
+        feedProductId: '',
         feedConsumedKg: '',
         notes: ''
       });
@@ -209,7 +214,7 @@ export function PoultryDailyLogGrid() {
       headerName: "Feed",
       flex: 1.4,
       minWidth: 170,
-      valueGetter: (p: any) => p.data.feedItem?.name || ''
+      valueGetter: (p: any) => p.data.feedProduct?.name || p.data.feedItem?.name || ''
     },
     {
       field: "feedConsumedKg",
@@ -313,7 +318,7 @@ export function PoultryDailyLogGrid() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Feed Item</Label>
-                  <Select value={form.feedItemId} onValueChange={(value) => setForm({ ...form, feedItemId: value })}>
+                  <Select value={form.feedProductId} onValueChange={(value) => setForm({ ...form, feedProductId: value })}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select feed item" />
                     </SelectTrigger>
@@ -345,7 +350,7 @@ export function PoultryDailyLogGrid() {
                 )}>
                   <Wheat className="w-4 h-4" />
                   <span>
-                    Available: {feedAvailable.toLocaleString(undefined, { maximumFractionDigits: 2 })} {selectedFeed.unit}
+                    Available: {feedAvailableKg.toLocaleString(undefined, { maximumFractionDigits: 2 })} kg
                   </span>
                   {feedOver ? <span className="font-semibold">Insufficient poultry stock.</span> : null}
                 </div>

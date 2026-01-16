@@ -197,6 +197,7 @@ export function SalesGrid({ initialModule = 'ALL' }: { initialModule?: ModuleFil
    headerName: "Current Stock",
    type: 'numericColumn',
    flex: 1,
+   filter: false,
    valueGetter: (p: any) => {
     const product = stockByProductId.get(p.data.productId);
     return Number(product?.quantityOnHand || 0);
@@ -207,6 +208,7 @@ export function SalesGrid({ initialModule = 'ALL' }: { initialModule?: ModuleFil
    field: "quantitySold",
    headerName: "Quantity",
    type: 'numericColumn',
+   filter: false,
    flex: 1
   },
   {
@@ -214,25 +216,29 @@ export function SalesGrid({ initialModule = 'ALL' }: { initialModule?: ModuleFil
    headerName: "Unit Price (NGN)",
    type: 'numericColumn',
    flex: 1,
-   valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+   filter: false,
+   valueFormatter: (p: any) => `${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
   },
   {
    headerName: "Revenue",
    type: 'numericColumn',
+   filter: false,
    flex: 1,
    valueGetter: (p: any) => Number(p.data.quantitySold) * Number(p.data.unitSellingPrice),
-   valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+   valueFormatter: (p: any) => ` ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
   },
   {
    headerName: "COGS",
    type: 'numericColumn',
+   filter: false,
    flex: 1,
    valueGetter: (p: any) => Number(p.data.quantitySold) * Number(p.data.unitCostAtSale || 0),
-   valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+   valueFormatter: (p: any) => ` ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
   },
   {
    headerName: "Gross Profit",
    type: 'numericColumn',
+   filter: false,
    flex: 1,
    valueGetter: (p: any) => {
     const rev = Number(p.data.quantitySold) * Number(p.data.unitSellingPrice);

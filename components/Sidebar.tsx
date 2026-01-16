@@ -50,6 +50,8 @@ const navigation: NavigationItem[] = [
       { name: 'Inventory', href: '/feed-mill/rm-inventory', icon: Package },
       { name: 'Recipes', href: '/feed-mill/recipe-master', icon: FlaskConical }, 
       { name: 'Production', href: '/feed-mill/production', icon: Factory },
+      { name: 'Finished Stock', href: '/feed-mill/stock', icon: Package },
+      { name: 'Transfers', href: '/feed-mill/transfers', icon: Truck },
       { name: 'Sales', href: '/feed-mill/sales', icon: ShoppingCart },
     ]
   },
@@ -62,7 +64,6 @@ const navigation: NavigationItem[] = [
       { name: 'Flocks', href: '/poultry/flocks', icon: Users },
       { name: 'Daily Log', href: '/poultry/daily-log', icon: ClipboardList },
       { name: 'Inventory', href: '/poultry/inventory', icon: Package },
-      { name: 'Requests', href: '/poultry/requests', icon: ClipboardList },
       { name: 'Sales', href: '/poultry/sales', icon: ShoppingCart },
       { name: 'Expenses', href: '/poultry/expenses', icon: Wallet },
     ]
