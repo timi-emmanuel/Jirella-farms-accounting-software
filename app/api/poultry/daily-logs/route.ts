@@ -80,6 +80,21 @@ export async function POST(request: NextRequest) {
     }
 
     const admin = createAdminClient();
+
+    const logDate = date ?? new Date().toISOString().split('T')[0];
+    const { data: existingLog } = await admin
+      .from('PoultryDailyLog')
+      .select('id')
+      .eq('flockId', flockId)
+      .eq('date', logDate)
+      .maybeSingle();
+
+    if (existingLog) {
+      return NextResponse.json(
+        { error: 'Daily log already exists for this date. Please edit the existing log.' },
+        { status: 409 }
+      );
+    }
     const { data: existingProduct } = await admin
       .from('Product')
       .select('id')
@@ -108,7 +123,7 @@ export async function POST(request: NextRequest) {
 
     const { data: logId, error: logError } = await admin.rpc('handle_poultry_daily_log', {
       p_flock_id: flockId,
-      p_log_date: date ?? new Date().toISOString().split('T')[0],
+      p_log_date: logDate,
       p_eggs_collected: Math.round(collected),
       p_eggs_damaged: Math.round(damaged),
       p_mortality: Math.round(deaths),
@@ -144,6 +159,91 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ id: logId });
   } catch (error: any) {
     console.error('Poultry daily log create error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const auth = await getAuthContext();
+    if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!isRoleAllowed(auth.role, EDIT_ROLES)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const {
+      id,
+      eggsCollected,
+      eggsDamaged,
+      mortality,
+      feedItemId,
+      feedProductId,
+      feedConsumedKg,
+      notes
+    } = await request.json();
+
+    if (!id) {
+      return NextResponse.json({ error: 'Missing log id' }, { status: 400 });
+    }
+
+    const collected = Number(eggsCollected ?? 0);
+    const damaged = Number(eggsDamaged ?? 0);
+    const deaths = Number(mortality ?? 0);
+    const feedKg = roundTo2(Number(feedConsumedKg ?? 0));
+
+    if (collected < 0 || damaged < 0 || deaths < 0) {
+      return NextResponse.json({ error: 'Values must be zero or greater' }, { status: 400 });
+    }
+    if (damaged > collected) {
+      return NextResponse.json({ error: 'Damaged eggs cannot exceed collected' }, { status: 400 });
+    }
+    if (feedKg > 0 && !feedItemId && !feedProductId) {
+      return NextResponse.json({ error: 'Feed selection is required when feed is consumed' }, { status: 400 });
+    }
+
+    const admin = createAdminClient();
+    const { data: existingProduct } = await admin
+      .from('Product')
+      .select('id')
+      .eq('name', EGGS_PRODUCT_NAME)
+      .eq('module', 'POULTRY')
+      .single();
+
+    if (!existingProduct) {
+      return NextResponse.json({ error: 'Eggs product not found' }, { status: 400 });
+    }
+
+    const { error: updateError } = await admin.rpc('update_poultry_daily_log', {
+      p_log_id: id,
+      p_eggs_collected: Math.round(collected),
+      p_eggs_damaged: Math.round(damaged),
+      p_mortality: Math.round(deaths),
+      p_feed_item_id: feedItemId ?? null,
+      p_feed_product_id: feedProductId ?? null,
+      p_feed_consumed_kg: feedKg,
+      p_notes: notes ?? null,
+      p_updated_by: auth.userId,
+      p_eggs_product_id: existingProduct.id
+    });
+
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 400 });
+    }
+
+    await logActivityServer({
+      action: 'POULTRY_DAILY_LOG_UPDATED',
+      entityType: 'PoultryDailyLog',
+      entityId: id,
+      description: 'Daily log updated',
+      metadata: { eggsCollected: collected, eggsDamaged: damaged, mortality: deaths, feedConsumedKg: feedKg },
+      userId: auth.userId,
+      userRole: auth.role,
+      ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip')
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('Poultry daily log update error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

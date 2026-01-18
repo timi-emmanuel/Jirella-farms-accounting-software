@@ -17,6 +17,17 @@ import {
   themeQuartz
 } from 'ag-grid-community';
 import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 type StockRow = {
   id: string;
@@ -41,6 +52,10 @@ ModuleRegistry.registerModules([
 export function FinishedFeedStockGrid() {
   const [rowData, setRowData] = useState<StockRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selling, setSelling] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<StockRow | null>(null);
+  const [saleForm, setSaleForm] = useState({ quantityKg: '', unitPrice: '' });
 
   const loadData = async () => {
     setLoading(true);
@@ -95,8 +110,60 @@ export function FinishedFeedStockGrid() {
       type: 'numericColumn',
       valueGetter: (p: any) => Number(p.data.averageUnitCost || 0),
       valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+    },
+    {
+      headerName: "Actions",
+      width: 160,
+      cellRenderer: (params: any) => (
+        <Button
+          size="sm"
+          variant="outline"
+          className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+          onClick={() => {
+            setSelectedProduct(params.data);
+            setSaleForm({ quantityKg: '', unitPrice: '' });
+            setDialogOpen(true);
+          }}
+        >
+          Sell to Poultry
+        </Button>
+      )
     }
   ], []);
+
+  const handleInternalSale = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProduct) return;
+    const quantityKg = Number(saleForm.quantityKg);
+    const unitPrice = Number(saleForm.unitPrice);
+    if (!quantityKg || quantityKg <= 0 || !unitPrice || unitPrice <= 0) {
+      alert('Enter a valid quantity and price.');
+      return;
+    }
+
+    setSelling(true);
+    const response = await fetch('/api/finished-goods/internal-sales', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        productId: selectedProduct.id,
+        quantityKg,
+        unitPrice
+      })
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      alert(payload.error || 'Failed to record internal sale.');
+    } else {
+      setDialogOpen(false);
+      setSelectedProduct(null);
+      setSaleForm({ quantityKg: '', unitPrice: '' });
+      loadData();
+      alert('Internal feed purchase recorded.');
+    }
+    setSelling(false);
+  };
 
   if (loading && rowData.length === 0) {
     return (
@@ -121,6 +188,50 @@ export function FinishedFeedStockGrid() {
           theme={themeQuartz}
         />
       </div>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogTrigger asChild>
+          <span />
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sell Feed to Poultry</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleInternalSale} className="space-y-4">
+            <div className="space-y-1 text-sm text-slate-600">
+              <span className="font-semibold text-slate-800">{selectedProduct?.name}</span>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="quantityKg">Quantity (kg)</Label>
+              <Input
+                id="quantityKg"
+                type="number"
+                step="0.01"
+                value={saleForm.quantityKg}
+                onChange={(e) => setSaleForm({ ...saleForm, quantityKg: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="unitPrice">Unit Price (NGN / kg)</Label>
+              <Input
+                id="unitPrice"
+                type="number"
+                step="0.01"
+                value={saleForm.unitPrice}
+                onChange={(e) => setSaleForm({ ...saleForm, unitPrice: e.target.value })}
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={selling}>
+                {selling ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Confirm Internal Sale
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

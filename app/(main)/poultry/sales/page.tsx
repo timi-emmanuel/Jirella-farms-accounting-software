@@ -12,15 +12,9 @@ export default function PoultrySalesPage() {
         <p className="text-slate-500 text-sm font-medium">
           Track poultry sales within the unified sales system.
         </p>
-      </div>
-      <div className="flex justify-end">
-        <Button asChild variant="outline">
-          <Link href="/sales">Go to Unified Sales</Link>
-        </Button>
-      </div>
-
+      </div>  
       <div className="flex-1 overflow-hidden">
-        <SalesGrid initialModule="POULTRY" />
+        <SalesGrid initialModule="POULTRY" showModuleFilter={false} showStockColumn={false} />
       </div>
     </div>
   );

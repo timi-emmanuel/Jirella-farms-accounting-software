@@ -1,6 +1,6 @@
 
 
-export type UserRole = 'ADMIN' | 'MANAGER' | 'FEED_MILL_STAFF' | 'POULTRY_STAFF' | 'ACCOUNTANT' | 'PROCUREMENT_MANAGER' | 'STORE_KEEPER' | 'STAFF';
+export type UserRole = 'ADMIN' | 'MANAGER' | 'FEED_MILL_STAFF' | 'BSF_STAFF' | 'POULTRY_STAFF' | 'ACCOUNTANT' | 'PROCUREMENT_MANAGER' | 'STORE_KEEPER' | 'STAFF';
 export type UnitOfMeasure = 'KG' | 'TON' | 'LITER' | 'BAG' | 'CRATE';
 export type TransactionType = 'PURCHASE' | 'USAGE' | 'ADJUSTMENT' | 'RETURN';
 export type StoreRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'RECEIVED';
@@ -140,8 +140,8 @@ export interface FeedMillSale {
  recipe?: Recipe;
 }
 
-export type ProductModule = 'FEED_MILL' | 'POULTRY';
-export type ExpenseModule = 'FEED_MILL' | 'POULTRY';
+export type ProductModule = 'FEED_MILL' | 'POULTRY' | 'BSF';
+export type ExpenseModule = 'FEED_MILL' | 'POULTRY' | 'BSF';
 
 export interface Product {
  id: string;
@@ -167,7 +167,7 @@ export interface FinishedGoodsLedger {
  id: string;
  productId: string;
  locationId: string;
- type: 'PRODUCTION_IN' | 'SALE_OUT' | 'TRANSFER_IN' | 'TRANSFER_OUT' | 'USAGE' | 'ADJUSTMENT';
+ type: 'PRODUCTION_IN' | 'SALE_OUT' | 'TRANSFER_IN' | 'TRANSFER_OUT' | 'USAGE' | 'ADJUSTMENT' | 'INTERNAL_SALE_OUT' | 'INTERNAL_PURCHASE_IN';
  quantity: number;
  unitCostAtTime?: number;
  referenceType?: string;
@@ -187,6 +187,7 @@ export interface Sale {
  soldBy?: string;
  notes?: string | null;
  createdAt: string;
+ batchId?: string | null;
  product?: Product;
 }
 
@@ -259,6 +260,19 @@ export interface FinishedGoodsTransferLine {
  product?: Product;
 }
 
+export interface FeedInternalPurchase {
+ id: string;
+ productId: string;
+ quantityKg: number;
+ unitPrice: number;
+ totalAmount: number;
+ purchaseDate: string;
+ soldByUserId?: string | null;
+ boughtByUserId?: string | null;
+ createdAt: string;
+ product?: Product;
+}
+
 export interface Expense {
  id: string;
  module: ExpenseModule;
@@ -284,4 +298,70 @@ export interface PoultryDashboardMetrics {
  totalCogs: number;
  totalExpenses: number;
  profit: number;
+}
+
+export type BsfBatchStatus = 'GROWING' | 'HARVESTED' | 'PROCESSED' | 'CLOSED';
+export type BsfProcessType = 'DRYING' | 'PRESSING_EXTRACTION';
+
+export interface BsfInsectoriumLog {
+ id: string;
+ date: string;
+ pupaeLoadedKg: number;
+ eggsHarvestedGrams: number;
+ pupaeShellsHarvestedKg: number;
+ mortalityRate: number;
+ notes?: string | null;
+ createdBy?: string | null;
+ createdAt: string;
+ updatedAt: string;
+}
+
+export interface BsfLarvariumBatch {
+ id: string;
+ batchCode: string;
+ startDate: string;
+ initialLarvaeWeightGrams: number;
+ substrateMixRatio?: string | null;
+ status: BsfBatchStatus;
+ harvestDate?: string | null;
+ notes?: string | null;
+ createdBy?: string | null;
+ createdAt: string;
+ updatedAt: string;
+}
+
+export interface BsfBatchFeedLog {
+ id: string;
+ batchId: string;
+ date: string;
+ pkcKg: number;
+ poultryWasteKg: number;
+ poultryWasteCostOverride?: number | null;
+ notes?: string | null;
+ createdBy?: string | null;
+ createdAt: string;
+}
+
+export interface BsfHarvestYield {
+ id: string;
+ batchId: string;
+ wetLarvaeKg: number;
+ frassKg: number;
+ residueWasteKg: number;
+ createdBy?: string | null;
+ createdAt: string;
+}
+
+export interface BsfProcessingRun {
+ id: string;
+ batchId: string;
+ processType: BsfProcessType;
+ inputWeightKg: number;
+ outputDryLarvaeKg: number;
+ outputLarvaeOilLiters: number;
+ outputLarvaeCakeKg: number;
+ energyCostEstimate?: number | null;
+ runAt: string;
+ createdBy?: string | null;
+ createdAt: string;
 }

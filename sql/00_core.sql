@@ -1,0 +1,413 @@
+-- sql/00_core.sql
+-- Core/shared schema and auth (idempotent)
+
+-- Extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- Enums
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'UserRole') THEN
+    CREATE TYPE "UserRole" AS ENUM (
+      'ADMIN',
+      'MANAGER',
+      'STAFF',
+      'FEED_MILL_STAFF',
+      'BSF_STAFF',
+      'POULTRY_STAFF',
+      'ACCOUNTANT',
+      'PROCUREMENT_MANAGER',
+      'STORE_KEEPER'
+    );
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'UnitOfMeasure') THEN
+    CREATE TYPE "UnitOfMeasure" AS ENUM ('KG', 'TON', 'LITER', 'BAG', 'CRATE');
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'TransactionType') THEN
+    CREATE TYPE "TransactionType" AS ENUM ('PURCHASE', 'USAGE', 'ADJUSTMENT', 'RETURN');
+  END IF;
+END$$;
+
+-- Add missing enum values (additive only)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'UserRole') THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+      WHERE t.typname = 'UserRole' AND e.enumlabel = 'FEED_MILL_STAFF'
+    ) THEN
+      ALTER TYPE "UserRole" ADD VALUE 'FEED_MILL_STAFF';
+    END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+      WHERE t.typname = 'UserRole' AND e.enumlabel = 'BSF_STAFF'
+    ) THEN
+      ALTER TYPE "UserRole" ADD VALUE 'BSF_STAFF';
+    END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+      WHERE t.typname = 'UserRole' AND e.enumlabel = 'POULTRY_STAFF'
+    ) THEN
+      ALTER TYPE "UserRole" ADD VALUE 'POULTRY_STAFF';
+    END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+      WHERE t.typname = 'UserRole' AND e.enumlabel = 'ACCOUNTANT'
+    ) THEN
+      ALTER TYPE "UserRole" ADD VALUE 'ACCOUNTANT';
+    END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+      WHERE t.typname = 'UserRole' AND e.enumlabel = 'PROCUREMENT_MANAGER'
+    ) THEN
+      ALTER TYPE "UserRole" ADD VALUE 'PROCUREMENT_MANAGER';
+    END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+      WHERE t.typname = 'UserRole' AND e.enumlabel = 'STORE_KEEPER'
+    ) THEN
+      ALTER TYPE "UserRole" ADD VALUE 'STORE_KEEPER';
+    END IF;
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'UnitOfMeasure') THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+      WHERE t.typname = 'UnitOfMeasure' AND e.enumlabel = 'CRATE'
+    ) THEN
+      ALTER TYPE "UnitOfMeasure" ADD VALUE 'CRATE';
+    END IF;
+  END IF;
+END$$;
+
+-- Core tables
+CREATE TABLE IF NOT EXISTS "InventoryLocation" (
+  "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  "code" TEXT NOT NULL UNIQUE,
+  "name" TEXT NOT NULL,
+  "isActive" BOOLEAN DEFAULT TRUE,
+  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "Product" (
+  "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  "name" TEXT NOT NULL UNIQUE,
+  "module" TEXT NOT NULL CHECK ("module" IN ('FEED_MILL', 'POULTRY', 'BSF')),
+  "unit" TEXT NOT NULL,
+  "unitSizeKg" NUMERIC,
+  "active" BOOLEAN DEFAULT TRUE,
+  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "FinishedGoodsInventory" (
+  "productId" UUID NOT NULL REFERENCES "Product"("id") ON DELETE CASCADE,
+  "locationId" UUID NOT NULL REFERENCES "InventoryLocation"("id") ON DELETE RESTRICT,
+  "quantityOnHand" NUMERIC NOT NULL DEFAULT 0,
+  "averageUnitCost" NUMERIC NOT NULL DEFAULT 0,
+  "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  PRIMARY KEY ("productId", "locationId")
+);
+
+CREATE TABLE IF NOT EXISTS "FinishedGoodsLedger" (
+  "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  "productId" UUID NOT NULL REFERENCES "Product"("id") ON DELETE CASCADE,
+  "locationId" UUID NOT NULL REFERENCES "InventoryLocation"("id") ON DELETE RESTRICT,
+  "type" TEXT NOT NULL CHECK ("type" IN (
+    'PRODUCTION_IN',
+    'SALE_OUT',
+    'TRANSFER_IN',
+    'TRANSFER_OUT',
+    'USAGE',
+    'ADJUSTMENT',
+    'INTERNAL_SALE_OUT',
+    'INTERNAL_PURCHASE_IN'
+  )),
+  "quantity" NUMERIC NOT NULL,
+  "unitCostAtTime" NUMERIC,
+  "referenceType" TEXT,
+  "referenceId" TEXT,
+  "createdBy" UUID REFERENCES auth.users(id),
+  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "Sale" (
+  "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  "productId" UUID NOT NULL REFERENCES "Product"("id") ON DELETE RESTRICT,
+  "module" TEXT NOT NULL CHECK ("module" IN ('FEED_MILL', 'POULTRY', 'BSF')),
+  "locationId" UUID NOT NULL REFERENCES "InventoryLocation"("id") ON DELETE RESTRICT,
+  "quantitySold" NUMERIC NOT NULL,
+  "unitSellingPrice" NUMERIC NOT NULL,
+  "unitCostAtSale" NUMERIC NOT NULL DEFAULT 0,
+  "soldAt" DATE NOT NULL DEFAULT CURRENT_DATE,
+  "soldBy" UUID REFERENCES auth.users(id),
+  "notes" TEXT,
+  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "ActivityLog" (
+  "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  "userId" UUID REFERENCES auth.users(id),
+  "userRole" TEXT,
+  "action" TEXT NOT NULL,
+  "entityType" TEXT NOT NULL,
+  "entityId" TEXT,
+  "description" TEXT,
+  "metadata" JSONB,
+  "ipAddress" TEXT,
+  "timestamp" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Users profile table and auth trigger
+CREATE TABLE IF NOT EXISTS public.users (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT NOT NULL UNIQUE,
+  role "UserRole" NOT NULL DEFAULT 'STAFF',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.users (id, email)
+  VALUES (NEW.id, NEW.email)
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+AFTER INSERT ON auth.users
+FOR EACH ROW
+EXECUTE PROCEDURE public.handle_new_user();
+
+-- Additive column safety for older schemas
+ALTER TABLE "Product"
+  ADD COLUMN IF NOT EXISTS "unitSizeKg" NUMERIC;
+
+ALTER TABLE "FinishedGoodsInventory"
+  ADD COLUMN IF NOT EXISTS "locationId" UUID REFERENCES "InventoryLocation"("id") ON DELETE RESTRICT;
+ALTER TABLE "FinishedGoodsLedger"
+  ADD COLUMN IF NOT EXISTS "locationId" UUID REFERENCES "InventoryLocation"("id") ON DELETE RESTRICT;
+ALTER TABLE "Sale"
+  ADD COLUMN IF NOT EXISTS "locationId" UUID REFERENCES "InventoryLocation"("id") ON DELETE RESTRICT;
+
+-- Backfill location for finished goods and sales (idempotent)
+UPDATE "FinishedGoodsInventory" fgi
+SET "locationId" = loc.id
+FROM "Product" p
+JOIN "InventoryLocation" loc ON loc."code" = p."module"
+WHERE fgi."productId" = p.id AND fgi."locationId" IS NULL;
+
+UPDATE "FinishedGoodsLedger" fgl
+SET "locationId" = loc.id
+FROM "Product" p
+JOIN "InventoryLocation" loc ON loc."code" = p."module"
+WHERE fgl."productId" = p.id AND fgl."locationId" IS NULL;
+
+UPDATE "Sale" s
+SET "locationId" = loc.id
+FROM "Product" p
+JOIN "InventoryLocation" loc ON loc."code" = p."module"
+WHERE s."productId" = p.id AND s."locationId" IS NULL;
+
+-- Ensure FinishedGoodsLedger check constraint covers new types
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'FinishedGoodsLedger_type_check'
+  ) THEN
+    ALTER TABLE "FinishedGoodsLedger" DROP CONSTRAINT "FinishedGoodsLedger_type_check";
+  END IF;
+END$$;
+
+ALTER TABLE "FinishedGoodsLedger"
+  ADD CONSTRAINT "FinishedGoodsLedger_type_check"
+  CHECK ("type" IN (
+    'PRODUCTION_IN',
+    'SALE_OUT',
+    'TRANSFER_IN',
+    'TRANSFER_OUT',
+    'USAGE',
+    'ADJUSTMENT',
+    'INTERNAL_SALE_OUT',
+    'INTERNAL_PURCHASE_IN'
+  ));
+
+-- Ensure Product/Sale module checks include BSF
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'Product_module_check'
+  ) THEN
+    ALTER TABLE "Product" DROP CONSTRAINT "Product_module_check";
+  END IF;
+END$$;
+
+ALTER TABLE "Product"
+  ADD CONSTRAINT "Product_module_check"
+  CHECK ("module" IN ('FEED_MILL', 'POULTRY', 'BSF'));
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'Sale_module_check'
+  ) THEN
+    ALTER TABLE "Sale" DROP CONSTRAINT "Sale_module_check";
+  END IF;
+END$$;
+
+ALTER TABLE "Sale"
+  ADD CONSTRAINT "Sale_module_check"
+  CHECK ("module" IN ('FEED_MILL', 'POULTRY', 'BSF'));
+
+-- Ensure FinishedGoodsInventory has a composite PK for upserts
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'FinishedGoodsInventory_pkey'
+  ) THEN
+    ALTER TABLE "FinishedGoodsInventory"
+      ADD CONSTRAINT "FinishedGoodsInventory_pkey" PRIMARY KEY ("productId", "locationId");
+  END IF;
+END$$;
+
+-- Backfill any missing profiles (idempotent)
+INSERT INTO public.users (id, email, role)
+SELECT id, email, 'ADMIN' FROM auth.users
+WHERE id NOT IN (SELECT id FROM public.users);
+
+-- RLS
+ALTER TABLE "InventoryLocation" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Product" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "FinishedGoodsInventory" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "FinishedGoodsLedger" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Sale" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "ActivityLog" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+
+-- Policies
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'InventoryLocation'
+      AND policyname = 'Enable read access for authenticated users'
+  ) THEN
+    CREATE POLICY "Enable read access for authenticated users"
+    ON "InventoryLocation"
+    FOR SELECT TO authenticated USING (true);
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'Product'
+      AND policyname = 'Enable read access for authenticated users'
+  ) THEN
+    CREATE POLICY "Enable read access for authenticated users"
+    ON "Product"
+    FOR SELECT TO authenticated USING (true);
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'FinishedGoodsInventory'
+      AND policyname = 'Enable read access for authenticated users'
+  ) THEN
+    CREATE POLICY "Enable read access for authenticated users"
+    ON "FinishedGoodsInventory"
+    FOR SELECT TO authenticated USING (true);
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'FinishedGoodsLedger'
+      AND policyname = 'Enable read access for authenticated users'
+  ) THEN
+    CREATE POLICY "Enable read access for authenticated users"
+    ON "FinishedGoodsLedger"
+    FOR SELECT TO authenticated USING (true);
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'Sale'
+      AND policyname = 'Enable read access for authenticated users'
+  ) THEN
+    CREATE POLICY "Enable read access for authenticated users"
+    ON "Sale"
+    FOR SELECT TO authenticated USING (true);
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'ActivityLog'
+      AND policyname = 'Enable read access for authenticated users'
+  ) THEN
+    CREATE POLICY "Enable read access for authenticated users"
+    ON "ActivityLog"
+    FOR SELECT TO authenticated USING (true);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'ActivityLog'
+      AND policyname = 'Enable insert for authenticated users'
+  ) THEN
+    CREATE POLICY "Enable insert for authenticated users"
+    ON "ActivityLog"
+    FOR INSERT TO authenticated WITH CHECK (auth.uid() = "userId");
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'users'
+      AND policyname = 'Users can read their own profile'
+  ) THEN
+    CREATE POLICY "Users can read their own profile"
+    ON public.users
+    FOR SELECT USING (auth.uid() = id);
+  END IF;
+END$$;
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS "FinishedGoodsLedger_productId_idx"
+  ON "FinishedGoodsLedger" ("productId");
+CREATE INDEX IF NOT EXISTS "Sale_soldAt_idx"
+  ON "Sale" ("soldAt");
+CREATE INDEX IF NOT EXISTS "Sale_module_idx"
+  ON "Sale" ("module");

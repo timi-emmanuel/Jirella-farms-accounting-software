@@ -39,7 +39,7 @@ import {
  SelectValue,
 } from "@/components/ui/select";
 
-type ModuleFilter = 'ALL' | 'FEED_MILL' | 'POULTRY';
+type ModuleFilter = 'ALL' | 'FEED_MILL' | 'POULTRY' | 'BSF';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([
@@ -55,7 +55,15 @@ ModuleRegistry.registerModules([
  CustomFilterModule
 ]);
 
-export function SalesGrid({ initialModule = 'ALL' }: { initialModule?: ModuleFilter }) {
+export function SalesGrid({
+  initialModule = 'ALL',
+  showModuleFilter = true,
+  showStockColumn = true
+}: {
+  initialModule?: ModuleFilter;
+  showModuleFilter?: boolean;
+  showStockColumn?: boolean;
+}) {
  const [rowData, setRowData] = useState<Sale[]>([]);
  const [products, setProducts] = useState<(Product & { quantityOnHand?: number; averageUnitCost?: number })[]>([]);
  const [loading, setLoading] = useState(true);
@@ -174,7 +182,8 @@ export function SalesGrid({ initialModule = 'ALL' }: { initialModule?: ModuleFil
   return new Map(products.map((product) => [product.id, product]));
  }, [products]);
 
- const colDefs: ColDef<Sale>[] = useMemo(() => [
+ const colDefs: ColDef<Sale>[] = useMemo(() => {
+  const columns: ColDef<Sale>[] = [
   {
    field: "soldAt",
    headerName: "Date",
@@ -192,17 +201,6 @@ export function SalesGrid({ initialModule = 'ALL' }: { initialModule?: ModuleFil
    headerName: "Module",
    width: 120,
    filter: true
-  },
-  {
-   headerName: "Current Stock",
-   type: 'numericColumn',
-   flex: 1,
-   filter: false,
-   valueGetter: (p: any) => {
-    const product = stockByProductId.get(p.data.productId);
-    return Number(product?.quantityOnHand || 0);
-   },
-   valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   },
   {
    field: "quantitySold",
@@ -251,7 +249,24 @@ export function SalesGrid({ initialModule = 'ALL' }: { initialModule?: ModuleFil
     </span>
    )
   }
- ], [stockByProductId]);
+  ];
+
+  if (showStockColumn) {
+    columns.splice(3, 0, {
+      headerName: "Current Stock",
+      type: 'numericColumn',
+      flex: 1,
+      filter: false,
+      valueGetter: (p: any) => {
+        const product = stockByProductId.get(p.data.productId);
+        return Number(product?.quantityOnHand || 0);
+      },
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    });
+  }
+
+  return columns;
+ }, [stockByProductId, showStockColumn]);
 
  const selectedProduct = products.find(p => p.id === newSale.productId);
  const selectedStock = Number(selectedProduct?.quantityOnHand || 0);
@@ -267,16 +282,21 @@ export function SalesGrid({ initialModule = 'ALL' }: { initialModule?: ModuleFil
  return (
   <div className="flex flex-col h-full space-y-4">
    <div className="flex flex-wrap items-center justify-between gap-3">
-    <Select value={moduleFilter} onValueChange={(value: ModuleFilter) => setModuleFilter(value)}>
-     <SelectTrigger className="w-48 bg-white">
-      <SelectValue />
-     </SelectTrigger>
-     <SelectContent>
-      <SelectItem value="ALL">All Modules</SelectItem>
-      <SelectItem value="FEED_MILL">Feed Mill</SelectItem>
-      <SelectItem value="POULTRY">Poultry</SelectItem>
-     </SelectContent>
-    </Select>
+    {showModuleFilter ? (
+     <Select value={moduleFilter} onValueChange={(value: ModuleFilter) => setModuleFilter(value)}>
+      <SelectTrigger className="w-48 bg-white">
+       <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+       <SelectItem value="ALL">All Modules</SelectItem>
+       <SelectItem value="FEED_MILL">Feed Mill</SelectItem>
+       <SelectItem value="BSF">BSF</SelectItem>
+       <SelectItem value="POULTRY">Poultry</SelectItem>
+      </SelectContent>
+     </Select>
+    ) : (
+     <div />
+    )}
 
     <div className="flex flex-wrap items-center gap-2">
      <Dialog open={showAddProduct} onOpenChange={setShowAddProduct}>
@@ -309,6 +329,7 @@ export function SalesGrid({ initialModule = 'ALL' }: { initialModule?: ModuleFil
            </SelectTrigger>
            <SelectContent>
             <SelectItem value="FEED_MILL">Feed Mill</SelectItem>
+            <SelectItem value="BSF">BSF</SelectItem>
             <SelectItem value="POULTRY">Poultry</SelectItem>
            </SelectContent>
           </Select>

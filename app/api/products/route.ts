@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   const products = data || [];
   if (products.length === 0) return NextResponse.json({ products: [] });
 
-  const moduleCodes = module && module !== 'ALL' ? [module] : ['FEED_MILL', 'POULTRY'];
+  const moduleCodes = module && module !== 'ALL' ? [module] : ['FEED_MILL', 'POULTRY', 'BSF'];
   const { data: locations } = await admin
    .from('InventoryLocation')
    .select('id, code')

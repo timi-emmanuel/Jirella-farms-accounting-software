@@ -14,7 +14,7 @@ export default function SalesPage() {
     </p>
    </div> 
    <div className="flex-1 overflow-hidden">
-    <SalesGrid initialModule="FEED_MILL" />
+    <SalesGrid initialModule="FEED_MILL" showModuleFilter={false} showStockColumn={false} />
    </div>
   </div>
  );

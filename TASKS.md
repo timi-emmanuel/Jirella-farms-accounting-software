@@ -1,364 +1,315 @@
-# Feed Mill → Poultry Feed Usage Flow (Model B) — Update Spec for Codex
+# BSF Module (Insectorium + Larvarium) — Implementation README (for Codex)
 
-This spec updates the current design so that:
-- Feed Mill **produces finished feed**
-- Poultry **consumes finished feed**
-- Some finished feed is **sold to the public**
-- Not all feed produced is consumed internally
+This module adds **Black Soldier Fly (BSF)** operations to the farm system.
 
-This reflects real farm operations:
-- Feed Mill output is a finished product (bags/kg)
-- Poultry feeding should not “re-produce” feed
-- Internal usage happens via transfer from Feed Mill to Poultry
+Business structure:
+- **Insectorium** = breeding cycle (pupae → eggs → pupae shells byproduct)
+- **Larvarium** = growth + production cycle (5-DOL → wet larvae → processing outputs)
 
----
+Products:
+- Primary: **Wet larvae**, **Pupae shells**
+- Processed: **Dry larvae**, **Larvae oil**, **Larvae cake**, **Frass**
+Inputs (COGS): **PKC**, **Poultry waste** (even if “free”, record transport/labor cost).:contentReference[oaicite:3]{index=3}:contentReference[oaicite:4]{index=4}
 
-## 1) Core Decision
-
-✅ Finished feeds produced in Feed Mill are **Finished Goods**.
-
-Examples:
-- Layers Mash 25kg
-- Grower Mash 25kg
-- Starter Mash 15kg
-
-Finished goods can go to:
-1. **Internal consumption** (transfer to POULTRY)
-2. **External sales** (public sales)
+Goal:
+- Track batches end-to-end
+- Track inventory usage by batch (COGS)
+- Track yields + processing conversions
+- Track sales
+- Generate **Profit & Loss (P&L)** + KPIs (FCR, yields, oil extraction, breeding efficiency, survival proxy):contentReference[oaicite:5]{index=5}:contentReference[oaicite:6]{index=6}
 
 ---
 
-## 2) Locations (Model B)
+## 1. Tabs / Routes
 
-Inventory is location-scoped:
-- `STORE` (optional central warehouse)
-- `FEED_MILL` (finished feed stock is here after production)
-- `POULTRY` (feed stock available for feeding birds)
-
-For MVP:
-- Finished feed stock starts at `FEED_MILL` after production.
-- Poultry feed stock is replenished only via `FEED_MILL -> POULTRY` transfer.
-
----
-
-## 3) Data Model (Minimal Changes)
-
-### A) Finished Feed Products
-Represent each produced feed product as a `Product` (or an InventoryItem flagged as finished good).
-
-Option A (recommended): use `products` table + finished goods ledger.
-Option B (simpler MVP): use `inventory_items` for finished feed as well.
-
-Codex should pick ONE approach and apply consistently.
+Add sidebar parent: **BSF**
+- `/bsf/dashboard`
+- `/bsf/procurement` (inputs: PKC, poultry waste, additives, fuel/energy optional):contentReference[oaicite:7]{index=7}
+- `/bsf/insectorium` (daily breeding logs):contentReference[oaicite:8]{index=8}
+- `/bsf/larvarium/batches` (create/manage larvarium batches):contentReference[oaicite:9]{index=9}
+- `/bsf/larvarium/batches/[id]` (batch detail: feed log, harvest, processing)
+- `/bsf/harvest` (optional shortcut view across batches):contentReference[oaicite:10]{index=10}
+- `/bsf/processing` (optional shortcut view across batches):contentReference[oaicite:11]{index=11}
+- `/bsf/sales` (sell products):contentReference[oaicite:12]{index=12}
+- `/bsf/reports/pnl` (monthly P&L)
+- `/bsf/reports/batch-pnl` (profit per batch)
+- `/bsf/kpis` (FCR, yields, etc.)
 
 ---
 
-## 4) Workflow Overview
+## 2. Roles / Access
 
-### Step 1 — Produce Feed (Feed Mill)
-Input:
-- recipeId
-- quantityProducedKg (or bags + bagSize)
-
-System actions:
-1. Validate raw ingredient availability in `FEED_MILL` location (or STORE depending on how you do raw material storage).
-2. Deduct raw materials from FEED_MILL location (ledger OUT, type=PRODUCTION_USAGE).
-3. Create finished feed stock in FEED_MILL location (ledger IN, type=PRODUCTION_OUTPUT).
-4. Store production costing snapshots:
-   - costPerKg
-   - costPerBag15kg
-   - costPerBag25kg
-
-Result:
-- Finished feed is now available in FEED_MILL for either sale or transfer.
+Keep it simple (align with your role-based tabs system):
+- ADMIN: full access
+- BSF_STAFF: Insectorium, Larvarium, Harvest, Processing
+- ACCOUNTANT: Sales + Reports
+- PROCUREMENT_MANAGER: Procurement only
 
 ---
 
-### Step 2 — Transfer Finished Feed to Poultry (Internal Supply)
-When poultry needs feed:
-- Poultry creates a **Transfer Request** from `FEED_MILL -> POULTRY` for a specific finished feed product.
+## 3. Core Domain Model (What must exist)
 
-Statuses:
-- PENDING
-- APPROVED
-- COMPLETED
+### 3.1 Two batch types (non-negotiable)
+A) Insectorium cycle (breeding)
+- Trigger: pupae moved into breeding cage
+- Inputs: pupae_loaded_kg
+- Outputs (daily): eggs_harvested_grams, pupae_shells_harvested_kg
+- Waste: mortality_rate / notes
+Key metric: grams of eggs per kg pupae.:contentReference[oaicite:13]{index=13}
 
-On completion:
-1. Deduct finished feed stock from FEED_MILL (ledger OUT, type=TRANSFER_OUT).
-2. Add finished feed stock into POULTRY (ledger IN, type=TRANSFER_IN).
-3. Carry cost information forward (unitCostAtTime) for accurate poultry costing.
-
-Result:
-- Poultry now has feed stock to consume daily.
-
----
-
-### Step 3 — Poultry Daily Feeding Uses Finished Feed Stock
-When poultry logs daily feeding:
-- User selects feed product (e.g., Layers Mash 25kg)
-- enters `feedConsumedKg` (or bags consumed, but internally store as KG)
-
-Validation:
-- Check available stock for that feed product in POULTRY location.
-- If insufficient → block save and show shortage.
-
-On save:
-1. Create PoultryDailyLog record.
-2. Deduct finished feed stock from POULTRY (ledger OUT, type=USAGE).
-3. Compute KPI fields (HDP, FCR, etc.) (derived).
-
-Result:
-- Poultry feeding cost is based on the produced feed cost, not raw ingredients.
+B) Larvarium batch (production)
+- Trigger: 5-DOL inoculated into substrate
+- Has Batch ID: e.g. BAT-2024-001
+- Feed log: PKC + poultry waste usage (daily or total)
+- Duration: until harvest
+- Outputs (harvest): wet larvae + frass + residue waste
+- Processing: drying, pressing/extraction producing dry larvae + cake + oil:contentReference[oaicite:14]{index=14}:contentReference[oaicite:15]{index=15}
 
 ---
 
-### Step 4 — Public Sales from Feed Mill Stock
-Sales of feed to public are recorded from FEED_MILL location.
+## 4. Database (Supabase/Postgres) — Tables to Create
 
-When logging a sale:
-- Product = finished feed product
-- Location for stock deduction = FEED_MILL
-- Quantity sold (bags or kg)
-- Unit selling price
+NOTE: The Gemini doc proposes a schema conceptually like:
+- raw materials inventory + procurement log
+- insectorium logs
+- larvarium batches
+- harvest yields
+- processing runs
+- sales transactions:contentReference[oaicite:16]{index=16}:contentReference[oaicite:17]{index=17}
 
-Validation:
-- Check FEED_MILL finished feed stock >= qty sold
+### Implement in OUR system style:
+We already have “Store/Inventory/Procurement” architecture in the app.
+So for BSF, we should:
+- Reuse the **unified Store inventory ledger** for PKC + poultry waste inputs
+- Add BSF-specific tables for:
+  - insectorium logs
+  - larvarium batches
+  - harvest yields
+  - processing runs
+  - BSF sales lines (or reuse Sales table with product type + batch reference)
 
-On submit:
-1. Insert Sale record (module=FEED_MILL).
-2. Deduct stock from FEED_MILL (ledger OUT, type=SALE_OUT).
-3. Compute revenue, COGS, profit (derived or stored snapshot for audit).
+### Minimal tables (recommended)
+1) `BsfInsectoriumLog`
+- id (uuid)
+- date (date) UNIQUE (per-day record for breeding floor)
+- pupaeLoadedKg (numeric)
+- eggsHarvestedGrams (numeric)
+- pupaeShellsHarvestedKg (numeric)
+- mortalityRate (numeric)
+- notes (text)
+- createdBy (uuid users.id)
+- createdAt, updatedAt
 
-Result:
-- Feed Mill can sell externally and also supply poultry internally.
+2) `BsfLarvariumBatch`
+- id (uuid)
+- batchCode (text unique) e.g. BAT-2024-001:contentReference[oaicite:18]{index=18}
+- startDate (date)
+- initialLarvaeWeightGrams (numeric):contentReference[oaicite:19]{index=19}
+- substrateMixRatio (text) e.g. 60% PKC / 40% Waste:contentReference[oaicite:20]{index=20}
+- status (enum: GROWING, HARVESTED, PROCESSED, CLOSED):contentReference[oaicite:21]{index=21}
+- harvestDate (date, nullable)
+- notes (text)
+- createdBy, createdAt, updatedAt
 
----
+3) `BsfBatchFeedLog`
+(so we can cost inputs by batch precisely)
+- id
+- batchId (fk BsfLarvariumBatch.id)
+- date
+- pkcKg (numeric)
+- poultryWasteKg (numeric)
+- poultryWasteCostOverride (numeric nullable) (if you want explicit cost per log)
+- notes
 
-## 5) Important Rules (Must Enforce)
+4) `BsfHarvestYield`
+- id
+- batchId (unique fk) 1:1 with batch
+- wetLarvaeKg (numeric):contentReference[oaicite:22]{index=22}
+- frassKg (numeric):contentReference[oaicite:23]{index=23}
+- residueWasteKg (numeric):contentReference[oaicite:24]{index=24}
+- createdAt
 
-1. Poultry does NOT consume raw ingredients directly (maize/soya) in normal flow.
-   - Poultry consumes finished feed products.
+5) `BsfProcessingRun`
+- id
+- batchId (fk)
+- processType (enum: DRYING, PRESSING_EXTRACTION):contentReference[oaicite:25]{index=25}
+- inputWeightKg (numeric)
+- outputDryLarvaeKg (numeric)
+- outputLarvaeOilLiters (numeric)
+- outputLarvaeCakeKg (numeric):contentReference[oaicite:26]{index=26}
+- energyCostEstimate (numeric nullable):contentReference[oaicite:27]{index=27}
+- runAt (timestamp)
+- createdBy
 
-2. Production creates finished feed stock at FEED_MILL.
-   - That stock is the only source for poultry feed usage and public sales.
-
-3. Transfer is required for internal consumption:
-   - Poultry stock increases only via FEED_MILL -> POULTRY transfer.
-
-4. Costs must be preserved:
-   - Use `unitCostAtTime` carried through transfers and usage to compute cost-per-crate accurately.
-
----
-
-## 6) UI Requirements (Routes)
-
-### Feed Mill
-- `/feed-mill/production` (create production batch)
-- `/feed-mill/stock` (view finished feed stock at FEED_MILL)
-- `/feed-mill/sales` (public sales)
-- `/feed-mill/transfers` (outgoing transfers to POULTRY)
-
-### Poultry
-- `/poultry/inventory` (view finished feed stock at POULTRY)
-- `/poultry/requests` (request feed from FEED_MILL)
-- `/poultry/daily-log` (daily feeding + eggs + mortality)
-
----
-
-## 7) MVP Tasks for Codex (Implementation Checklist)
-
-1. Ensure finished feed products exist (one per recipe + bag size).
-2. On feed mill production confirm:
-   - deduct raw materials
-   - add finished feed stock at FEED_MILL
-3. Add transfer request flow for finished feed:
-   - FEED_MILL -> POULTRY
-4. Update Poultry Daily Log:
-   - feed selection should reference finished feed product
-   - validate stock at POULTRY
-   - deduct finished feed on save
-5. Update Sales:
-   - allow public sales from FEED_MILL stock
-   - validate and deduct finished feed stock
-6. Update dashboards and reports:
-   - poultry feed cost uses finished feed cost
-   - feed mill profit separates internal transfer vs public sales (optional)
-
----
-
-## 8) Notes / Simplifications
-
-- Quantity should be stored consistently:
-  - store as KG internally
-  - UI can accept “bags” and convert to KG
-- If you want STORE to be central later:
-  - allow FEED_MILL -> STORE transfers too
-  - and STORE -> POULTRY transfers
-  - but MVP can be direct FEED_MILL -> POULTRY
-
----
-# Finished Goods (Feed) — Stock Movement & History (Feed Mill)
-
-This section clarifies how **finished feed stock** behaves in the system,
-how its value increases, how it decreases, and how history must be tracked.
-
-This applies specifically to **Feed Mill finished feeds**.
+6) Sales (choose one)
+Option A (recommended): reuse your existing Sales model
+- Add fields: module = 'BSF', productType enum, batchId reference optional
+Option B: `BsfSale`
+- id, date, customerName, productSold, quantity, unitPrice, totalRevenue, paymentStatus, batchId(optional):contentReference[oaicite:28]{index=28}
 
 ---
 
-## 1) Core Principle (Non-Negotiable)
+## 5. Inventory & COGS Rules (Important)
 
-Finished feed stock behaves like this:
+COGS must be tracked **when used**, not just when bought.:contentReference[oaicite:29]{index=29}
 
-### ✅ Finished Feed Stock INCREASES in only ONE way
-- When feed is **produced** in Feed Mill production.
+Rule:
+- PKC purchase updates store inventory average cost.
+- Poultry waste might be “free” but we still record acquisition cost (transport/labor).:contentReference[oaicite:30]{index=30}
 
-### ❌ Finished Feed Stock DECREASES in exactly TWO ways
-1. When feed is **transferred to Poultry** for bird feeding (internal consumption)
-2. When feed is **sold to the public** (external sales)
+Batch cost allocation:
+- batchFeedCost = (PKC used * PKC avg cost/kg) + (Waste used * waste cost/kg) + (energy cost estimates)
+This aligns with: (total_pkc_consumed_kg * avg_cost) + (total_waste_consumed_kg * cost_of_waste) + energy costs.:contentReference[oaicite:31]{index=31}
 
-There are **no other valid ways** finished feed stock should change in MVP.
-
----
-
-## 2) Finished Goods Lifecycle
-
-### A) Production (Stock Increase)
-Location: `FEED_MILL`
-
-When a production batch is confirmed:
-1. Raw materials are deducted (ingredients ledger OUT)
-2. Finished feed stock is created (ledger IN)
-
-Ledger entry:
-- type: `PRODUCTION_OUTPUT`
-- direction: `IN`
-- location: `FEED_MILL`
-- quantity: produced feed (kg)
-- unitCostAtTime: cost per kg from production
-
-This is the **only operation that increases finished feed stock**.
+Implementation detail:
+- When “log feed to batch”, also write inventory ledger OUT entries for PKC/Waste (or at least validate availability).
 
 ---
 
-### B) Internal Usage — Transfer to Poultry (Stock Decrease)
-Location change: `FEED_MILL → POULTRY`
+## 6. Production Workflow (What staff does)
 
-When Poultry requests feed:
-1. Transfer request is approved
-2. Finished feed stock is reduced at FEED_MILL
-3. Same feed stock is increased at POULTRY
+### Step 1 — Insectorium daily logs
+Staff logs:
+- pupae loaded
+- eggs harvested (grams)
+- pupae shells harvested (kg)
+- mortality
+Goal: trend breeding efficiency.:contentReference[oaicite:32]{index=32}
 
-Ledger entries:
-- FEED_MILL:
-  - type: `TRANSFER_OUT`
-  - direction: `OUT`
-- POULTRY:
-  - type: `TRANSFER_IN`
-  - direction: `IN`
+### Step 2 — Start larvarium batch
+Create batch with:
+- batchCode
+- startDate
+- initial larvae grams
+- substrate ratio:contentReference[oaicite:33]{index=33}
 
-This represents **internal consumption preparation**, not a sale.
+### Step 3 — Feed logs (daily or total)
+Record PKC/Waste fed to that batch.
+This is the primary source of COGS.
 
----
+### Step 4 — Harvest
+At harvest, record:
+- wet larvae (kg)
+- frass (kg)
+- residue waste (kg):contentReference[oaicite:34]{index=34}
 
-### C) External Usage — Public Sales (Stock Decrease)
-Location: `FEED_MILL`
+### Step 5 — Processing runs
+Two processing types:
+A) Drying: wet larvae → dry larvae (drying ratio):contentReference[oaicite:35]{index=35}
+B) Pressing/Extraction: dry larvae → cake + oil (oil extraction rate):contentReference[oaicite:36]{index=36}
 
-When feed is sold to customers:
-1. Sale is recorded
-2. Finished feed stock is reduced at FEED_MILL
+Note:
+- Pupae shells are handled from Insectorium logs (separate byproduct).:contentReference[oaicite:37]{index=37}
 
-Ledger entry:
-- type: `SALE_OUT`
-- direction: `OUT`
-- location: `FEED_MILL`
-
-This represents **external revenue generation**.
-
----
-
-## 3) Finished Goods History (MANDATORY FEATURE)
-
-A **Finished Goods History** view must exist to answer:
-
-> “Why did the finished feed quantity reduce?”
-
-### Feed Mill → Production → Finished Goods Tab
-
-This page must show:
-- current finished feed stock (by product)
-- total produced
-- total transferred to poultry
-- total sold to public
+### Step 6 — Sales
+Sell:
+- Dry larvae
+- Oil
+- Cake
+- Frass
+- Shells
+Each sale should optionally reference a batchId for traceability (at least for larvae-derived products).:contentReference[oaicite:38]{index=38}
 
 ---
 
-## 4) Finished Goods Movement History Table
+## 7. Financial Logic (Batch P&L + Monthly P&L)
 
-Each finished feed product must have a **movement history** showing:
+### 7.1 Profit per batch (core formula)
+Profit = Revenue(from products) - (Direct Costs + Allocated Overhead):contentReference[oaicite:39]{index=39}
 
-Columns:
-- Date
-- Action Type:
-  - `PRODUCED`
-  - `TRANSFERRED_TO_POULTRY`
-  - `SOLD`
-- Quantity (kg / bags)
-- Reference:
-  - Production Batch ID
-  - Transfer Request ID
-  - Sale ID
-- Performed By (user)
-- Location (always FEED_MILL for reductions)
-- Cost per Kg at time (for audit)
+Revenue is sum:
+- dry larvae kg * unit price
+- oil liters * unit price
+- cake kg * unit price
+- frass kg * unit price
+- shells kg * unit price:contentReference[oaicite:40]{index=40}
 
-This history must be derived from the inventory ledger.
+Costs:
+- direct feed costs (PKC + waste)
+- labor allocation (optional)
+- energy costs for drying/pressing (optional):contentReference[oaicite:41]{index=41}
 
----
+### 7.2 Monthly P&L report
+Gemini provided a sample monthly P&L query concept (revenue vs feed costs), but it uses MySQL `DATE_FORMAT`.
+We should implement this using Postgres date_trunc + joins in our app.
 
-## 5) Rules Codex MUST Enforce
-
-1. Finished feed stock can only increase via production.
-2. Finished feed stock can only decrease via:
-   - transfer to poultry
-   - sale to public
-3. Poultry feeding must never deduct directly from FEED_MILL.
-   - It must deduct from POULTRY stock after transfer.
-4. Sales must always deduct from FEED_MILL stock.
-5. Every reduction must have:
-   - a reason
-   - a reference record
-   - a user
-
-No silent stock changes.
+Required output columns:
+- Month
+- Total Revenue
+- PKC Cost
+- Waste Cost
+- Total COGS
+- Gross Profit (Revenue - COGS):contentReference[oaicite:42]{index=42}
 
 ---
 
-## 6) Why This Matters (Business Reasoning)
+## 8. KPIs to display on BSF dashboard
 
-This design allows the boss to answer:
-- How much feed did we produce?
-- How much went to poultry?
-- How much was sold?
-- Where did the stock go?
-- Are we losing feed internally or selling more?
+Implement these 5 KPIs as cards:
 
-It also:
-- prevents stock manipulation
-- supports audits
-- matches real farm operations
+1) FCR (Feed Conversion Ratio)
+FCR = Total wet larvae harvested (kg) / total feed input (kg)
+Target: 1.5–2.0:contentReference[oaicite:43]{index=43}
+
+2) Yield per batch
+Show bar chart: wet larvae kg for last 10 batches:contentReference[oaicite:44]{index=44}
+
+3) Oil extraction efficiency
+ExtractionRate(%) = (Liters of oil recovered / weight of dry larvae pressed) * 100:contentReference[oaicite:45]{index=45}
+
+4) Breeding efficiency
+Breeding KPI ~ grams eggs harvested per (kg pupae loaded) (or per cage if cages are modeled):contentReference[oaicite:46]{index=46}:contentReference[oaicite:47]{index=47}
+
+5) Survival proxy / growth multiple
+Example heuristic: input egg grams vs expected larvae kg output trend:contentReference[oaicite:48]{index=48}
+
+---
+
+## 9. MVP Roadmap (what to build first)
+
+Phase 1 (MVP):
+- Material inventory logging (PKC/Waste):contentReference[oaicite:49]{index=49}
+- Batch tracking (insectorium logs + larvarium batches):contentReference[oaicite:50]{index=50}
+- Harvest + Processing logs:contentReference[oaicite:51]{index=51}
+- Sales ledger:contentReference[oaicite:52]{index=52}
+- Basic P&L report:contentReference[oaicite:53]{index=53}
+
+Deliverable:
+A working admin panel replacing spreadsheets.:contentReference[oaicite:54]{index=54}
 
 ---
 
-## 7) Summary (Mental Model)
+## 10. Task List (Codex should implement)
 
-Finished feed is like money in a wallet:
+### UI
+- [ ] Create BSF sidebar and routes
+- [ ] Insectorium daily log form + table (1/day entries)
+- [ ] Larvarium batch list (AG Grid) + create batch modal
+- [ ] Batch detail page:
+  - [ ] feed logs (daily rows)
+  - [ ] harvest form (1 per batch)
+  - [ ] processing runs form + table
+- [ ] BSF sales page (simple add sale modal + table)
+- [ ] BSF P&L report page:
+  - [ ] monthly P&L table
+  - [ ] per-batch P&L view
+- [ ] BSF dashboard KPI cards + charts (optional charts after MVP)
 
-- **Earned** only by production
-- **Spent** either internally (poultry) or externally (sales)
-- Every movement must be traceable
-
-If it didn’t get produced, it cannot exist.
-If it reduced, it must have gone somewhere.
+### Backend (Supabase)
+- [ ] Create tables + RLS policies aligned with role access
+- [ ] Write server-side actions or API routes for:
+  - [ ] create batch, update batch status
+  - [ ] write feed log + inventory deduction
+  - [ ] write harvest yield
+  - [ ] write processing run
+  - [ ] write sale + stock deduction (if stock tracking is enabled for BSF products)
+- [ ] Add activity log entries for all actions (create/update/delete)
 
 ---
+
+## 11. Rules (must follow)
+
+- Store raw inputs (weights, costs, usage). Derived totals are computed.
+- COGS is calculated based on **usage**, not purchase timing.:contentReference[oaicite:55]{index=55}
+- Batch is the “unit of truth” for profitability: all costs + revenues should tie to a batch where possible.:contentReference[oaicite:56]{index=56}:contentReference[oaicite:57]{index=57}
+- Processing is a conversion step; track input/output ratios for audits.:contentReference[oaicite:58]{index=58}

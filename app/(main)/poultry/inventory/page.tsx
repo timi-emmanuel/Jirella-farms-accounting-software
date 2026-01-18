@@ -1,5 +1,5 @@
 import { PoultryFeedInventoryGrid } from "@/features/poultry/components/PoultryFeedInventoryGrid";
-import { FinishedFeedRequestGrid } from "@/features/poultry/components/FinishedFeedRequestGrid";
+import { PoultryFeedPurchaseGrid } from "@/features/poultry/components/PoultryFeedPurchaseGrid";
 import { ClipboardList, Warehouse } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -22,10 +22,10 @@ export default function PoultryInventoryPage() {
        <Warehouse className="w-4 h-4 mr-2" />
        Inventory
       </TabsTrigger>
-      <TabsTrigger value="requests">
-       <ClipboardList className="w-4 h-4 mr-2" />
-       Requests
-      </TabsTrigger>
+    <TabsTrigger value="purchases">
+     <ClipboardList className="w-4 h-4 mr-2" />
+     Purchases
+    </TabsTrigger>
      </TabsList>
     </div>
 
@@ -33,8 +33,8 @@ export default function PoultryInventoryPage() {
      <PoultryFeedInventoryGrid />
     </TabsContent>
 
-    <TabsContent value="requests" className="flex-1 overflow-hidden mt-0 border-0 p-0 data-[state=inactive]:hidden h-full">
-     <FinishedFeedRequestGrid />
+    <TabsContent value="purchases" className="flex-1 overflow-hidden mt-0 border-0 p-0 data-[state=inactive]:hidden h-full">
+     <PoultryFeedPurchaseGrid />
     </TabsContent>
    </Tabs>
   </div>

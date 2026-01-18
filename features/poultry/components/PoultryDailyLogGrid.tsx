@@ -65,6 +65,7 @@ export function PoultryDailyLogGrid() {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
     date: new Date().toISOString().split('T')[0],
     flockId: '',
@@ -123,6 +124,37 @@ export function PoultryDailyLogGrid() {
     }
   }, [showAdd]);
 
+  useEffect(() => {
+    const loadExisting = async () => {
+      if (!form.flockId || !form.date) {
+        setEditingId(null);
+        return;
+      }
+      const response = await fetch(`/api/poultry/daily-logs?flockId=${form.flockId}&from=${form.date}&to=${form.date}`);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        console.error('Existing daily log check error:', payload.error || response.statusText);
+        return;
+      }
+      const existing = (payload.logs || [])[0];
+      if (existing) {
+        setEditingId(existing.id);
+        setForm((prev) => ({
+          ...prev,
+          eggsCollected: String(existing.eggsCollected ?? ''),
+          eggsDamaged: String(existing.eggsDamaged ?? ''),
+          mortality: String(existing.mortality ?? ''),
+          feedProductId: existing.feedProductId ?? '',
+          feedConsumedKg: String(existing.feedConsumedKg ?? ''),
+          notes: existing.notes ?? ''
+        }));
+      } else {
+        setEditingId(null);
+      }
+    };
+    loadExisting();
+  }, [form.flockId, form.date]);
+
   const selectedFeed = useMemo(
     () => feedItems.find((item) => item.id === form.feedProductId),
     [feedItems, form.feedProductId]
@@ -145,10 +177,12 @@ export function PoultryDailyLogGrid() {
     }
 
     setSubmitting(true);
-    const response = await fetch('/api/poultry/daily-logs', {
-      method: 'POST',
+    const endpoint = '/api/poultry/daily-logs';
+    const response = await fetch(endpoint, {
+      method: editingId ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        id: editingId,
         date: form.date,
         flockId: form.flockId,
         eggsCollected: Number(form.eggsCollected || 0),
@@ -165,6 +199,7 @@ export function PoultryDailyLogGrid() {
       alert(payload.error || 'Failed to save daily log.');
     } else {
       setShowAdd(false);
+      setEditingId(null);
       setForm({
         date: new Date().toISOString().split('T')[0],
         flockId: '',
@@ -252,7 +287,7 @@ export function PoultryDailyLogGrid() {
             <DialogHeader>
               <DialogTitle className="text-xl font-bold tracking-tight flex items-center gap-2">
                 <ClipboardCheck className="w-5 h-5 text-emerald-600" />
-                Record Daily Log
+                {editingId ? 'Edit Daily Log' : 'Record Daily Log'}
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleAdd} className="space-y-5 py-4">
@@ -373,7 +408,7 @@ export function PoultryDailyLogGrid() {
                   className="w-full bg-emerald-600 hover:bg-emerald-700 py-6 text-base font-semibold transition-all"
                 >
                   {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                  Save Daily Log
+                  {editingId ? 'Update Daily Log' : 'Save Daily Log'}
                 </Button>
               </DialogFooter>
             </form>

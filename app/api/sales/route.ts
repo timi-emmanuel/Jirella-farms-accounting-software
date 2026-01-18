@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   const admin = createAdminClient();
   let query = admin
    .from('Sale')
-   .select('*, product:Product(name, module, unit)')
+   .select('*, product:Product(name, module, unit), batch:BsfLarvariumBatch(batchCode)')
    .order('soldAt', { ascending: false });
 
   if (module && module !== 'ALL') {
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const { productId, quantitySold, unitSellingPrice, soldAt, notes } = await request.json();
+  const { productId, quantitySold, unitSellingPrice, soldAt, notes, batchId } = await request.json();
   if (!productId || !quantitySold || Number(quantitySold) <= 0 || unitSellingPrice === undefined) {
    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
   }
@@ -88,7 +88,8 @@ export async function POST(request: NextRequest) {
     unitCostAtSale,
     soldAt: soldAt ?? new Date().toISOString().split('T')[0],
     soldBy: auth.userId,
-    notes: notes ?? null
+    notes: notes ?? null,
+    batchId: batchId ?? null
    })
    .select('*')
    .single();

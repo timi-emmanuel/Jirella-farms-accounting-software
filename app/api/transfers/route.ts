@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
    return NextResponse.json({ error: 'Invalid location' }, { status: 400 });
   }
 
-  const allowedRoles = ['ADMIN', 'STORE_KEEPER', 'FEED_MILL_STAFF', 'POULTRY_STAFF', 'MANAGER'];
+  const allowedRoles = ['ADMIN', 'STORE_KEEPER', 'FEED_MILL_STAFF', 'POULTRY_STAFF', 'BSF_STAFF', 'MANAGER'];
   if (!isRoleAllowed(auth.role, allowedRoles)) {
    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }

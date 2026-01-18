@@ -121,6 +121,7 @@ export async function GET(request: NextRequest) {
       totalSales += Number(sale.quantitySold || 0) * Number(sale.unitSellingPrice || 0);
       totalCogs += Number(sale.quantitySold || 0) * Number(sale.unitCostAtSale || 0);
     });
+    totalCogs += totalFeedCost;
 
     const { data: expenses } = await admin
       .from('Expense')

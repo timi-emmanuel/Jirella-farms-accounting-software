@@ -24,7 +24,8 @@ import {
   Egg,
   Activity, // New icon
   ClipboardList,
-  Wallet
+  Wallet,
+  Bug
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useUserRole } from "@/hooks/useUserRole"
@@ -51,7 +52,6 @@ const navigation: NavigationItem[] = [
       { name: 'Recipes', href: '/feed-mill/recipe-master', icon: FlaskConical }, 
       { name: 'Production', href: '/feed-mill/production', icon: Factory },
       { name: 'Finished Stock', href: '/feed-mill/stock', icon: Package },
-      { name: 'Transfers', href: '/feed-mill/transfers', icon: Truck },
       { name: 'Sales', href: '/feed-mill/sales', icon: ShoppingCart },
     ]
   },
@@ -66,6 +66,22 @@ const navigation: NavigationItem[] = [
       { name: 'Inventory', href: '/poultry/inventory', icon: Package },
       { name: 'Sales', href: '/poultry/sales', icon: ShoppingCart },
       { name: 'Expenses', href: '/poultry/expenses', icon: Wallet },
+    ]
+  },
+  {
+    name: 'BSF',
+    href: '/bsf/dashboard',
+    icon: Bug,
+    subItems: [
+      { name: 'Dashboard', href: '/bsf/dashboard', icon: LayoutDashboard },
+      { name: 'Procurement', href: '/bsf/procurement', icon: Truck },
+      { name: 'Insectorium', href: '/bsf/insectorium', icon: ClipboardList },
+      { name: 'Larvarium Batches', href: '/bsf/larvarium/batches', icon: Factory },
+      { name: 'Harvest', href: '/bsf/harvest', icon: Package },
+      { name: 'Processing', href: '/bsf/processing', icon: Beaker },
+      { name: 'Sales', href: '/bsf/sales', icon: ShoppingCart },
+      { name: 'P&L Report', href: '/bsf/reports/pnl', icon: Calculator },
+      { name: 'Batch P&L', href: '/bsf/reports/batch-pnl', icon: Calculator },      
     ]
   },
   { name: 'Store', href: '/store', icon: Package },  
@@ -86,6 +102,21 @@ interface SidebarContentProps {
 }
 
 function SidebarContent({ pathname, openMenus, toggleMenu, handleSignOut, isAdmin, role, onLinkClick }: SidebarContentProps) {
+  const isBsfSubItemAllowed = (subName: string) => {
+    if (!role) return false;
+    if (role === 'ADMIN') return true;
+    if (role === 'BSF_STAFF') {
+      return ['Dashboard', 'Insectorium', 'Larvarium Batches', 'Harvest', 'Processing', 'KPIs'].includes(subName);
+    }
+    if (role === 'ACCOUNTANT') {
+      return ['Dashboard', 'Sales', 'P&L Report', 'Batch P&L'].includes(subName);
+    }
+    if (role === 'PROCUREMENT_MANAGER') {
+      return ['Procurement'].includes(subName);
+    }
+    return false;
+  };
+
   return (
     <div className="flex flex-col h-full bg-[#0a0f0d] text-slate-300 w-full">
       <div className="flex h-20 items-center px-6 border-b border-white/5 shrink-0">
@@ -148,6 +179,7 @@ function SidebarContent({ pathname, openMenus, toggleMenu, handleSignOut, isAdmi
                   {item.subItems!.map((sub) => {
                     // Hide Recipes for non-admins
                     if (sub.name === 'Recipes' && !isAdmin) return null;
+                    if (item.name === 'BSF' && !isBsfSubItemAllowed(sub.name)) return null;
                     // Logic to hide Sales if not accountant/admin? 
                     // For now, let's keep sub-items visible if parent is visible, or add sub-item config.
 
