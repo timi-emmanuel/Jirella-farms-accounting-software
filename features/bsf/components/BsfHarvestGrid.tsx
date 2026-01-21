@@ -1,10 +1,11 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import "ag-grid-community/styles/ag-theme-quartz.css";
 import {
   ColDef,
+ CellStyleModule,
   ModuleRegistry,
   ClientSideRowModelModule,
   ValidationModule,
@@ -19,6 +20,7 @@ import {
 import { Loader2 } from 'lucide-react';
 
 ModuleRegistry.registerModules([
+ CellStyleModule,
   ClientSideRowModelModule,
   ValidationModule,
   PaginationModule,
@@ -29,12 +31,21 @@ ModuleRegistry.registerModules([
   CustomFilterModule
 ]);
 
+const formatDate = (value?: string) => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString('en-GB').replace(/\//g, '-');
+};
+
 type HarvestRow = {
   id: string;
   createdAt: string;
   wetLarvaeKg: number;
   frassKg: number;
   residueWasteKg: number;
+  processedWetKg?: number;
+  remainingWetKg?: number;
   batch?: { batchCode?: string };
 };
 
@@ -59,9 +70,11 @@ export function BsfHarvestGrid() {
   }, []);
 
   const colDefs = useMemo<ColDef<HarvestRow>[]>(() => [
-    { field: 'createdAt', headerName: 'Date', minWidth: 140 },
+    { field: 'createdAt', headerName: 'Date', minWidth: 140, valueFormatter: (p) => formatDate(p.value) },
     { headerName: 'Batch', minWidth: 140, valueGetter: (p: any) => p.data.batch?.batchCode || 'Unknown' },
-    { field: 'wetLarvaeKg', headerName: 'Wet Larvae (kg)', type: 'numericColumn', minWidth: 150 },
+    { field: 'wetLarvaeKg', headerName: 'Live Larvae (kg)', type: 'numericColumn', minWidth: 150 },
+    { field: 'processedWetKg', headerName: 'Processed (kg)', type: 'numericColumn', minWidth: 140 },
+    { field: 'remainingWetKg', headerName: 'Remaining (kg)', type: 'numericColumn', minWidth: 140 },
     { field: 'frassKg', headerName: 'Frass (kg)', type: 'numericColumn', minWidth: 130 },
     { field: 'residueWasteKg', headerName: 'Residue (kg)', type: 'numericColumn', minWidth: 130 }
   ], []);

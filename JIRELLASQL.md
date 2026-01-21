@@ -89,6 +89,12 @@ BEGIN
     ) THEN
       ALTER TYPE "UnitOfMeasure" ADD VALUE 'CRATE';
     END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+      WHERE t.typname = 'UnitOfMeasure' AND e.enumlabel = 'PCS'
+    ) THEN
+      ALTER TYPE "UnitOfMeasure" ADD VALUE 'PCS';
+    END IF;
   END IF;
 END$$;
 
@@ -658,10 +664,11 @@ CREATE OR REPLACE FUNCTION complete_transfer_request(
   p_request_id UUID,
   p_completed_by UUID
 ) RETURNS void AS $$
-DECLARE
-  v_request RECORD;
-  v_line RECORD;
-BEGIN
+  DECLARE
+    v_request RECORD;
+    v_line RECORD;
+    v_unit_cost NUMERIC;
+  BEGIN
   SELECT * INTO v_request
   FROM "TransferRequest"
   WHERE id = p_request_id
@@ -674,35 +681,43 @@ BEGIN
     RAISE EXCEPTION 'Transfer request must be APPROVED';
   END IF;
 
-  FOR v_line IN
-    SELECT * FROM "TransferRequestLine"
-    WHERE "transferRequestId" = p_request_id
-  LOOP
-    PERFORM apply_inventory_movement(
-      v_line."itemId",
-      v_request."fromLocationId",
-      'TRANSFER_OUT',
-      'OUT',
-      v_line."quantityRequested",
-      NULL,
-      'TRANSFER_REQUEST',
-      p_request_id::text,
-      v_request.notes,
-      p_completed_by
-    );
+    FOR v_line IN
+      SELECT * FROM "TransferRequestLine"
+      WHERE "transferRequestId" = p_request_id
+    LOOP
+      SELECT "averageUnitCost"
+      INTO v_unit_cost
+      FROM "InventoryBalance"
+      WHERE "itemId" = v_line."itemId"
+        AND "locationId" = v_request."fromLocationId";
+
+      v_unit_cost := COALESCE(v_unit_cost, 0);
+
+      PERFORM apply_inventory_movement(
+        v_line."itemId",
+        v_request."fromLocationId",
+        'TRANSFER_OUT',
+        'OUT',
+        v_line."quantityRequested",
+        v_unit_cost,
+        'TRANSFER_REQUEST',
+        p_request_id::text,
+        v_request.notes,
+        p_completed_by
+      );
 
     PERFORM apply_inventory_movement(
       v_line."itemId",
-      v_request."toLocationId",
-      'TRANSFER_IN',
-      'IN',
-      v_line."quantityRequested",
-      NULL,
-      'TRANSFER_REQUEST',
-      p_request_id::text,
-      v_request.notes,
-      p_completed_by
-    );
+        v_request."toLocationId",
+        'TRANSFER_IN',
+        'IN',
+        v_line."quantityRequested",
+        v_unit_cost,
+        'TRANSFER_REQUEST',
+        p_request_id::text,
+        v_request.notes,
+        p_completed_by
+      );
 
     UPDATE "TransferRequestLine"
     SET "quantityTransferred" = v_line."quantityRequested"

@@ -1,10 +1,11 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import "ag-grid-community/styles/ag-theme-quartz.css";
 import {
   ColDef,
+ CellStyleModule,
   ModuleRegistry,
   ClientSideRowModelModule,
   ValidationModule,
@@ -41,6 +42,7 @@ type TransferRequestRow = {
 };
 
 ModuleRegistry.registerModules([
+ CellStyleModule,
   ClientSideRowModelModule,
   ValidationModule,
   PaginationModule,

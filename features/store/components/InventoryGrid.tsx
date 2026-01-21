@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useState, useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
@@ -18,7 +18,7 @@ import {
  CustomFilterModule,
  themeQuartz
 } from 'ag-grid-community';
-import { Loader2, Plus, SlidersHorizontal } from 'lucide-react';
+import { Loader2, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { Ingredient } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -63,13 +63,27 @@ export function InventoryGrid() {
  const [rowData, setRowData] = useState<StoreItem[]>([]);
  const [loading, setLoading] = useState(true);
  const [submitting, setSubmitting] = useState(false);
+ const [deletingId, setDeletingId] = useState<string | null>(null);
 
  const [showNewItem, setShowNewItem] = useState(false);
  const [showAdjust, setShowAdjust] = useState(false);
 
  const [newItem, setNewItem] = useState({ name: '', unit: 'KG', description: '', trackInFeedMill: true });
  const [adjustForm, setAdjustForm] = useState({ ingredientId: '', quantity: '', direction: 'OUT', reason: '' });
- const unitOptions = ['KG', 'TON', 'LITER', 'BAG', 'CRATE'];
+ const unitOptions = ['KG', 'TON', 'LITER', 'BAG', 'CRATE', 'PCS'];
+
+ const handleDelete = async (item: StoreItem) => {
+  if (!confirm(`Delete ${item.name}? This cannot be undone.`)) return;
+  setDeletingId(item.id);
+  const response = await fetch(`/api/inventory/items/${item.id}`, { method: 'DELETE' });
+  if (!response.ok) {
+   const payload = await response.json().catch(() => ({}));
+   alert(payload.error || 'Failed to delete item.');
+  } else {
+   loadData();
+  }
+  setDeletingId(null);
+ };
 
  const colDefs = useMemo<ColDef<StoreItem>[]>(() => [
   {
@@ -107,16 +121,43 @@ export function InventoryGrid() {
    headerName: "Avg. Cost",
    flex: 1,
    type: 'numericColumn',
-   valueFormatter: (params: any) => `₦${Number(params.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+   valueFormatter: (params: any) => `NGN ${Number(params.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   },
   {
    field: "updatedAt",
    headerName: "Last Updated",
    flex: 1,
-   valueFormatter: (params: any) => new Date(params.value).toLocaleDateString(),
+   valueFormatter: (params: any) => {
+    if (!params.value) return 'N/A';
+    const parsed = new Date(params.value);
+    if (Number.isNaN(parsed.getTime())) return 'N/A';
+    return parsed.toLocaleDateString();
+   },
    sort: 'desc'
+  },
+  {
+   headerName: "Actions",
+   width: 120,
+   pinned: 'right',
+   sortable: false,
+   filter: false,
+   cellRenderer: (params: any) => {
+    const item = params.data as StoreItem;
+    const isDeleting = deletingId === item.id;
+    return (
+     <Button
+      size="sm"
+      variant="ghost"
+      className="h-8 px-2 text-slate-500 hover:text-rose-600 hover:bg-transparent"
+      disabled={isDeleting}
+      onClick={() => handleDelete(item)}
+     >
+      {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+     </Button>
+    );
+   }
   }
- ], []);
+  ], [deletingId]);
 
  const loadData = async () => {
   setLoading(true);

@@ -12,7 +12,7 @@ const fetchProductMap = async (admin: ReturnType<typeof createAdminClient>) => {
     .from('Product')
     .select('id, name')
     .eq('module', 'BSF')
-    .in('name', ['Wet Larvae', 'Dry Larvae', 'Larvae Oil', 'Larvae Cake']);
+    .in('name', ['Live Larvae', 'Dry Larvae', 'Larvae Oil', 'Larvae Cake']);
 
   return new Map((data || []).map((row: any) => [row.name, row.id]));
 };
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
     if (!location) return NextResponse.json({ error: 'BSF location not found' }, { status: 400 });
 
     const products = await fetchProductMap(admin);
-    const wetId = products.get('Wet Larvae');
+    const wetId = products.get('Live Larvae');
     const dryId = products.get('Dry Larvae');
     const oilId = products.get('Larvae Oil');
     const cakeId = products.get('Larvae Cake');
@@ -148,6 +148,34 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (batchError || !batch) return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
+
+    if (body.processType === 'DRYING') {
+      const { data: wetStock } = await admin
+        .from('FinishedGoodsInventory')
+        .select('quantityOnHand, averageUnitCost')
+        .eq('productId', wetId)
+        .eq('locationId', location.id)
+        .single();
+
+      const wetQty = Number(wetStock?.quantityOnHand || 0);
+      if (wetQty < inputWeightKg) {
+        return NextResponse.json({ error: 'Insufficient live larvae stock' }, { status: 400 });
+      }
+    }
+
+    if (body.processType === 'PRESSING_EXTRACTION') {
+      const { data: dryStock } = await admin
+        .from('FinishedGoodsInventory')
+        .select('quantityOnHand, averageUnitCost')
+        .eq('productId', dryId)
+        .eq('locationId', location.id)
+        .single();
+
+      const dryQty = Number(dryStock?.quantityOnHand || 0);
+      if (dryQty < inputWeightKg) {
+        return NextResponse.json({ error: 'Insufficient dry larvae stock' }, { status: 400 });
+      }
+    }
 
     const runPayload = {
       batchId,
@@ -190,7 +218,10 @@ export async function POST(request: NextRequest) {
         auth.userId
       );
 
-      if (usageResult.error) return NextResponse.json({ error: usageResult.error.message }, { status: 400 });
+      if (usageResult.error) {
+        await admin.from('BsfProcessingRun').delete().eq('id', run.id);
+        return NextResponse.json({ error: usageResult.error.message }, { status: 400 });
+      }
       const outputKg = runPayload.outputDryLarvaeKg;
       const unitCost = outputKg > 0 ? roundTo2((inputWeightKg * wetAvg) / outputKg) : 0;
 
@@ -207,7 +238,10 @@ export async function POST(request: NextRequest) {
           auth.userId
         );
 
-        if (prodResult.error) return NextResponse.json({ error: prodResult.error.message }, { status: 400 });
+        if (prodResult.error) {
+          await admin.from('BsfProcessingRun').delete().eq('id', run.id);
+          return NextResponse.json({ error: prodResult.error.message }, { status: 400 });
+        }
       }
     }
 
@@ -232,7 +266,10 @@ export async function POST(request: NextRequest) {
         auth.userId
       );
 
-      if (usageResult.error) return NextResponse.json({ error: usageResult.error.message }, { status: 400 });
+      if (usageResult.error) {
+        await admin.from('BsfProcessingRun').delete().eq('id', run.id);
+        return NextResponse.json({ error: usageResult.error.message }, { status: 400 });
+      }
       const totalOutput = roundTo2(runPayload.outputLarvaeCakeKg + runPayload.outputLarvaeOilLiters);
       const unitCost = totalOutput > 0 ? roundTo2((inputWeightKg * dryAvg) / totalOutput) : 0;
 
@@ -248,7 +285,10 @@ export async function POST(request: NextRequest) {
           run.id,
           auth.userId
         );
-        if (prodOil.error) return NextResponse.json({ error: prodOil.error.message }, { status: 400 });
+        if (prodOil.error) {
+          await admin.from('BsfProcessingRun').delete().eq('id', run.id);
+          return NextResponse.json({ error: prodOil.error.message }, { status: 400 });
+        }
       }
 
       if (runPayload.outputLarvaeCakeKg > 0) {
@@ -263,7 +303,10 @@ export async function POST(request: NextRequest) {
           run.id,
           auth.userId
         );
-        if (prodCake.error) return NextResponse.json({ error: prodCake.error.message }, { status: 400 });
+        if (prodCake.error) {
+          await admin.from('BsfProcessingRun').delete().eq('id', run.id);
+          return NextResponse.json({ error: prodCake.error.message }, { status: 400 });
+        }
       }
     }
 

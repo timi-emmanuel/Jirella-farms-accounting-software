@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       pupaeLoadedKg: Number(body.pupaeLoadedKg || 0),
       eggsHarvestedGrams: Number(body.eggsHarvestedGrams || 0),
       pupaeShellsHarvestedKg: Number(body.pupaeShellsHarvestedKg || 0),
-      mortalityRate: Number(body.mortalityRate || 0),
+      deadFlyKg: Number(body.deadFlyKg || 0),
       notes: body.notes ?? null,
       createdBy: auth.userId,
       updatedAt: new Date().toISOString()
@@ -59,7 +59,12 @@ export async function POST(request: NextRequest) {
       .select('*')
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error) {
+      if (error.code === '23505') {
+        return NextResponse.json({ error: 'Entry already made for this date.' }, { status: 400 });
+      }
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
 
     await logActivityServer({
       action: 'BSF_INSECTORIUM_LOG_CREATED',

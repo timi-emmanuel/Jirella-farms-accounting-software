@@ -1,10 +1,11 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import "ag-grid-community/styles/ag-theme-quartz.css";
 import {
   ColDef,
+ CellStyleModule,
   ModuleRegistry,
   ClientSideRowModelModule,
   ValidationModule,
@@ -19,6 +20,7 @@ import {
 import { Loader2 } from 'lucide-react';
 
 ModuleRegistry.registerModules([
+ CellStyleModule,
   ClientSideRowModelModule,
   ValidationModule,
   PaginationModule,
@@ -28,6 +30,13 @@ ModuleRegistry.registerModules([
   DateFilterModule,
   CustomFilterModule
 ]);
+
+const formatDate = (value?: string) => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString('en-GB').replace(/\//g, '-');
+};
 
 type ProcessingRow = {
   id: string;
@@ -62,7 +71,7 @@ export function BsfProcessingGrid() {
   }, []);
 
   const colDefs = useMemo<ColDef<ProcessingRow>[]>(() => [
-    { field: 'runAt', headerName: 'Run Date', minWidth: 150 },
+    { field: 'runAt', headerName: 'Run Date', minWidth: 150, valueFormatter: (p) => formatDate(p.value) },
     { headerName: 'Batch', minWidth: 140, valueGetter: (p: any) => p.data.batch?.batchCode || 'Unknown' },
     { field: 'processType', headerName: 'Type', minWidth: 150 },
     { field: 'inputWeightKg', headerName: 'Input (kg)', type: 'numericColumn', minWidth: 120 },

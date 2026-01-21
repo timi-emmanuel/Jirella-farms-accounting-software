@@ -6,7 +6,7 @@ import { logActivityServer } from '@/lib/server/activity-log';
 const VIEW_ROLES = ['ADMIN', 'MANAGER', 'BSF_STAFF', 'ACCOUNTANT'];
 const EDIT_ROLES = ['ADMIN', 'MANAGER', 'BSF_STAFF'];
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const auth = await getAuthContext();
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -15,12 +15,26 @@ export async function GET() {
     }
 
     const admin = createAdminClient();
-    const { data, error } = await admin
+    const { searchParams } = new URL(request.url);
+    const batchId = searchParams.get('batchId') || searchParams.get('id');
+
+    let query = admin
       .from('BsfLarvariumBatch')
       .select('*')
       .order('startDate', { ascending: false });
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (batchId) {
+      query = query.eq('id', batchId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      if (error.code === '23505') {
+        return NextResponse.json({ error: 'Batch code already exists. Use a different code.' }, { status: 400 });
+      }
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     return NextResponse.json({ batches: data || [] });
   } catch (error: any) {
     console.error('BSF batch fetch error:', error);

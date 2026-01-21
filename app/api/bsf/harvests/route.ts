@@ -12,7 +12,7 @@ const findProducts = async (admin: ReturnType<typeof createAdminClient>) => {
     .from('Product')
     .select('id, name')
     .eq('module', 'BSF')
-    .in('name', ['Wet Larvae', 'Frass']);
+    .in('name', ['Live Larvae', 'Frass']);
 
   const map = new Map((data || []).map((row: any) => [row.name, row.id]));
   return map;
@@ -91,7 +91,35 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await query;
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json({ harvests: data || [] });
+    const harvests = data || [];
+    if (harvests.length === 0) {
+      return NextResponse.json({ harvests: [] });
+    }
+
+    const batchIds = harvests.map((row: any) => row.batchId).filter(Boolean);
+    const { data: runs } = await admin
+      .from('BsfProcessingRun')
+      .select('batchId, inputWeightKg, processType')
+      .in('batchId', batchIds)
+      .eq('processType', 'DRYING');
+
+    const processedByBatch = new Map<string, number>();
+    (runs || []).forEach((run: any) => {
+      const current = processedByBatch.get(run.batchId) ?? 0;
+      processedByBatch.set(run.batchId, roundTo2(current + Number(run.inputWeightKg || 0)));
+    });
+
+    const enriched = harvests.map((row: any) => {
+      const processedWetKg = processedByBatch.get(row.batchId) ?? 0;
+      const remainingWetKg = roundTo2(Number(row.wetLarvaeKg || 0) - processedWetKg);
+      return {
+        ...row,
+        processedWetKg,
+        remainingWetKg: remainingWetKg < 0 ? 0 : remainingWetKg
+      };
+    });
+
+    return NextResponse.json({ harvests: enriched });
   } catch (error: any) {
     console.error('BSF harvest fetch error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -170,11 +198,11 @@ export async function POST(request: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
     const productMap = await findProducts(admin);
-    const wetId = productMap.get('Wet Larvae');
+    const wetId = productMap.get('Live Larvae');
     const frassId = productMap.get('Frass');
 
     if (!wetId || !frassId) {
-      return NextResponse.json({ error: 'Missing BSF products (Wet Larvae/Frass)' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing BSF products (Live Larvae/Frass)' }, { status: 400 });
     }
 
     if (wetLarvaeKg > 0) {

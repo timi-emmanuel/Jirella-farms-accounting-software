@@ -1,10 +1,11 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import "ag-grid-community/styles/ag-theme-quartz.css";
 import {
   ColDef,
+ CellStyleModule,
   ModuleRegistry,
   ClientSideRowModelModule,
   ValidationModule,
@@ -32,6 +33,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
 ModuleRegistry.registerModules([
+ CellStyleModule,
   ClientSideRowModelModule,
   ValidationModule,
   PaginationModule,
@@ -52,7 +54,7 @@ export function BsfInsectoriumLogGrid() {
     pupaeLoadedKg: '',
     eggsHarvestedGrams: '',
     pupaeShellsHarvestedKg: '',
-    mortalityRate: '',
+    deadFlyKg: '',
     notes: ''
   });
 
@@ -84,7 +86,7 @@ export function BsfInsectoriumLogGrid() {
         pupaeLoadedKg: Number(form.pupaeLoadedKg || 0),
         eggsHarvestedGrams: Number(form.eggsHarvestedGrams || 0),
         pupaeShellsHarvestedKg: Number(form.pupaeShellsHarvestedKg || 0),
-        mortalityRate: Number(form.mortalityRate || 0)
+        deadFlyKg: Number(form.deadFlyKg || 0)
       })
     });
 
@@ -98,7 +100,7 @@ export function BsfInsectoriumLogGrid() {
         pupaeLoadedKg: '',
         eggsHarvestedGrams: '',
         pupaeShellsHarvestedKg: '',
-        mortalityRate: '',
+        deadFlyKg: '',
         notes: ''
       });
       loadData();
@@ -112,7 +114,7 @@ export function BsfInsectoriumLogGrid() {
     { field: 'pupaeLoadedKg', headerName: 'Pupae Loaded (kg)', type: 'numericColumn', minWidth: 160 },
     { field: 'eggsHarvestedGrams', headerName: 'Eggs Harvested (g)', type: 'numericColumn', minWidth: 170 },
     { field: 'pupaeShellsHarvestedKg', headerName: 'Pupae Shells (kg)', type: 'numericColumn', minWidth: 170 },
-    { field: 'mortalityRate', headerName: 'Mortality (%)', type: 'numericColumn', minWidth: 140 },
+    { field: 'deadFlyKg', headerName: 'Dead Fly (kg)', type: 'numericColumn', minWidth: 140 },
     { field: 'notes', headerName: 'Notes', flex: 1.5, minWidth: 200 }
   ], []);
 
@@ -183,13 +185,13 @@ export function BsfInsectoriumLogGrid() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="mortality">Mortality (%)</Label>
+                  <Label htmlFor="deadFlyKg">Dead Fly (kg)</Label>
                   <Input
-                    id="mortality"
+                    id="deadFlyKg"
                     type="number"
                     step="0.01"
-                    value={form.mortalityRate}
-                    onChange={(e) => setForm({ ...form, mortalityRate: e.target.value })}
+                    value={form.deadFlyKg}
+                    onChange={(e) => setForm({ ...form, deadFlyKg: e.target.value })}
                   />
                 </div>
               </div>
@@ -199,7 +201,7 @@ export function BsfInsectoriumLogGrid() {
                   id="notes"
                   value={form.notes}
                   onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                  placeholder="Observations or mortality notes"
+                    placeholder="Observations or dead fly notes"
                 />
               </div>
               <DialogFooter>

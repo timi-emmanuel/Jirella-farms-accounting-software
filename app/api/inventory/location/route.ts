@@ -38,6 +38,9 @@ export async function GET(request: NextRequest) {
   if (code === 'FEED_MILL') {
    itemQuery = itemQuery.eq('trackInFeedMill', true);
   }
+  if (code === 'BSF') {
+   itemQuery = itemQuery.in('name', ['PKC', 'Poultry Waste', 'Starter Mesh', 'Starter mesh']);
+  }
 
   const { data: items, error: itemError } = await itemQuery;
 

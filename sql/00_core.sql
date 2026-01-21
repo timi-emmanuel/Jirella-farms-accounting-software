@@ -89,6 +89,12 @@ BEGIN
     ) THEN
       ALTER TYPE "UnitOfMeasure" ADD VALUE 'CRATE';
     END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+      WHERE t.typname = 'UnitOfMeasure' AND e.enumlabel = 'PCS'
+    ) THEN
+      ALTER TYPE "UnitOfMeasure" ADD VALUE 'PCS';
+    END IF;
   END IF;
 END$$;
 

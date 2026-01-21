@@ -304,16 +304,16 @@ export type BsfBatchStatus = 'GROWING' | 'HARVESTED' | 'PROCESSED' | 'CLOSED';
 export type BsfProcessType = 'DRYING' | 'PRESSING_EXTRACTION';
 
 export interface BsfInsectoriumLog {
- id: string;
- date: string;
- pupaeLoadedKg: number;
- eggsHarvestedGrams: number;
- pupaeShellsHarvestedKg: number;
- mortalityRate: number;
- notes?: string | null;
- createdBy?: string | null;
- createdAt: string;
- updatedAt: string;
+  id: string;
+  date: string;
+  pupaeLoadedKg: number;
+  eggsHarvestedGrams: number;
+  pupaeShellsHarvestedKg: number;
+  deadFlyKg: number;
+  notes?: string | null;
+  createdBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface BsfLarvariumBatch {

@@ -62,7 +62,7 @@ export function BsfDashboard() {
       accent: 'text-emerald-600'
     },
     {
-      label: 'Wet Larvae (kg)',
+      label: 'Live Larvae (kg)',
       value: metrics.totalWetLarvaeKg.toLocaleString(undefined, { maximumFractionDigits: 2 }),
       hint: 'Total harvested',
       icon: Bug,

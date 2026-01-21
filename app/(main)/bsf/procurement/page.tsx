@@ -1,4 +1,7 @@
 import { ModuleInventoryGrid } from "@/features/inventory/components/ModuleInventoryGrid";
+import { ModuleTransferRequestGrid } from "@/features/inventory/components/ModuleTransferRequestGrid";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ClipboardList, Warehouse } from "lucide-react";
 
 export default function BsfProcurementPage() {
   return (
@@ -11,9 +14,28 @@ export default function BsfProcurementPage() {
           Request PKC, poultry waste, and additives for BSF batches.
         </p>
       </div>
-      <div className="flex-1 overflow-hidden">
-        <ModuleInventoryGrid moduleKey="BSF" />
-      </div>
+      <Tabs defaultValue="inventory" className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between mb-4">
+          <TabsList className="grid w-[360px] grid-cols-2">
+            <TabsTrigger value="inventory">
+              <Warehouse className="w-4 h-4 mr-2" />
+              Inventory
+            </TabsTrigger>
+            <TabsTrigger value="history">
+              <ClipboardList className="w-4 h-4 mr-2" />
+              Request History
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="inventory" className="flex-1 overflow-hidden mt-0 border-0 p-0 data-[state=inactive]:hidden h-full">
+          <ModuleInventoryGrid moduleKey="BSF" />
+        </TabsContent>
+
+        <TabsContent value="history" className="flex-1 overflow-hidden mt-0 border-0 p-0 data-[state=inactive]:hidden h-full">
+          <ModuleTransferRequestGrid moduleKey="BSF" />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

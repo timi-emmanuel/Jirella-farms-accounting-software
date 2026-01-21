@@ -11,19 +11,21 @@ WHERE NOT EXISTS (
 -- Seed BSF products (idempotent)
 INSERT INTO "Product" ("name", "module", "unit", "active")
 VALUES
-  ('Wet Larvae', 'BSF', 'KG', TRUE),
+  ('Live Larvae', 'BSF', 'KG', TRUE),
   ('Dry Larvae', 'BSF', 'KG', TRUE),
   ('Larvae Oil', 'BSF', 'LITER', TRUE),
   ('Larvae Cake', 'BSF', 'KG', TRUE),
   ('Frass', 'BSF', 'KG', TRUE),
-  ('Pupae Shells', 'BSF', 'KG', TRUE)
+  ('Pupae Shells', 'BSF', 'KG', TRUE),
+  ('Dead Fly', 'BSF', 'KG', TRUE)
 ON CONFLICT ("name") DO NOTHING;
 
 -- Seed BSF inputs (idempotent)
 INSERT INTO "Ingredient" ("name", "unit", "description")
 VALUES
   ('PKC', 'KG', 'Palm Kernel Cake for BSF feed'),
-  ('Poultry Waste', 'KG', 'Poultry waste substrate for BSF')
+  ('Poultry Waste', 'KG', 'Poultry waste substrate for BSF'),
+  ('Starter Mesh', 'PCS', 'Starter mesh for BSF larvae')
 ON CONFLICT ("name") DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS "BsfInsectoriumLog" (
@@ -32,12 +34,18 @@ CREATE TABLE IF NOT EXISTS "BsfInsectoriumLog" (
   "pupaeLoadedKg" NUMERIC NOT NULL DEFAULT 0,
   "eggsHarvestedGrams" NUMERIC NOT NULL DEFAULT 0,
   "pupaeShellsHarvestedKg" NUMERIC NOT NULL DEFAULT 0,
-  "mortalityRate" NUMERIC NOT NULL DEFAULT 0,
+  "deadFlyKg" NUMERIC NOT NULL DEFAULT 0,
   "notes" TEXT,
   "createdBy" UUID REFERENCES auth.users(id),
   "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE "BsfInsectoriumLog"
+  ADD COLUMN IF NOT EXISTS "deadFlyKg" NUMERIC NOT NULL DEFAULT 0;
+
+ALTER TABLE "BsfInsectoriumLog"
+  DROP COLUMN IF EXISTS "mortalityRate";
 
 CREATE TABLE IF NOT EXISTS "BsfLarvariumBatch" (
   "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,

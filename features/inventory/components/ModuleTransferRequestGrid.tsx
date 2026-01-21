@@ -1,10 +1,11 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useMemo, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import "ag-grid-community/styles/ag-theme-quartz.css";
 import {
  ColDef,
+ CellStyleModule,
  ModuleRegistry,
  ClientSideRowModelModule,
  ValidationModule,
@@ -18,7 +19,7 @@ import {
 } from 'ag-grid-community';
 import { ClipboardList, Loader2 } from 'lucide-react';
 
-type ModuleKey = 'FEED_MILL' | 'POULTRY';
+type ModuleKey = 'FEED_MILL' | 'POULTRY' | 'BSF';
 
 type TransferLine = {
  item?: { name?: string; unit?: string };
@@ -44,6 +45,7 @@ type TransferRequestRow = {
 
 // Register modules
 ModuleRegistry.registerModules([
+ CellStyleModule,
  ClientSideRowModelModule,
  ValidationModule,
  PaginationModule,
