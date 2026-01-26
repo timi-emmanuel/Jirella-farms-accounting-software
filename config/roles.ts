@@ -6,21 +6,23 @@ export const ROLES: Record<string, UserRole> = {
   FEED_MILL: 'FEED_MILL_STAFF',
   BSF: 'BSF_STAFF',
  POULTRY: 'POULTRY_STAFF',
+ CATFISH: 'CATFISH_STAFF',
  ACCOUNTANT: 'ACCOUNTANT',
  PROCUREMENT: 'PROCUREMENT_MANAGER',
  STORE: 'STORE_KEEPER',
 };
 
 // Define available tabs
-export type TabName = 'Dashboard' | 'Feed Mill' | 'BSF' | 'Poultry' | 'Store' | 'Procurement' | 'Users' | 'Activity Logs' | 'Sales';
+export type TabName = 'Dashboard' | 'Feed Mill' | 'BSF' | 'Poultry' | 'Catfish' | 'Store' | 'Procurement' | 'Users' | 'Activity Logs' | 'Sales';
 
 // Configure which roles can access which tabs
 export const NAV_CONFIG: Partial<Record<UserRole, TabName[]>> = {
- ADMIN: ['Dashboard', 'Feed Mill', 'BSF', 'Poultry', 'Store', 'Procurement', 'Users', 'Activity Logs', 'Sales'],
+ ADMIN: ['Dashboard', 'Feed Mill', 'BSF', 'Poultry', 'Catfish', 'Store', 'Procurement', 'Users', 'Activity Logs', 'Sales'],
  FEED_MILL_STAFF: ['Dashboard', 'Feed Mill', 'Sales'],
  BSF_STAFF: ['Dashboard', 'BSF'],
  POULTRY_STAFF: ['Dashboard', 'Poultry'],
- ACCOUNTANT: ['Dashboard', 'Feed Mill', 'BSF', 'Poultry', 'Sales'],
+ CATFISH_STAFF: ['Dashboard', 'Catfish'],
+ ACCOUNTANT: ['Dashboard', 'Feed Mill', 'BSF', 'Poultry', 'Catfish', 'Sales'],
  PROCUREMENT_MANAGER: ['Dashboard', 'Procurement', 'Store', 'BSF'],
  STORE_KEEPER: ['Dashboard', 'Store'],
 };

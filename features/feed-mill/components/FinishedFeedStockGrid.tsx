@@ -29,6 +29,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type StockRow = {
   id: string;
@@ -57,7 +64,7 @@ export function FinishedFeedStockGrid() {
   const [selling, setSelling] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<StockRow | null>(null);
-  const [saleForm, setSaleForm] = useState({ quantityKg: '', unitPrice: '' });
+  const [saleForm, setSaleForm] = useState({ quantityKg: '', unitPrice: '', targetModule: 'POULTRY' });
 
   const loadData = async () => {
     setLoading(true);
@@ -115,7 +122,7 @@ export function FinishedFeedStockGrid() {
     },
     {
       headerName: "Actions",
-      width: 160,
+      width: 180,
       cellRenderer: (params: any) => (
         <Button
           size="sm"
@@ -123,11 +130,11 @@ export function FinishedFeedStockGrid() {
           className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
           onClick={() => {
             setSelectedProduct(params.data);
-            setSaleForm({ quantityKg: '', unitPrice: '' });
+            setSaleForm({ quantityKg: '', unitPrice: '', targetModule: 'POULTRY' });
             setDialogOpen(true);
           }}
         >
-          Sell to Poultry
+          Internal Sale
         </Button>
       )
     }
@@ -150,7 +157,8 @@ export function FinishedFeedStockGrid() {
       body: JSON.stringify({
         productId: selectedProduct.id,
         quantityKg,
-        unitPrice
+        unitPrice,
+        targetModule: saleForm.targetModule
       })
     });
 
@@ -160,7 +168,7 @@ export function FinishedFeedStockGrid() {
     } else {
       setDialogOpen(false);
       setSelectedProduct(null);
-      setSaleForm({ quantityKg: '', unitPrice: '' });
+      setSaleForm({ quantityKg: '', unitPrice: '', targetModule: 'POULTRY' });
       loadData();
       alert('Internal feed purchase recorded.');
     }
@@ -197,9 +205,9 @@ export function FinishedFeedStockGrid() {
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Sell Feed to Poultry</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleInternalSale} className="space-y-4">
+          <DialogTitle>Internal Feed Sale</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleInternalSale} className="space-y-4">
             <div className="space-y-1 text-sm text-slate-600">
               <span className="font-semibold text-slate-800">{selectedProduct?.name}</span>
             </div>
@@ -224,6 +232,21 @@ export function FinishedFeedStockGrid() {
                 onChange={(e) => setSaleForm({ ...saleForm, unitPrice: e.target.value })}
                 required
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Target Module</Label>
+              <Select
+                value={saleForm.targetModule}
+                onValueChange={(value) => setSaleForm({ ...saleForm, targetModule: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select target module" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="POULTRY">Poultry</SelectItem>
+                  <SelectItem value="CATFISH">Catfish</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <DialogFooter>
               <Button type="submit" disabled={selling}>

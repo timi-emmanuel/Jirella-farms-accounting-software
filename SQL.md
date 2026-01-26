@@ -7,3 +7,4 @@ SQL is now organized by module. Use `sql/README.md` for the full, idempotent mod
 - `sql/20_feed-mill.sql`
 - `sql/30_poultry.sql`
 - `sql/40_bsf.sql`
+- `sql/50_catfish.sql`

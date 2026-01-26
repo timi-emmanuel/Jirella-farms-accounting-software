@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthContext, isRoleAllowed } from '@/lib/server/auth';
 
-const VIEW_ROLES = ['ADMIN', 'MANAGER', 'FEED_MILL_STAFF', 'POULTRY_STAFF', 'ACCOUNTANT', 'STORE_KEEPER'];
+const VIEW_ROLES = ['ADMIN', 'MANAGER', 'FEED_MILL_STAFF', 'POULTRY_STAFF', 'CATFISH_STAFF', 'ACCOUNTANT', 'STORE_KEEPER'];
 
 export async function GET(request: NextRequest) {
   try {

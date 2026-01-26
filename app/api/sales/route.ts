@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   const admin = createAdminClient();
   let query = admin
    .from('Sale')
-   .select('*, product:Product(name, module, unit), batch:BsfLarvariumBatch(batchCode)')
+   .select('*, product:Product(name, module, unit), batch:BsfLarvariumBatch(batchCode), catfishBatch:CatfishBatch(batchCode)')
    .order('soldAt', { ascending: false });
 
   if (module && module !== 'ALL') {

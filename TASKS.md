@@ -1,315 +1,298 @@
-# BSF Module (Insectorium + Larvarium) — Implementation README (for Codex)
+# Catfish Module — Production, Inventory, Sales & P&L (Codex README)
 
-This module adds **Black Soldier Fly (BSF)** operations to the farm system.
+This module adds **Catfish farming operations** into the Farm Management System.
 
-Business structure:
-- **Insectorium** = breeding cycle (pupae → eggs → pupae shells byproduct)
-- **Larvarium** = growth + production cycle (5-DOL → wet larvae → processing outputs)
+The Catfish module must:
+- Track ponds and production batches
+- Track feed usage and mortality
+- Calculate Cost of Production (COGS)
+- Track harvest and sales
+- Generate Profit & Loss per batch and per period
 
-Products:
-- Primary: **Wet larvae**, **Pupae shells**
-- Processed: **Dry larvae**, **Larvae oil**, **Larvae cake**, **Frass**
-Inputs (COGS): **PKC**, **Poultry waste** (even if “free”, record transport/labor cost).:contentReference[oaicite:3]{index=3}:contentReference[oaicite:4]{index=4}
-
-Goal:
-- Track batches end-to-end
-- Track inventory usage by batch (COGS)
-- Track yields + processing conversions
-- Track sales
-- Generate **Profit & Loss (P&L)** + KPIs (FCR, yields, oil extraction, breeding efficiency, survival proxy):contentReference[oaicite:5]{index=5}:contentReference[oaicite:6]{index=6}
+This module follows the same **Batch-Based Accounting Model** used in:
+- Feed Mill
+- Poultry
+- BSF
 
 ---
 
-## 1. Tabs / Routes
+## 1. BUSINESS OVERVIEW (REAL-WORLD FLOW)
 
-Add sidebar parent: **BSF**
-- `/bsf/dashboard`
-- `/bsf/procurement` (inputs: PKC, poultry waste, additives, fuel/energy optional):contentReference[oaicite:7]{index=7}
-- `/bsf/insectorium` (daily breeding logs):contentReference[oaicite:8]{index=8}
-- `/bsf/larvarium/batches` (create/manage larvarium batches):contentReference[oaicite:9]{index=9}
-- `/bsf/larvarium/batches/[id]` (batch detail: feed log, harvest, processing)
-- `/bsf/harvest` (optional shortcut view across batches):contentReference[oaicite:10]{index=10}
-- `/bsf/processing` (optional shortcut view across batches):contentReference[oaicite:11]{index=11}
-- `/bsf/sales` (sell products):contentReference[oaicite:12]{index=12}
-- `/bsf/reports/pnl` (monthly P&L)
-- `/bsf/reports/batch-pnl` (profit per batch)
-- `/bsf/kpis` (FCR, yields, etc.)
+Catfish farming operates in **batches**, usually per pond.
 
----
+High-level flow:
 
-## 2. Roles / Access
+1. Pond is stocked with fingerlings
+2. Fish are fed daily (feed has cost)
+3. Mortality occurs over time
+4. Fish grow over weeks/months
+5. Pond is harvested (partial or full)
+6. Fish are sold
+7. Profit or loss is calculated
 
-Keep it simple (align with your role-based tabs system):
-- ADMIN: full access
-- BSF_STAFF: Insectorium, Larvarium, Harvest, Processing
-- ACCOUNTANT: Sales + Reports
-- PROCUREMENT_MANAGER: Procurement only
+Key rule:
+> **You cannot calculate profit without tracking feed usage and mortality per batch**
 
 ---
 
-## 3. Core Domain Model (What must exist)
+## 2. CORE CONCEPT: CATFISH BATCH
 
-### 3.1 Two batch types (non-negotiable)
-A) Insectorium cycle (breeding)
-- Trigger: pupae moved into breeding cage
-- Inputs: pupae_loaded_kg
-- Outputs (daily): eggs_harvested_grams, pupae_shells_harvested_kg
-- Waste: mortality_rate / notes
-Key metric: grams of eggs per kg pupae.:contentReference[oaicite:13]{index=13}
+A **Catfish Batch** represents one production cycle in one pond.
 
-B) Larvarium batch (production)
-- Trigger: 5-DOL inoculated into substrate
-- Has Batch ID: e.g. BAT-2024-001
-- Feed log: PKC + poultry waste usage (daily or total)
-- Duration: until harvest
-- Outputs (harvest): wet larvae + frass + residue waste
-- Processing: drying, pressing/extraction producing dry larvae + cake + oil:contentReference[oaicite:14]{index=14}:contentReference[oaicite:15]{index=15}
+### Batch starts when:
+- Fingerlings are stocked into a pond
+
+### Batch ends when:
+- Pond is fully harvested and closed
+
+Each batch must track:
+- Inputs (fingerlings, feed)
+- Outputs (harvested fish)
+- Losses (mortality)
+- Revenue (sales)
+- Costs (COGS)
 
 ---
 
-## 4. Database (Supabase/Postgres) — Tables to Create
+## 3. MODULE ROUTES / TABS
 
-NOTE: The Gemini doc proposes a schema conceptually like:
-- raw materials inventory + procurement log
-- insectorium logs
-- larvarium batches
-- harvest yields
-- processing runs
-- sales transactions:contentReference[oaicite:16]{index=16}:contentReference[oaicite:17]{index=17}
+Add sidebar parent: **Catfish**
 
-### Implement in OUR system style:
-We already have “Store/Inventory/Procurement” architecture in the app.
-So for BSF, we should:
-- Reuse the **unified Store inventory ledger** for PKC + poultry waste inputs
-- Add BSF-specific tables for:
-  - insectorium logs
-  - larvarium batches
-  - harvest yields
-  - processing runs
-  - BSF sales lines (or reuse Sales table with product type + batch reference)
+Routes:
+- `/catfish/dashboard`
+- `/catfish/ponds`
+- `/catfish/batches`
+- `/catfish/batches/[id]`
+- `/catfish/harvest`
+- `/catfish/sales`
+- `/catfish/reports/pnl`
 
-### Minimal tables (recommended)
-1) `BsfInsectoriumLog`
+---
+
+## 4. ROLES & ACCESS
+
+Follow tab-based role control.
+
+Roles:
+- ADMIN → full access
+- CATFISH_STAFF → ponds, batches, feeding, harvest
+- ACCOUNTANT → sales, reports
+- STORE_KEEPER → feed inventory only (read/write)
+- PROCUREMENT_MANAGER → procurement only
+
+---
+
+## 5. DATA MODEL (WHAT CODEX MUST CREATE)
+
+### 5.1 Catfish Pond
+Represents a physical pond.
+
+Table: `CatfishPond`
 - id (uuid)
-- date (date) UNIQUE (per-day record for breeding floor)
-- pupaeLoadedKg (numeric)
-- eggsHarvestedGrams (numeric)
-- pupaeShellsHarvestedKg (numeric)
-- mortalityRate (numeric)
-- notes (text)
-- createdBy (uuid users.id)
+- name (text) e.g. "Pond A"
+- capacityFish (int)
+- waterType (enum: EARTHEN, CONCRETE, TANK)
+- status (ACTIVE, MAINTENANCE)
 - createdAt, updatedAt
 
-2) `BsfLarvariumBatch`
+---
+
+### 5.2 Catfish Batch (Core Table)
+
+Table: `CatfishBatch`
 - id (uuid)
-- batchCode (text unique) e.g. BAT-2024-001:contentReference[oaicite:18]{index=18}
+- batchCode (text unique) e.g. CAT-2024-001
+- pondId (fk → CatfishPond)
 - startDate (date)
-- initialLarvaeWeightGrams (numeric):contentReference[oaicite:19]{index=19}
-- substrateMixRatio (text) e.g. 60% PKC / 40% Waste:contentReference[oaicite:20]{index=20}
-- status (enum: GROWING, HARVESTED, PROCESSED, CLOSED):contentReference[oaicite:21]{index=21}
-- harvestDate (date, nullable)
-- notes (text)
-- createdBy, createdAt, updatedAt
-
-3) `BsfBatchFeedLog`
-(so we can cost inputs by batch precisely)
-- id
-- batchId (fk BsfLarvariumBatch.id)
-- date
-- pkcKg (numeric)
-- poultryWasteKg (numeric)
-- poultryWasteCostOverride (numeric nullable) (if you want explicit cost per log)
+- initialFingerlingsCount (int)
+- fingerlingUnitCost (numeric)
+- totalFingerlingCost (computed)
+- status (GROWING, HARVESTING, CLOSED)
 - notes
+- createdAt, updatedAt
 
-4) `BsfHarvestYield`
-- id
-- batchId (unique fk) 1:1 with batch
-- wetLarvaeKg (numeric):contentReference[oaicite:22]{index=22}
-- frassKg (numeric):contentReference[oaicite:23]{index=23}
-- residueWasteKg (numeric):contentReference[oaicite:24]{index=24}
-- createdAt
+---
 
-5) `BsfProcessingRun`
+### 5.3 Daily Feeding Log (COGS driver)
+
+Table: `CatfishFeedLog`
 - id
 - batchId (fk)
-- processType (enum: DRYING, PRESSING_EXTRACTION):contentReference[oaicite:25]{index=25}
-- inputWeightKg (numeric)
-- outputDryLarvaeKg (numeric)
-- outputLarvaeOilLiters (numeric)
-- outputLarvaeCakeKg (numeric):contentReference[oaicite:26]{index=26}
-- energyCostEstimate (numeric nullable):contentReference[oaicite:27]{index=27}
-- runAt (timestamp)
-- createdBy
+- date (date)
+- feedProductId (fk → Feed Mill finished feed)
+- quantityKg (numeric)
+- unitCostAtTime (numeric)
+- totalCost (computed)
+- createdAt
 
-6) Sales (choose one)
-Option A (recommended): reuse your existing Sales model
-- Add fields: module = 'BSF', productType enum, batchId reference optional
-Option B: `BsfSale`
-- id, date, customerName, productSold, quantity, unitPrice, totalRevenue, paymentStatus, batchId(optional):contentReference[oaicite:28]{index=28}
+Rules:
+- Feed must come from **Feed Mill finished goods**
+- Deduct feed stock from FEED_MILL
+- Add cost to batch COGS
 
 ---
 
-## 5. Inventory & COGS Rules (Important)
+### 5.4 Mortality Log
 
-COGS must be tracked **when used**, not just when bought.:contentReference[oaicite:29]{index=29}
+Table: `CatfishMortalityLog`
+- id
+- batchId (fk)
+- date
+- deadCount
+- cause (text)
+- notes
 
-Rule:
-- PKC purchase updates store inventory average cost.
-- Poultry waste might be “free” but we still record acquisition cost (transport/labor).:contentReference[oaicite:30]{index=30}
-
-Batch cost allocation:
-- batchFeedCost = (PKC used * PKC avg cost/kg) + (Waste used * waste cost/kg) + (energy cost estimates)
-This aligns with: (total_pkc_consumed_kg * avg_cost) + (total_waste_consumed_kg * cost_of_waste) + energy costs.:contentReference[oaicite:31]{index=31}
-
-Implementation detail:
-- When “log feed to batch”, also write inventory ledger OUT entries for PKC/Waste (or at least validate availability).
-
----
-
-## 6. Production Workflow (What staff does)
-
-### Step 1 — Insectorium daily logs
-Staff logs:
-- pupae loaded
-- eggs harvested (grams)
-- pupae shells harvested (kg)
-- mortality
-Goal: trend breeding efficiency.:contentReference[oaicite:32]{index=32}
-
-### Step 2 — Start larvarium batch
-Create batch with:
-- batchCode
-- startDate
-- initial larvae grams
-- substrate ratio:contentReference[oaicite:33]{index=33}
-
-### Step 3 — Feed logs (daily or total)
-Record PKC/Waste fed to that batch.
-This is the primary source of COGS.
-
-### Step 4 — Harvest
-At harvest, record:
-- wet larvae (kg)
-- frass (kg)
-- residue waste (kg):contentReference[oaicite:34]{index=34}
-
-### Step 5 — Processing runs
-Two processing types:
-A) Drying: wet larvae → dry larvae (drying ratio):contentReference[oaicite:35]{index=35}
-B) Pressing/Extraction: dry larvae → cake + oil (oil extraction rate):contentReference[oaicite:36]{index=36}
-
-Note:
-- Pupae shells are handled from Insectorium logs (separate byproduct).:contentReference[oaicite:37]{index=37}
-
-### Step 6 — Sales
-Sell:
-- Dry larvae
-- Oil
-- Cake
-- Frass
-- Shells
-Each sale should optionally reference a batchId for traceability (at least for larvae-derived products).:contentReference[oaicite:38]{index=38}
+Used for:
+- Survival rate
+- Production accuracy
 
 ---
 
-## 7. Financial Logic (Batch P&L + Monthly P&L)
+### 5.5 Harvest Log
 
-### 7.1 Profit per batch (core formula)
-Profit = Revenue(from products) - (Direct Costs + Allocated Overhead):contentReference[oaicite:39]{index=39}
+Table: `CatfishHarvest`
+- id
+- batchId (fk)
+- date
+- quantityKg
+- averageFishWeightKg
+- notes
 
-Revenue is sum:
-- dry larvae kg * unit price
-- oil liters * unit price
-- cake kg * unit price
-- frass kg * unit price
-- shells kg * unit price:contentReference[oaicite:40]{index=40}
-
-Costs:
-- direct feed costs (PKC + waste)
-- labor allocation (optional)
-- energy costs for drying/pressing (optional):contentReference[oaicite:41]{index=41}
-
-### 7.2 Monthly P&L report
-Gemini provided a sample monthly P&L query concept (revenue vs feed costs), but it uses MySQL `DATE_FORMAT`.
-We should implement this using Postgres date_trunc + joins in our app.
-
-Required output columns:
-- Month
-- Total Revenue
-- PKC Cost
-- Waste Cost
-- Total COGS
-- Gross Profit (Revenue - COGS):contentReference[oaicite:42]{index=42}
+Rules:
+- Partial harvests allowed
+- Final harvest closes batch
 
 ---
 
-## 8. KPIs to display on BSF dashboard
+### 5.6 Sales
 
-Implement these 5 KPIs as cards:
+Option A (Recommended):
+Reuse existing `Sales` table with:
+- module = 'CATFISH'
+- batchId reference
 
-1) FCR (Feed Conversion Ratio)
-FCR = Total wet larvae harvested (kg) / total feed input (kg)
-Target: 1.5–2.0:contentReference[oaicite:43]{index=43}
-
-2) Yield per batch
-Show bar chart: wet larvae kg for last 10 batches:contentReference[oaicite:44]{index=44}
-
-3) Oil extraction efficiency
-ExtractionRate(%) = (Liters of oil recovered / weight of dry larvae pressed) * 100:contentReference[oaicite:45]{index=45}
-
-4) Breeding efficiency
-Breeding KPI ~ grams eggs harvested per (kg pupae loaded) (or per cage if cages are modeled):contentReference[oaicite:46]{index=46}:contentReference[oaicite:47]{index=47}
-
-5) Survival proxy / growth multiple
-Example heuristic: input egg grams vs expected larvae kg output trend:contentReference[oaicite:48]{index=48}
+Fields:
+- product = 'Live Catfish'
+- quantityKg
+- unitPrice
+- totalRevenue
+- customer
+- paymentStatus
 
 ---
 
-## 9. MVP Roadmap (what to build first)
+## 6. INVENTORY & COST FLOW
 
-Phase 1 (MVP):
-- Material inventory logging (PKC/Waste):contentReference[oaicite:49]{index=49}
-- Batch tracking (insectorium logs + larvarium batches):contentReference[oaicite:50]{index=50}
-- Harvest + Processing logs:contentReference[oaicite:51]{index=51}
-- Sales ledger:contentReference[oaicite:52]{index=52}
-- Basic P&L report:contentReference[oaicite:53]{index=53}
+### Feed Source
+- Catfish feed MUST come from Feed Mill finished goods
+- No direct Store → Catfish feeding
 
-Deliverable:
-A working admin panel replacing spreadsheets.:contentReference[oaicite:54]{index=54}
+Flow:
+Feed Mill Finished Goods
+↓
+Catfish Feed Log
+↓
+Batch COGS
 
----
-
-## 10. Task List (Codex should implement)
-
-### UI
-- [ ] Create BSF sidebar and routes
-- [ ] Insectorium daily log form + table (1/day entries)
-- [ ] Larvarium batch list (AG Grid) + create batch modal
-- [ ] Batch detail page:
-  - [ ] feed logs (daily rows)
-  - [ ] harvest form (1 per batch)
-  - [ ] processing runs form + table
-- [ ] BSF sales page (simple add sale modal + table)
-- [ ] BSF P&L report page:
-  - [ ] monthly P&L table
-  - [ ] per-batch P&L view
-- [ ] BSF dashboard KPI cards + charts (optional charts after MVP)
-
-### Backend (Supabase)
-- [ ] Create tables + RLS policies aligned with role access
-- [ ] Write server-side actions or API routes for:
-  - [ ] create batch, update batch status
-  - [ ] write feed log + inventory deduction
-  - [ ] write harvest yield
-  - [ ] write processing run
-  - [ ] write sale + stock deduction (if stock tracking is enabled for BSF products)
-- [ ] Add activity log entries for all actions (create/update/delete)
+### COGS Components
+- Fingerlings cost
+- Feed cost
+- Optional:
+  - Medication
+  - Water treatment
+  - Labor (later phase)
 
 ---
 
-## 11. Rules (must follow)
+## 7. PROFIT & LOSS LOGIC
 
-- Store raw inputs (weights, costs, usage). Derived totals are computed.
-- COGS is calculated based on **usage**, not purchase timing.:contentReference[oaicite:55]{index=55}
-- Batch is the “unit of truth” for profitability: all costs + revenues should tie to a batch where possible.:contentReference[oaicite:56]{index=56}:contentReference[oaicite:57]{index=57}
-- Processing is a conversion step; track input/output ratios for audits.:contentReference[oaicite:58]{index=58}
+### Profit Per Batch
+
+Formula:
+FCR = Total Feed Used (kg) / Total Fish Harvested (kg)
+
+
+2. Survival Rate
+
+
+Survival % = (Harvested Fish Count / Initial Fingerlings) × 100
+
+3. Average Fish Weight at Harvest
+
+4. Cost per Kg of Fish
+Cost per Kg = Total Batch Cost / Total Harvested Kg
+
+5. Batch Profitability
+- Profit per batch
+- Profit per pond
+
+---
+
+## 9. DAILY OPERATION FLOW (STAFF)
+
+1. Start batch (stock fingerlings)
+2. Log daily feeding
+3. Log mortality when it occurs
+4. Harvest fish (partial or final)
+5. Record sales
+6. System auto-calculates profit
+
+---
+
+## 10. SQL RULES (MANDATORY)
+
+All SQL MUST be:
+- Idempotent
+- Safe on re-run
+
+Rules:
+- `CREATE TABLE IF NOT EXISTS`
+- Enums via `DO $$ IF NOT EXISTS`
+- Unique constraints via `CREATE UNIQUE INDEX IF NOT EXISTS`
+- Policies checked via `pg_policies`
+
+This rule applies to:
+- Catfish
+- BSF
+- Poultry
+- Any future module
+
+---
+
+## 11. MVP SCOPE (PHASE 1)
+
+Must-have:
+- Ponds
+- Batches
+- Feed logs
+- Mortality
+- Harvest
+- Sales
+- Batch P&L
+
+Phase 2:
+- Medication tracking
+- Water quality logs
+- Automated alerts
+- Mobile-first UI
+
+---
+
+## 12. SUCCESS CRITERIA
+
+The Catfish module is considered DONE when:
+- Staff can run production without spreadsheets
+- Feed cost is traceable per batch
+- Profit per pond is visible
+- Data matches real farm operations
+
+---
+
+## FINAL NOTE
+
+This module must **feel boring and accurate**, not fancy.
+
+Accuracy > Automation  
+Truth > UI polish  
+
+Build it like an accountant and a farm manager will use it daily.

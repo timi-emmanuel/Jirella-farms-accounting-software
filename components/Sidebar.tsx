@@ -25,7 +25,8 @@ import {
   Activity, // New icon
   ClipboardList,
   Wallet,
-  Bug
+  Bug,
+  Fish
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useUserRole } from "@/hooks/useUserRole"
@@ -82,6 +83,20 @@ const navigation: NavigationItem[] = [
       { name: 'Sales', href: '/bsf/sales', icon: ShoppingCart },
       { name: 'P&L Report', href: '/bsf/reports/pnl', icon: Calculator },
       { name: 'Batch P&L', href: '/bsf/reports/batch-pnl', icon: Calculator },      
+    ]
+  },
+  {
+    name: 'Catfish',
+    href: '/catfish/dashboard',
+    icon: Fish,
+    subItems: [
+      { name: 'Dashboard', href: '/catfish/dashboard', icon: LayoutDashboard },
+      { name: 'Ponds', href: '/catfish/ponds', icon: Activity },
+      { name: 'Batches', href: '/catfish/batches', icon: ClipboardList },
+      { name: 'Inventory', href: '/catfish/inventory', icon: Package },
+      { name: 'Harvest', href: '/catfish/harvest', icon: Package },
+      { name: 'Sales', href: '/catfish/sales', icon: ShoppingCart },
+      { name: 'P&L Report', href: '/catfish/reports/pnl', icon: Calculator }
     ]
   },
   { name: 'Store', href: '/store', icon: Package },  

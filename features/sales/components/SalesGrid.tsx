@@ -39,7 +39,7 @@ import {
  SelectValue,
 } from "@/components/ui/select";
 
-type ModuleFilter = 'ALL' | 'FEED_MILL' | 'POULTRY' | 'BSF';
+type ModuleFilter = 'ALL' | 'FEED_MILL' | 'POULTRY' | 'BSF' | 'CATFISH';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([
@@ -287,12 +287,13 @@ export function SalesGrid({
       <SelectTrigger className="w-48 bg-white">
        <SelectValue />
       </SelectTrigger>
-      <SelectContent>
-       <SelectItem value="ALL">All Modules</SelectItem>
-       <SelectItem value="FEED_MILL">Feed Mill</SelectItem>
-       <SelectItem value="BSF">BSF</SelectItem>
-       <SelectItem value="POULTRY">Poultry</SelectItem>
-      </SelectContent>
+       <SelectContent>
+        <SelectItem value="ALL">All Modules</SelectItem>
+        <SelectItem value="FEED_MILL">Feed Mill</SelectItem>
+        <SelectItem value="BSF">BSF</SelectItem>
+        <SelectItem value="POULTRY">Poultry</SelectItem>
+        <SelectItem value="CATFISH">Catfish</SelectItem>
+       </SelectContent>
      </Select>
     ) : (
      <div />
@@ -331,6 +332,7 @@ export function SalesGrid({
             <SelectItem value="FEED_MILL">Feed Mill</SelectItem>
             <SelectItem value="BSF">BSF</SelectItem>
             <SelectItem value="POULTRY">Poultry</SelectItem>
+            <SelectItem value="CATFISH">Catfish</SelectItem>
            </SelectContent>
           </Select>
          </div>
@@ -357,7 +359,7 @@ export function SalesGrid({
 
      <Dialog open={showAddSale} onOpenChange={setShowAddSale}>
       <DialogTrigger asChild>
-       <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all hover:scale-105 active:scale-95 px-6">
+       <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all hover:scale-105 active:scale-95 px-6 mr-2">
         <Plus className="w-4 h-4 " />
         Log New Sale
        </Button>

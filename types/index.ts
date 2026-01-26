@@ -1,6 +1,6 @@
 
 
-export type UserRole = 'ADMIN' | 'MANAGER' | 'FEED_MILL_STAFF' | 'BSF_STAFF' | 'POULTRY_STAFF' | 'ACCOUNTANT' | 'PROCUREMENT_MANAGER' | 'STORE_KEEPER' | 'STAFF';
+export type UserRole = 'ADMIN' | 'MANAGER' | 'FEED_MILL_STAFF' | 'BSF_STAFF' | 'POULTRY_STAFF' | 'CATFISH_STAFF' | 'ACCOUNTANT' | 'PROCUREMENT_MANAGER' | 'STORE_KEEPER' | 'STAFF';
 export type UnitOfMeasure = 'KG' | 'TON' | 'LITER' | 'BAG' | 'CRATE';
 export type TransactionType = 'PURCHASE' | 'USAGE' | 'ADJUSTMENT' | 'RETURN';
 export type StoreRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'RECEIVED';
@@ -140,8 +140,8 @@ export interface FeedMillSale {
  recipe?: Recipe;
 }
 
-export type ProductModule = 'FEED_MILL' | 'POULTRY' | 'BSF';
-export type ExpenseModule = 'FEED_MILL' | 'POULTRY' | 'BSF';
+export type ProductModule = 'FEED_MILL' | 'POULTRY' | 'BSF' | 'CATFISH';
+export type ExpenseModule = 'FEED_MILL' | 'POULTRY' | 'BSF' | 'CATFISH';
 
 export interface Product {
  id: string;
@@ -189,6 +189,73 @@ export interface Sale {
  createdAt: string;
  batchId?: string | null;
  product?: Product;
+}
+
+export type CatfishPondStatus = 'ACTIVE' | 'MAINTENANCE';
+export type CatfishWaterType = 'EARTHEN' | 'CONCRETE' | 'TANK';
+
+export interface CatfishPond {
+ id: string;
+ name: string;
+ capacityFish: number;
+ waterType: CatfishWaterType;
+ status: CatfishPondStatus;
+ createdAt: string;
+ updatedAt: string;
+}
+
+export type CatfishBatchStatus = 'GROWING' | 'HARVESTING' | 'CLOSED';
+export type CatfishAgeCategory = 'FRIES' | 'FINGERLINGS' | 'JUVENILES' | 'MELANGE' | 'ADULTS' | 'PARENT_STOCK';
+
+export interface CatfishBatch {
+ id: string;
+ batchCode: string;
+ pondId: string;
+ startDate: string;
+ initialFingerlingsCount: number;
+ fingerlingUnitCost: number;
+ totalFingerlingCost: number;
+ ageCategory: CatfishAgeCategory;
+ status: CatfishBatchStatus;
+ notes?: string | null;
+ createdAt: string;
+ updatedAt: string;
+ pond?: CatfishPond;
+}
+
+export interface CatfishFeedLog {
+ id: string;
+ batchId: string;
+ date: string;
+ feedProductId: string;
+ quantityKg: number;
+ unitCostAtTime: number;
+ totalCost: number;
+ createdAt: string;
+ batch?: CatfishBatch;
+ feedProduct?: Product;
+}
+
+export interface CatfishMortalityLog {
+ id: string;
+ batchId: string;
+ date: string;
+ deadCount: number;
+ cause?: string | null;
+ notes?: string | null;
+ createdAt: string;
+ batch?: CatfishBatch;
+}
+
+export interface CatfishHarvest {
+ id: string;
+ batchId: string;
+ date: string;
+ quantityKg: number;
+ averageFishWeightKg: number;
+ notes?: string | null;
+ createdAt: string;
+ batch?: CatfishBatch;
 }
 
 export interface ProductionLog {
