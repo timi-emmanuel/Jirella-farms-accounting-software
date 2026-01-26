@@ -62,7 +62,6 @@ export async function POST(request: NextRequest) {
       initialFingerlingsCount: fingerlings,
       fingerlingUnitCost: roundTo2(unitCost),
       totalFingerlingCost,
-      ageCategory: body.ageCategory ?? 'FRIES',
       status: body.status ?? 'GROWING',
       notes: body.notes ?? null,
       updatedAt: new Date().toISOString()

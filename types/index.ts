@@ -205,7 +205,6 @@ export interface CatfishPond {
 }
 
 export type CatfishBatchStatus = 'GROWING' | 'HARVESTING' | 'CLOSED';
-export type CatfishAgeCategory = 'FRIES' | 'FINGERLINGS' | 'JUVENILES' | 'MELANGE' | 'ADULTS' | 'PARENT_STOCK';
 
 export interface CatfishBatch {
  id: string;
@@ -215,7 +214,6 @@ export interface CatfishBatch {
  initialFingerlingsCount: number;
  fingerlingUnitCost: number;
  totalFingerlingCost: number;
- ageCategory: CatfishAgeCategory;
  status: CatfishBatchStatus;
  notes?: string | null;
  createdAt: string;

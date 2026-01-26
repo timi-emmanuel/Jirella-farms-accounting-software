@@ -88,16 +88,11 @@ CREATE TABLE IF NOT EXISTS "CatfishBatch" (
   "initialFingerlingsCount" INTEGER NOT NULL DEFAULT 0,
   "fingerlingUnitCost" NUMERIC NOT NULL DEFAULT 0,
   "totalFingerlingCost" NUMERIC NOT NULL DEFAULT 0,
-  "ageCategory" TEXT NOT NULL DEFAULT 'FRIES'
-    CHECK ("ageCategory" IN ('FRIES', 'FINGERLINGS', 'JUVENILES', 'MELANGE', 'ADULTS', 'PARENT_STOCK')),
   "status" TEXT NOT NULL DEFAULT 'GROWING' CHECK ("status" IN ('GROWING', 'HARVESTING', 'CLOSED')),
   "notes" TEXT,
   "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
-ALTER TABLE "CatfishBatch"
-  ADD COLUMN IF NOT EXISTS "ageCategory" TEXT NOT NULL DEFAULT 'FRIES';
 
 DO $$
 BEGIN
@@ -110,8 +105,7 @@ BEGIN
 END$$;
 
 ALTER TABLE "CatfishBatch"
-  ADD CONSTRAINT "CatfishBatch_ageCategory_check"
-  CHECK ("ageCategory" IN ('FRIES', 'FINGERLINGS', 'JUVENILES', 'MELANGE', 'ADULTS', 'PARENT_STOCK'));
+  DROP COLUMN IF EXISTS "ageCategory";
 
 CREATE TABLE IF NOT EXISTS "CatfishFeedLog" (
   "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,

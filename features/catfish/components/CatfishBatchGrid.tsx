@@ -39,6 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { formatCatfishStage, getCatfishAgeWeeks, getCatfishStage } from '@/lib/catfish';
 
 ModuleRegistry.registerModules([
   CellStyleModule,
@@ -64,7 +65,6 @@ export function CatfishBatchGrid() {
     startDate: new Date().toISOString().split('T')[0],
     initialFingerlingsCount: '',
     fingerlingUnitCost: '',
-    ageCategory: 'FRIES',
     status: 'GROWING',
     notes: ''
   });
@@ -103,7 +103,6 @@ export function CatfishBatchGrid() {
         startDate: form.startDate,
         initialFingerlingsCount: Number(form.initialFingerlingsCount || 0),
         fingerlingUnitCost: Number(form.fingerlingUnitCost || 0),
-        ageCategory: form.ageCategory,
         status: form.status,
         notes: form.notes
       })
@@ -120,7 +119,6 @@ export function CatfishBatchGrid() {
         startDate: new Date().toISOString().split('T')[0],
         initialFingerlingsCount: '',
         fingerlingUnitCost: '',
-        ageCategory: 'FRIES',
         status: 'GROWING',
         notes: ''
       });
@@ -142,7 +140,8 @@ export function CatfishBatchGrid() {
     },
     { field: 'startDate', headerName: 'Start Date', minWidth: 120 },
     { headerName: 'Pond', minWidth: 140, valueGetter: (p: any) => p.data.pond?.name || 'Unknown' },
-    { field: 'ageCategory', headerName: 'Age Class', minWidth: 140 },
+    { headerName: 'Age (wks)', minWidth: 120, valueGetter: (p: any) => getCatfishAgeWeeks(p.data.startDate) },
+    { headerName: 'Stage', minWidth: 160, valueGetter: (p: any) => formatCatfishStage(getCatfishStage(p.data.startDate)) },
     { field: 'initialFingerlingsCount', headerName: 'Quantity', type: 'numericColumn', minWidth: 130 },
     {
       field: 'fingerlingUnitCost',
@@ -249,7 +248,7 @@ export function CatfishBatchGrid() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Fingerling Unit Cost</Label>
+                  <Label>Unit Cost</Label>
                   <Input
                     type="number"
                     step="0.01"
@@ -258,21 +257,9 @@ export function CatfishBatchGrid() {
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>Age Category</Label>
-                <Select value={form.ageCategory} onValueChange={(value) => setForm({ ...form, ageCategory: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select age class" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="FRIES">Fries (0-2 wks)</SelectItem>
-                    <SelectItem value="FINGERLINGS">Fingerlings (2 wks)</SelectItem>
-                    <SelectItem value="JUVENILES">Juveniles</SelectItem>
-                    <SelectItem value="MELANGE">Melange</SelectItem>
-                    <SelectItem value="ADULTS">Adults</SelectItem>
-                    <SelectItem value="PARENT_STOCK">Parent Stock</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                Stages auto-update by batch age: Fries (0-2 wks), Fingerlings (3-6), Juveniles (7-12),
+                Melange (13-20), Adults (21-32), Parent Stock (33+).
               </div>
               <div className="space-y-2">
                 <Label>Status</Label>
@@ -324,3 +311,5 @@ export function CatfishBatchGrid() {
     </div>
   );
 }
+
+

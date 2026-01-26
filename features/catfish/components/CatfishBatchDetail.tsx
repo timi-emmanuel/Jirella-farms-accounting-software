@@ -6,6 +6,7 @@ import { CatfishBatch } from '@/types';
 import { CatfishFeedLogGrid } from './CatfishFeedLogGrid';
 import { CatfishMortalityGrid } from './CatfishMortalityGrid';
 import { CatfishHarvestGrid } from './CatfishHarvestGrid';
+import { formatCatfishStage, getCatfishAgeWeeks, getCatfishStage } from '@/lib/catfish';
 
 export function CatfishBatchDetail() {
   const params = useParams();
@@ -35,7 +36,8 @@ export function CatfishBatchDetail() {
     return [
       { label: 'Pond', value: batch.pond?.name || 'Unknown' },
       { label: 'Start Date', value: batch.startDate },
-      { label: 'Age Class', value: batch.ageCategory },
+      { label: 'Age (wks)', value: getCatfishAgeWeeks(batch.startDate).toString() },
+      { label: 'Stage', value: formatCatfishStage(getCatfishStage(batch.startDate)) },
       { label: 'Fingerlings', value: batch.initialFingerlingsCount.toLocaleString() },
       {
         label: 'Fingerling Cost',
