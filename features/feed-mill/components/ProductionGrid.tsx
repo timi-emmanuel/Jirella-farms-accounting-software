@@ -20,6 +20,7 @@ import {
   NumberEditorModule,
   themeQuartz
 } from 'ag-grid-community';
+import { toast } from "@/lib/toast";
 import { createClient } from '@/lib/supabase/client';
 import { Loader2, Plus, Factory, Info, Wallet } from 'lucide-react';
 import { Recipe, Ingredient, ProductionLog } from '@/types';
@@ -206,7 +207,11 @@ export function ProductionGrid() {
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      alert("Production Failed: " + (payload.error || response.statusText));
+      toast({
+        title: "Error",
+        description: "Production Failed: " + (payload.error || response.statusText),
+        variant: "destructive"
+      });
     } else {
       setShowAddLog(false);
       setQuantity("");
@@ -482,3 +487,4 @@ export function ProductionGrid() {
     </div>
   );
 }
+

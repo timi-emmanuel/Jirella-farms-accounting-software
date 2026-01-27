@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -6,7 +6,7 @@ import { AgGridReact } from 'ag-grid-react';
 import "ag-grid-community/styles/ag-theme-quartz.css";
 import {
   ColDef,
- CellStyleModule,
+  CellStyleModule,
   ModuleRegistry,
   ClientSideRowModelModule,
   ValidationModule,
@@ -18,6 +18,7 @@ import {
   CustomFilterModule,
   themeQuartz
 } from 'ag-grid-community';
+import { toast } from "@/lib/toast";
 import { Loader2, Plus } from 'lucide-react';
 import { BsfLarvariumBatch } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -98,7 +99,11 @@ export function BsfLarvariumBatchGrid() {
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      alert(payload.error || 'Failed to create batch.');
+      toast({
+        title: "Error",
+        description: payload.error || 'Failed to create batch.',
+        variant: "destructive"
+      });
     } else {
       setDialogOpen(false);
       setForm({
@@ -254,3 +259,4 @@ export function BsfLarvariumBatchGrid() {
     </div>
   );
 }
+

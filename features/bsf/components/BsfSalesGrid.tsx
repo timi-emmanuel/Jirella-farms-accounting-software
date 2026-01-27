@@ -1,11 +1,11 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import "ag-grid-community/styles/ag-theme-quartz.css";
 import {
   ColDef,
- CellStyleModule,
+  CellStyleModule,
   ModuleRegistry,
   ClientSideRowModelModule,
   ValidationModule,
@@ -17,6 +17,7 @@ import {
   CustomFilterModule,
   themeQuartz
 } from 'ag-grid-community';
+import { toast } from "@/lib/toast";
 import { Loader2, Plus } from 'lucide-react';
 import { Sale, Product, BsfLarvariumBatch } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -114,7 +115,11 @@ export function BsfSalesGrid() {
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      alert(payload.error || 'Failed to log BSF sale.');
+      toast({
+        title: "Error",
+        description: payload.error || 'Failed to log BSF sale.',
+        variant: "destructive"
+      });
     } else {
       setDialogOpen(false);
       setForm({
@@ -140,14 +145,14 @@ export function BsfSalesGrid() {
       headerName: 'Unit Price',
       type: 'numericColumn',
       minWidth: 120,
-      valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
     },
     {
       headerName: 'Revenue',
       type: 'numericColumn',
       minWidth: 140,
       valueGetter: (p: any) => Number(p.data.quantitySold || 0) * Number(p.data.unitSellingPrice || 0),
-      valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
     }
   ], []);
 
@@ -252,3 +257,5 @@ export function BsfSalesGrid() {
     </div>
   );
 }
+
+

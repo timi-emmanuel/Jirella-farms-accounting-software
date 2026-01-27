@@ -17,6 +17,7 @@ import {
   CustomFilterModule,
   themeQuartz
 } from 'ag-grid-community';
+import { toast } from "@/lib/toast";
 import { Loader2, Plus } from 'lucide-react';
 import { CatfishPond } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -105,7 +106,11 @@ export function CatfishPondGrid() {
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      alert(payload.error || 'Failed to create pond.');
+      toast({
+        title: "Error",
+        description: payload.error || 'Failed to create pond.',
+        variant: "destructive"
+      });
     } else {
       setDialogOpen(false);
       setForm({
@@ -224,3 +229,4 @@ export function CatfishPondGrid() {
     </div>
   );
 }
+

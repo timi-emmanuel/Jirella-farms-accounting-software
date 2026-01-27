@@ -18,7 +18,7 @@ import {
   CustomFilterModule,
   themeQuartz
 } from 'ag-grid-community';
-import { Loader2, Plus } from 'lucide-react';
+import { Info, Loader2, Plus } from 'lucide-react';
 import { CatfishBatch, CatfishPond } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -40,6 +40,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { formatCatfishStage, getCatfishAgeWeeks, getCatfishStage } from '@/lib/catfish';
+import { toast } from "@/lib/toast";
 
 ModuleRegistry.registerModules([
   CellStyleModule,
@@ -63,11 +64,26 @@ export function CatfishBatchGrid() {
     batchCode: '',
     pondId: '',
     startDate: new Date().toISOString().split('T')[0],
+    initialAgeWeeks: '',
     initialFingerlingsCount: '',
     fingerlingUnitCost: '',
     status: 'GROWING',
     notes: ''
   });
+  const previewAgeWeeks = form.initialAgeWeeks
+    ? Math.max(0, Math.floor(Number(form.initialAgeWeeks)))
+    : null;
+  const previewStartDate = previewAgeWeeks !== null
+    ? (() => {
+        const base = new Date();
+        base.setHours(0, 0, 0, 0);
+        base.setDate(base.getDate() - previewAgeWeeks * 7);
+        return base.toISOString().split('T')[0];
+      })()
+    : null;
+  const previewStage = previewStartDate
+    ? formatCatfishStage(getCatfishStage(previewStartDate))
+    : null;
 
   const loadData = async () => {
     setLoading(true);
@@ -91,7 +107,38 @@ export function CatfishBatchGrid() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.batchCode || !form.pondId) return;
+    if (!form.batchCode) {
+      toast({
+        title: "Error",
+        description: "Batch code is required.",
+        variant: "destructive"
+      });
+      return;
+    }
+    if (!form.pondId) {
+      toast({
+        title: "Error",
+        description: "Please select a pond.",
+        variant: "destructive"
+      });
+      return;
+    }
+    if (!form.initialFingerlingsCount || Number(form.initialFingerlingsCount) <= 0) {
+      toast({
+        title: "Error",
+        description: "Quantity is required.",
+        variant: "destructive"
+      });
+      return;
+    }
+    if (form.fingerlingUnitCost === '' || Number(form.fingerlingUnitCost) <= 0) {
+      toast({
+        title: "Error",
+        description: "Unit cost is required.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     setSubmitting(true);
     const response = await fetch('/api/catfish/batches', {
@@ -110,13 +157,18 @@ export function CatfishBatchGrid() {
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      alert(payload.error || 'Failed to create batch.');
+      toast({
+        title: "Error",
+        description: payload.error || 'Failed to create batch.',
+        variant: "destructive"
+      });
     } else {
       setDialogOpen(false);
       setForm({
         batchCode: '',
         pondId: '',
         startDate: new Date().toISOString().split('T')[0],
+        initialAgeWeeks: '',
         initialFingerlingsCount: '',
         fingerlingUnitCost: '',
         status: 'GROWING',
@@ -132,6 +184,7 @@ export function CatfishBatchGrid() {
       headerName: 'Batch Code',
       minWidth: 160,
       field: 'batchCode',
+      filter: false,
       cellRenderer: (params: any) => (
         <Link className="text-emerald-700 font-semibold" href={`/catfish/batches/${params.data.id}`}>
           {params.value}
@@ -144,18 +197,28 @@ export function CatfishBatchGrid() {
     { headerName: 'Stage', minWidth: 160, valueGetter: (p: any) => formatCatfishStage(getCatfishStage(p.data.startDate)) },
     { field: 'initialFingerlingsCount', headerName: 'Quantity', type: 'numericColumn', minWidth: 130 },
     {
+      headerName: 'Fishes Left',
+      minWidth: 130,
+      type: 'numericColumn',
+      valueGetter: (p: any) => {
+        const initial = Number(p.data.initialFingerlingsCount || 0);
+        const dead = Number(p.data.mortalityTotal || 0);
+        return Math.max(0, initial - dead);
+      }
+    },
+    {
       field: 'fingerlingUnitCost',
-      headerName: 'Unit Cost',
+      headerName: 'Unit Cost (₦)',
       type: 'numericColumn',
       minWidth: 120,
-      valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => ` ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
     },
     {
       field: 'totalFingerlingCost',
-      headerName: 'Total Cost',
+      headerName: 'Total Cost (₦)',
       type: 'numericColumn',
       minWidth: 130,
-      valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => ` ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
     },
     {
       field: 'status',
@@ -176,7 +239,7 @@ export function CatfishBatchGrid() {
         );
       }
     },
-    { field: 'notes', headerName: 'Notes', flex: 1.2, minWidth: 200 }
+    { field: 'notes', headerName: 'Notes', flex: 1.2, minWidth: 200, filter: false }
   ], []);
 
   if (loading && rowData.length === 0) {
@@ -197,7 +260,7 @@ export function CatfishBatchGrid() {
               New Batch
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[620px] max-h-[90vh] overflow-y-auto modal-scrollbar">
+          <DialogContent className="sm:max-w-155 max-h-[90vh] overflow-y-auto modal-scrollbar">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold tracking-tight">Create Catfish Batch</DialogTitle>
             </DialogHeader>
@@ -221,7 +284,52 @@ export function CatfishBatchGrid() {
                     onChange={(e) => setForm({ ...form, startDate: e.target.value })}
                     required
                   />
+                  <p className="text-xs text-slate-500">
+                    Stage (auto): {formatCatfishStage(getCatfishStage(form.startDate))} • Age {getCatfishAgeWeeks(form.startDate)} wks
+                  </p>
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="initialAgeWeeks">Initial age in weeks (optional)</Label>
+                <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                  <Input
+                    id="initialAgeWeeks"
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="e.g. 8"
+                    value={form.initialAgeWeeks}
+                    onChange={(e) => setForm({ ...form, initialAgeWeeks: e.target.value })}
+                  />
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        if (!form.initialAgeWeeks) return;
+                        const weeks = Math.max(0, Math.floor(Number(form.initialAgeWeeks)));
+                        const base = new Date();
+                        base.setHours(0, 0, 0, 0);
+                        base.setDate(base.getDate() - weeks * 7);
+                        const startDate = base.toISOString().split('T')[0];
+                        setForm({ ...form, startDate });
+                      }}
+                    >
+                      Apply to start date
+                    </Button>
+                    <span className="group relative inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:text-slate-700 cursor-pointer">
+                      <Info className="h-4 w-4" />
+                      <span className="pointer-events-none absolute bottom-full right-0 z-20 hidden w-60 whitespace-normal rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 shadow-lg group-hover:block">
+                        Use only if start date is unknown. This does not auto-change start date.
+                      </span>
+                    </span>
+                  </div>
+                </div>
+                {previewAgeWeeks !== null && previewStage ? (
+                  <p className="text-xs text-emerald-700">
+                    Preview (not applied): Age {previewAgeWeeks} wks • Stage {previewStage}
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <Label>Pond</Label>
@@ -245,6 +353,7 @@ export function CatfishBatchGrid() {
                     type="number"
                     value={form.initialFingerlingsCount}
                     onChange={(e) => setForm({ ...form, initialFingerlingsCount: e.target.value })}
+                    required
                   />
                 </div>
                 <div className="space-y-2">
@@ -254,6 +363,7 @@ export function CatfishBatchGrid() {
                     step="0.01"
                     value={form.fingerlingUnitCost}
                     onChange={(e) => setForm({ ...form, fingerlingUnitCost: e.target.value })}
+                    required
                   />
                 </div>
               </div>
@@ -311,5 +421,7 @@ export function CatfishBatchGrid() {
     </div>
   );
 }
+
+
 
 

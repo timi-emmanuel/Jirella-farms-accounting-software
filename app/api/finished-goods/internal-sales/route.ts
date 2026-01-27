@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     const admin = createAdminClient();
     const { data: product, error: productError } = await admin
       .from('Product')
-      .select('id, module')
+      .select('id, module, unit, unitSizeKg')
       .eq('id', productId)
       .single();
 
@@ -37,6 +37,29 @@ export async function POST(request: NextRequest) {
     if (product.module !== 'FEED_MILL') {
       return NextResponse.json({ error: 'Only feed mill products can be sold internally' }, { status: 400 });
     }
+
+    const { data: feedMillLocation, error: feedMillLocationError } = await admin
+      .from('InventoryLocation')
+      .select('id')
+      .eq('code', 'FEED_MILL')
+      .single();
+
+    if (feedMillLocationError || !feedMillLocation) {
+      return NextResponse.json({ error: 'Feed mill location not found' }, { status: 404 });
+    }
+
+    const { data: feedMillStock } = await admin
+      .from('FinishedGoodsInventory')
+      .select('averageUnitCost')
+      .eq('productId', productId)
+      .eq('locationId', feedMillLocation.id)
+      .single();
+
+    const unitSizeKg = Number(product.unitSizeKg || 0);
+    const useUnitConversion = product.unit === 'BAG' && unitSizeKg > 0;
+    const unitsSold = useUnitConversion ? roundTo2(qtyKg / unitSizeKg) : qtyKg;
+    const unitSellingPrice = useUnitConversion ? roundTo2(price * unitSizeKg) : price;
+    const unitCostAtSale = roundTo2(Number(feedMillStock?.averageUnitCost || 0));
 
     const rpcName = moduleTarget === 'CATFISH'
       ? 'handle_internal_feed_purchase_catfish'
@@ -52,6 +75,27 @@ export async function POST(request: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
+    const soldAt = new Date().toISOString().split('T')[0];
+    const { data: saleRow, error: saleError } = await admin
+      .from('Sale')
+      .insert({
+        productId,
+        module: 'FEED_MILL',
+        locationId: feedMillLocation.id,
+        quantitySold: unitsSold,
+        unitSellingPrice,
+        unitCostAtSale,
+        soldAt,
+        soldBy: auth.userId,
+        notes: `Internal sale to ${moduleTarget}`
+      })
+      .select('id')
+      .single();
+
+    if (saleError) {
+      return NextResponse.json({ error: `Failed to log internal sale in Sales: ${saleError.message}` }, { status: 400 });
+    }
+
     await logActivityServer({
       action: 'INTERNAL_FEED_SALE',
       entityType: 'FeedInternalPurchase',
@@ -63,7 +107,7 @@ export async function POST(request: NextRequest) {
       ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip')
     });
 
-    return NextResponse.json({ id: purchaseId });
+    return NextResponse.json({ id: purchaseId, saleId: saleRow?.id ?? null });
   } catch (error: any) {
     console.error('Internal feed sale error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

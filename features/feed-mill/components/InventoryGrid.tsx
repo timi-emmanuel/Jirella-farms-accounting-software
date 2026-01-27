@@ -20,6 +20,7 @@ import {
     NumberEditorModule,
     themeQuartz
 } from 'ag-grid-community';
+import { toast } from "@/lib/toast";
 import { createClient } from '@/lib/supabase/client';
 import { Loader2, Plus, ArrowUpRight } from 'lucide-react';
 import { Ingredient } from '@/types';
@@ -113,7 +114,11 @@ export function InventoryGrid() {
             .eq('id', updatedRow.id);
 
         if (error) {
-            alert("Failed to save ledger change: " + error.message);
+            toast({
+                title: "Error",
+                description: "Failed to save ledger change: " + error.message,
+                variant: "destructive"
+            });
         } else {
             // Refresh data to ensure UI matches the true DB state
             loadData();
@@ -210,7 +215,7 @@ export function InventoryGrid() {
             .single();
 
         if (fetchError || !currentItem) {
-            alert("Error fetching item details");
+            toast({ title: "Error", description: "Error fetching item details", variant: "destructive" });
             setSubmitting(false);
             return;
         }
@@ -233,7 +238,11 @@ export function InventoryGrid() {
         }).eq('id', selectedIngredient);
 
         if (updateError) {
-            alert("Error updating stock: " + updateError.message);
+            toast({
+                title: "Error",
+                description: "Error updating stock: " + updateError.message,
+                variant: "destructive"
+            });
         } else {
             setShowAddStock(false);
             setQuantity("");
@@ -341,3 +350,4 @@ export function InventoryGrid() {
         </div>
     );
 }
+

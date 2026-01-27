@@ -2,7 +2,7 @@ import { CatfishDashboard } from "@/features/catfish/components/CatfishDashboard
 
 export default function CatfishDashboardPage() {
   return (
-    <div className="h-full flex flex-col space-y-6 overflow-y-auto pr-2">
+    <div className="h-full flex flex-col space-y-6 overflow-y-auto modal-scrollbar">
       <div className="flex flex-col">
         <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
           Catfish <span className="text-emerald-600">Dashboard</span>

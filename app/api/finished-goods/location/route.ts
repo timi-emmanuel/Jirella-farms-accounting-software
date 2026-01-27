@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const code = searchParams.get('code');
     const module = searchParams.get('module');
+    const onlyInStock = searchParams.get('onlyInStock') === 'true';
 
     if (!code) {
       return NextResponse.json({ error: 'Missing location code' }, { status: 400 });
@@ -69,7 +70,11 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json({ location, items: enriched });
+    const items = onlyInStock
+      ? enriched.filter((item) => Number(item.quantityOnHand || 0) > 0)
+      : enriched;
+
+    return NextResponse.json({ location, items });
   } catch (error: any) {
     console.error('Finished goods location error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -110,7 +110,7 @@ export function CatfishDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">{card.label}</p>
-                <p className="text-2xl font-black text-slate-900 mt-2">{card.value}</p>
+                <p className="text-xl font-black text-slate-900 mt-2">{card.value}</p>
                 <p className="text-xs text-slate-500 mt-1">{card.hint}</p>
               </div>
               <div className={`w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center ${card.accent}`}>
@@ -171,3 +171,4 @@ export function CatfishDashboard() {
     </div>
   );
 }
+

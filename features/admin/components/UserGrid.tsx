@@ -50,6 +50,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ROLES } from '@/config/roles';
 import { logActivity } from '@/lib/logger';
+import { toast } from "@/lib/toast";
 
 // Register modules
 ModuleRegistry.registerModules([
@@ -162,13 +163,13 @@ export function UserGrid() {
     throw new Error(data.error || 'Failed to create user');
    }
 
-   alert("User created successfully!");
+   toast({ title: "Success", description: "User created successfully!", variant: "success" });
    await logActivity('USER_CREATED', 'User', data.id || 'NEW', `Admin created user: ${newUser.email}`, { email: newUser.email, role: newUser.role });
    setShowNewUser(false);
    setNewUser({ email: '', password: '', name: '', role: '' });
    loadData();
   } catch (error: any) {
-   alert(error.message);
+   toast({ title: "Error", description: error.message, variant: "destructive" });
   } finally {
    setSubmitting(false);
   }
@@ -189,13 +190,13 @@ export function UserGrid() {
     throw new Error(data.error || 'Failed to delete user');
    }
 
-   alert("User deleted successfully");
+   toast({ title: "Success", description: "User deleted successfully", variant: "success" });
    await logActivity('USER_DELETED', 'User', userToDelete.id, `Admin deleted user: ${userToDelete.email}`, { email: userToDelete.email, role: userToDelete.role });
    setDeleteDialogOpen(false);
    setUserToDelete(null);
    loadData();
   } catch (error: any) {
-   alert(error.message);
+   toast({ title: "Error", description: error.message, variant: "destructive" });
   } finally {
    setIsDeleting(false);
   }
@@ -332,3 +333,4 @@ export function UserGrid() {
   </div>
  );
 }
+

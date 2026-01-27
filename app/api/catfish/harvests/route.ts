@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { batchId, date, quantityKg, averageFishWeightKg, notes, closeBatch } = await request.json();
+    const { batchId, date, quantityKg, fishCountHarvested, averageFishWeightKg, notes, closeBatch } = await request.json();
     if (!batchId || Number(quantityKg) <= 0) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
     }
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     const { data: existingHarvests } = await admin
       .from('CatfishHarvest')
-      .select('quantityKg')
+      .select('quantityKg, fishCountHarvested')
       .eq('batchId', batchId);
 
     const existingQty = roundTo2((existingHarvests || []).reduce((sum: number, row: any) => sum + Number(row.quantityKg || 0), 0));
@@ -87,6 +87,7 @@ export async function POST(request: NextRequest) {
         batchId,
         date: date ?? new Date().toISOString().split('T')[0],
         quantityKg: newQty,
+        fishCountHarvested: Number.isFinite(Number(fishCountHarvested)) ? Math.max(0, Math.floor(Number(fishCountHarvested))) : null,
         averageFishWeightKg: Number(averageFishWeightKg || 0),
         notes: notes ?? null
       })
@@ -165,7 +166,7 @@ export async function POST(request: NextRequest) {
       entityType: 'CatfishHarvest',
       entityId: harvest.id,
       description: `Harvest logged for batch ${batch.batchCode}`,
-      metadata: { batchId, quantityKg: newQty, unitCostPerKg, closeBatch: !!closeBatch },
+      metadata: { batchId, quantityKg: newQty, fishCountHarvested, unitCostPerKg, closeBatch: !!closeBatch },
       userId: auth.userId,
       userRole: auth.role,
       ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip')

@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useEffect, useState, useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
@@ -20,6 +20,7 @@ import {
 } from 'ag-grid-community';
 import { Loader2, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { Ingredient } from '@/types';
+import { toast } from "@/lib/toast";
 import { Button } from '@/components/ui/button';
 import {
  Dialog,
@@ -78,7 +79,11 @@ export function InventoryGrid() {
   const response = await fetch(`/api/inventory/items/${item.id}`, { method: 'DELETE' });
   if (!response.ok) {
    const payload = await response.json().catch(() => ({}));
-   alert(payload.error || 'Failed to delete item.');
+   toast({
+    title: "Error",
+    description: payload.error || 'Failed to delete item.',
+    variant: "destructive"
+   });
   } else {
    loadData();
   }
@@ -121,7 +126,7 @@ export function InventoryGrid() {
    headerName: "Avg. Cost",
    flex: 1,
    type: 'numericColumn',
-   valueFormatter: (params: any) => `NGN ${Number(params.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+   valueFormatter: (params: any) => `? ${Number(params.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   },
   {
    field: "updatedAt",
@@ -186,7 +191,11 @@ export function InventoryGrid() {
 
   if (!response.ok) {
    const payload = await response.json().catch(() => ({}));
-   alert(payload.error || 'Failed to create item.');
+   toast({
+    title: "Error",
+    description: payload.error || 'Failed to create item.',
+    variant: "destructive"
+   });
   } else {
    setShowNewItem(false);
    setNewItem({ name: '', unit: 'KG', description: '', trackInFeedMill: true });
@@ -197,10 +206,10 @@ export function InventoryGrid() {
 
  const handleAdjust = async (e: React.FormEvent) => {
   e.preventDefault();
-  if (!adjustForm.ingredientId) {
-   alert('Select an item to adjust.');
-   return;
-  }
+ if (!adjustForm.ingredientId) {
+  toast({ title: "Error", description: "Select an item to adjust.", variant: "destructive" });
+  return;
+ }
   setSubmitting(true);
   const response = await fetch('/api/inventory/adjust', {
    method: 'POST',
@@ -216,7 +225,11 @@ export function InventoryGrid() {
 
   if (!response.ok) {
    const payload = await response.json().catch(() => ({}));
-   alert(payload.error || 'Failed to adjust stock.');
+   toast({
+    title: "Error",
+    description: payload.error || 'Failed to adjust stock.',
+    variant: "destructive"
+   });
   } else {
    setShowAdjust(false);
    setAdjustForm({ ingredientId: '', quantity: '', direction: 'OUT', reason: '' });
@@ -396,3 +409,5 @@ export function InventoryGrid() {
   </div>
  );
 }
+
+

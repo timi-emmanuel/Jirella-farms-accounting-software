@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
@@ -19,6 +19,7 @@ import {
  themeQuartz
 } from 'ag-grid-community';
 import { Loader2, CheckCircle2, XCircle, PackageCheck } from 'lucide-react';
+import { toast } from "@/lib/toast";
 type TransferLine = {
  item?: { name?: string; unit?: string };
  quantityRequested: number;
@@ -89,12 +90,16 @@ export function IssueRequestGrid() {
    : `/api/transfers/${request.id}/reject`;
 
   const response = await fetch(endpoint, { method: 'POST' });
-  if (!response.ok) {
-   const payload = await response.json().catch(() => ({}));
-   alert(payload.error || `Failed to ${action.toLowerCase()} request.`);
-  } else {
-   setRowData(prev => prev.map(r => r.id === request.id ? { ...r, status: action } : r));
-  }
+ if (!response.ok) {
+  const payload = await response.json().catch(() => ({}));
+  toast({
+   title: "Error",
+   description: payload.error || `Failed to ${action.toLowerCase()} request.`,
+   variant: "destructive"
+  });
+ } else {
+  setRowData(prev => prev.map(r => r.id === request.id ? { ...r, status: action } : r));
+ }
   setProcessingId(null);
  };
 
@@ -110,10 +115,14 @@ export function IssueRequestGrid() {
    })
   });
 
-  if (!response.ok) {
-   const payload = await response.json().catch(() => ({}));
-   alert(payload.error || 'Failed to issue stock.');
-  } else {
+ if (!response.ok) {
+  const payload = await response.json().catch(() => ({}));
+  toast({
+   title: "Error",
+   description: payload.error || 'Failed to issue stock.',
+   variant: "destructive"
+  });
+ } else {
    setRowData(prev => prev.map(r => r.id === issueTarget.id ? { ...r, status: 'COMPLETED' } : r));
    setIssueDialogOpen(false);
    setIssueTarget(null);
@@ -288,3 +297,4 @@ export function IssueRequestGrid() {
   </div>
  );
 }
+

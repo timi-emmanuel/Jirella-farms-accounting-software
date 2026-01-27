@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
@@ -81,17 +81,17 @@ export function PoultryFeedPurchaseGrid() {
     },
     {
       field: "unitPrice",
-      headerName: "Unit Price (NGN/kg)",
+      headerName: "Unit Price (?/kg)",
       type: 'numericColumn',
       minWidth: 150,
-      valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
     },
     {
       field: "totalAmount",
-      headerName: "Total (NGN)",
+      headerName: "Total (?)",
       type: 'numericColumn',
       minWidth: 150,
-      valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
     }
   ], []);
 
@@ -121,3 +121,4 @@ export function PoultryFeedPurchaseGrid() {
     </div>
   );
 }
+

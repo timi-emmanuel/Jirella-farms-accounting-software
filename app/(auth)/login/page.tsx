@@ -9,7 +9,7 @@ export default function LoginPage() {
     <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-green-700/20 rounded-full blur-3xl animate-pulse delay-700" />
    </div>
 
-   <div className="relative z-10 w-full max-w-[400px]">
+   <div className="relative z-10 w-full max-w-100">
     <div className="flex flex-col items-center mb-8">
      <h1 className="text-4xl font-extrabold text-white tracking-tight drop-shadow-md">
       Jirella <span className="text-emerald-400">Farms</span>

@@ -17,6 +17,7 @@ import {
   CustomFilterModule,
   themeQuartz
 } from 'ag-grid-community';
+import { toast } from "@/lib/toast";
 import { Loader2, Plus } from 'lucide-react';
 import { CatfishBatch, CatfishFeedLog, Product } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -114,7 +115,11 @@ export function CatfishFeedLogGrid({ batchId, hideBatchColumn }: Props) {
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      alert(payload.error || 'Failed to log feed usage.');
+      toast({
+        title: "Error",
+        description: payload.error || 'Failed to log feed usage.',
+        variant: "destructive"
+      });
     } else {
       setDialogOpen(false);
       setForm({
@@ -144,17 +149,17 @@ export function CatfishFeedLogGrid({ batchId, hideBatchColumn }: Props) {
       { field: 'quantityKg', headerName: 'Quantity (kg)', type: 'numericColumn', minWidth: 140 },
       {
         field: 'unitCostAtTime',
-        headerName: 'Unit Cost',
+        headerName: 'Unit Cost (₦)',
         type: 'numericColumn',
         minWidth: 130,
-        valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+        valueFormatter: (p: any) => `${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
       },
       {
         field: 'totalCost',
-        headerName: 'Total Cost',
+        headerName: 'Total Cost (₦)',
         type: 'numericColumn',
         minWidth: 140,
-        valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+        valueFormatter: (p: any) => ` ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
       }
     );
 
@@ -179,7 +184,7 @@ export function CatfishFeedLogGrid({ batchId, hideBatchColumn }: Props) {
               Log Feeding
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto modal-scrollbar">
+          <DialogContent className="sm:max-w-140 max-h-[90vh] overflow-y-auto modal-scrollbar">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold tracking-tight">Log Feed Usage</DialogTitle>
             </DialogHeader>
@@ -235,7 +240,7 @@ export function CatfishFeedLogGrid({ batchId, hideBatchColumn }: Props) {
         </Dialog>
       </div>
 
-      <div className="h-[320px] border rounded-2xl overflow-hidden bg-white shadow-xl shadow-slate-200/50">
+      <div className="h-80 border rounded-2xl overflow-hidden bg-white shadow-xl shadow-slate-200/50">
         <AgGridReact
           theme={themeQuartz}
           rowData={rowData}
@@ -254,3 +259,5 @@ export function CatfishFeedLogGrid({ batchId, hideBatchColumn }: Props) {
     </div>
   );
 }
+
+

@@ -32,6 +32,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/lib/toast";
 
 type ModuleKey = 'FEED_MILL' | 'POULTRY' | 'BSF';
 
@@ -98,7 +99,7 @@ export function ModuleInventoryGrid({ moduleKey }: { moduleKey: ModuleKey }) {
    headerName: "Avg. Cost",
    flex: 1,
    type: 'numericColumn',
-   valueFormatter: (params: any) => `NGN ${Number(params.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+   valueFormatter: (params: any) => `? ${Number(params.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   },
   {
    headerName: "Actions",
@@ -139,7 +140,7 @@ export function ModuleInventoryGrid({ moduleKey }: { moduleKey: ModuleKey }) {
  const handleRequest = async (e: React.FormEvent) => {
   e.preventDefault();
   if (!requestForm.ingredientId || !requestForm.quantity || Number(requestForm.quantity) <= 0) {
-   alert('Enter a valid quantity.');
+   toast({ title: "Error", description: "Enter a valid quantity.", variant: "destructive" });
    return;
   }
 
@@ -158,11 +159,15 @@ export function ModuleInventoryGrid({ moduleKey }: { moduleKey: ModuleKey }) {
 
   if (!response.ok) {
    const payload = await response.json().catch(() => ({}));
-   alert(payload.error || 'Failed to submit request.');
+   toast({
+    title: "Error",
+    description: payload.error || 'Failed to submit request.',
+    variant: "destructive"
+   });
   } else {
    setDialogOpen(false);
    setRequestForm({ ingredientId: '', quantity: '', notes: '' });
-   alert('Request made successfully.');
+   toast({ title: "Success", description: "Request made successfully.", variant: "success" });
   }
   setRequesting(false);
  };
@@ -232,3 +237,5 @@ export function ModuleInventoryGrid({ moduleKey }: { moduleKey: ModuleKey }) {
   </div>
  );
 }
+
+

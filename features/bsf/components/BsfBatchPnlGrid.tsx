@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
@@ -72,35 +72,35 @@ export function BsfBatchPnlGrid() {
       headerName: 'Revenue',
       type: 'numericColumn',
       minWidth: 130,
-      valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
     },
     {
       field: 'feedCost',
       headerName: 'Feed Cost',
       type: 'numericColumn',
       minWidth: 130,
-      valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
     },
     {
       field: 'energyCost',
       headerName: 'Energy',
       type: 'numericColumn',
       minWidth: 120,
-      valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
     },
     {
       field: 'totalCogs',
       headerName: 'Total COGS',
       type: 'numericColumn',
       minWidth: 130,
-      valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
     },
     {
       field: 'profit',
       headerName: 'Profit',
       type: 'numericColumn',
       minWidth: 120,
-      valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
     }
   ], []);
 
@@ -130,3 +130,4 @@ export function BsfBatchPnlGrid() {
     </div>
   );
 }
+

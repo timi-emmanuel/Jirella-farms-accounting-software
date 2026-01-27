@@ -1,11 +1,11 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import "ag-grid-community/styles/ag-theme-quartz.css";
 import {
   ColDef,
- CellStyleModule,
+  CellStyleModule,
   ModuleRegistry,
   ClientSideRowModelModule,
   ValidationModule,
@@ -17,6 +17,7 @@ import {
   CustomFilterModule,
   themeQuartz
 } from 'ag-grid-community';
+import { toast } from "@/lib/toast";
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -118,7 +119,7 @@ export function FinishedFeedStockGrid() {
       flex: 1,
       type: 'numericColumn',
       valueGetter: (p: any) => Number(p.data.averageUnitCost || 0),
-      valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
     },
     {
       headerName: "Actions",
@@ -146,7 +147,7 @@ export function FinishedFeedStockGrid() {
     const quantityKg = Number(saleForm.quantityKg);
     const unitPrice = Number(saleForm.unitPrice);
     if (!quantityKg || quantityKg <= 0 || !unitPrice || unitPrice <= 0) {
-      alert('Enter a valid quantity and price.');
+      toast({ title: "Error", description: "Enter a valid quantity and price.", variant: "destructive" });
       return;
     }
 
@@ -164,13 +165,21 @@ export function FinishedFeedStockGrid() {
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      alert(payload.error || 'Failed to record internal sale.');
+      toast({
+        title: "Error",
+        description: payload.error || 'Failed to record internal sale.',
+        variant: "destructive"
+      });
     } else {
       setDialogOpen(false);
       setSelectedProduct(null);
       setSaleForm({ quantityKg: '', unitPrice: '', targetModule: 'POULTRY' });
       loadData();
-      alert('Internal feed purchase recorded.');
+      toast({
+        title: "Success",
+        description: "Internal feed purchase recorded.",
+        variant: "success"
+      });
     }
     setSelling(false);
   };
@@ -223,7 +232,7 @@ export function FinishedFeedStockGrid() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="unitPrice">Unit Price (NGN / kg)</Label>
+              <Label htmlFor="unitPrice">Unit Price (? / kg)</Label>
               <Input
                 id="unitPrice"
                 type="number"
@@ -260,3 +269,5 @@ export function FinishedFeedStockGrid() {
     </div>
   );
 }
+
+

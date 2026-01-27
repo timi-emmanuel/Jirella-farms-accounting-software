@@ -69,14 +69,14 @@ export function CatfishFeedPurchaseGrid() {
       headerName: 'Unit Price',
       type: 'numericColumn',
       minWidth: 130,
-      valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
     },
     {
       field: 'totalAmount',
       headerName: 'Total Amount',
       type: 'numericColumn',
       minWidth: 140,
-      valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
     }
   ], []);
 
@@ -109,3 +109,4 @@ export function CatfishFeedPurchaseGrid() {
     </div>
   );
 }
+

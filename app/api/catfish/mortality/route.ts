@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { batchId, date, deadCount, cause, notes } = await request.json();
+    const { batchId, date, deadCount, cause } = await request.json();
     if (!batchId || Number(deadCount) <= 0) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
     }
@@ -54,8 +54,7 @@ export async function POST(request: NextRequest) {
       batchId,
       date: date ?? new Date().toISOString().split('T')[0],
       deadCount: Number(deadCount || 0),
-      cause: cause ?? null,
-      notes: notes ?? null
+      cause: cause ?? null
     };
 
     const { data, error } = await admin

@@ -14,7 +14,7 @@ export default function CatfishPnlReportPage() {
       </div>
       <Tabs defaultValue="monthly" className="flex-1 flex flex-col overflow-hidden">
         <div className="flex items-center justify-between mb-4">
-          <TabsList className="grid w-[360px] grid-cols-2">
+          <TabsList className="grid w-90 grid-cols-2">
             <TabsTrigger value="monthly">
               <LayoutGrid className="w-4 h-4 mr-2" />
               Monthly

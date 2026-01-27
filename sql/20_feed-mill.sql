@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS "FeedBatch" (
   "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- Deprecated: Feed mill sales are now tracked in the unified "Sale" table.
+-- Keep this table for historical data; do not write new rows here.
 CREATE TABLE IF NOT EXISTS "FeedMillSale" (
   "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   "date" DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -461,3 +463,160 @@ CREATE INDEX IF NOT EXISTS "FinishedGoodsTransferRequest_status_idx"
   ON "FinishedGoodsTransferRequest" ("status");
 CREATE INDEX IF NOT EXISTS "FinishedGoodsTransferLine_request_idx"
   ON "FinishedGoodsTransferLine" ("transferRequestId");
+
+WITH feed_mill AS (
+  SELECT id FROM "InventoryLocation" WHERE code = 'FEED_MILL'
+),
+internal_sales AS (
+  SELECT
+    fip.id AS purchase_id,
+    fip."productId",
+    p."unit",
+    p."unitSizeKg",
+    fip."quantityKg",
+    fip."unitPrice",
+    fip."purchaseDate",
+    fip."soldByUserId",
+    CASE
+      WHEN fgl."referenceType" = 'INTERNAL_FEED_PURCHASE_CATFISH' THEN 'CATFISH'
+      ELSE 'POULTRY'
+    END AS target_module,
+    fgl."unitCostAtTime" AS unit_cost_at_time
+  FROM "FeedInternalPurchase" fip
+  LEFT JOIN "FinishedGoodsLedger" fgl
+    ON fgl."referenceType" IN ('INTERNAL_FEED_PURCHASE', 'INTERNAL_FEED_PURCHASE_CATFISH')
+   AND fgl."referenceId" = fip.id::text
+   AND fgl."type" = 'INTERNAL_SALE_OUT'
+  JOIN "Product" p ON p.id = fip."productId"
+),
+computed AS (
+  SELECT
+    purchase_id,
+    "productId",
+    "purchaseDate" AS "soldAt",
+    "soldByUserId" AS "soldBy",
+    CASE
+      WHEN "unit" = 'BAG' AND COALESCE("unitSizeKg", 0) > 0
+      THEN ROUND("quantityKg" / "unitSizeKg", 2)
+      ELSE "quantityKg"
+    END AS "quantitySold",
+    CASE
+      WHEN "unit" = 'BAG' AND COALESCE("unitSizeKg", 0) > 0
+      THEN ROUND("unitPrice" * "unitSizeKg", 2)
+      ELSE "unitPrice"
+    END AS "unitSellingPrice",
+    COALESCE("unit_cost_at_time", 0) AS "unitCostAtSale",
+    target_module
+  FROM internal_sales
+)
+INSERT INTO "Sale" (
+  "productId",
+  "module",
+  "locationId",
+  "quantitySold",
+  "unitSellingPrice",
+  "unitCostAtSale",
+  "soldAt",
+  "soldBy",
+  "notes"
+)
+SELECT
+  c."productId",
+  'FEED_MILL',
+  fm.id,
+  c."quantitySold",
+  c."unitSellingPrice",
+  c."unitCostAtSale",
+  c."soldAt",
+  c."soldBy",
+  'Internal sale to ' || c.target_module
+FROM computed c
+CROSS JOIN feed_mill fm
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM "Sale" s
+  WHERE s."module" = 'FEED_MILL'
+    AND s."productId" = c."productId"
+    AND s."soldAt" = c."soldAt"
+    AND s."quantitySold" = c."quantitySold"
+    AND s."unitSellingPrice" = c."unitSellingPrice"
+    AND s."notes" = 'Internal sale to ' || c.target_module
+);
+WITH feed_mill AS (
+  SELECT id FROM "InventoryLocation" WHERE code = 'FEED_MILL'
+),
+internal_sales AS (
+  SELECT
+    fip.id AS purchase_id,
+    fip."productId",
+    p."unit",
+    p."unitSizeKg",
+    fip."quantityKg",
+    fip."unitPrice",
+    fip."purchaseDate",
+    fip."soldByUserId",
+    CASE
+      WHEN fgl."referenceType" = 'INTERNAL_FEED_PURCHASE_CATFISH' THEN 'CATFISH'
+      ELSE 'POULTRY'
+    END AS target_module,
+    fgl."unitCostAtTime" AS unit_cost_at_time
+  FROM "FeedInternalPurchase" fip
+  LEFT JOIN "FinishedGoodsLedger" fgl
+    ON fgl."referenceType" IN ('INTERNAL_FEED_PURCHASE', 'INTERNAL_FEED_PURCHASE_CATFISH')
+   AND fgl."referenceId" = fip.id::text
+   AND fgl."type" = 'INTERNAL_SALE_OUT'
+  JOIN "Product" p ON p.id = fip."productId"
+),
+computed AS (
+  SELECT
+    purchase_id,
+    "productId",
+    "purchaseDate" AS "soldAt",
+    "soldByUserId" AS "soldBy",
+    CASE
+      WHEN "unit" = 'BAG' AND COALESCE("unitSizeKg", 0) > 0
+      THEN ROUND("quantityKg" / "unitSizeKg", 2)
+      ELSE "quantityKg"
+    END AS "quantitySold",
+    CASE
+      WHEN "unit" = 'BAG' AND COALESCE("unitSizeKg", 0) > 0
+      THEN ROUND("unitPrice" * "unitSizeKg", 2)
+      ELSE "unitPrice"
+    END AS "unitSellingPrice",
+    COALESCE("unit_cost_at_time", 0) AS "unitCostAtSale",
+    target_module
+  FROM internal_sales
+)
+INSERT INTO "Sale" (
+  "productId",
+  "module",
+  "locationId",
+  "quantitySold",
+  "unitSellingPrice",
+  "unitCostAtSale",
+  "soldAt",
+  "soldBy",
+  "notes"
+)
+SELECT
+  c."productId",
+  'FEED_MILL',
+  fm.id,
+  c."quantitySold",
+  c."unitSellingPrice",
+  c."unitCostAtSale",
+  c."soldAt",
+  c."soldBy",
+  'Internal sale to ' || c.target_module
+FROM computed c
+CROSS JOIN feed_mill fm
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM "Sale" s
+  WHERE s."module" = 'FEED_MILL'
+    AND s."productId" = c."productId"
+    AND s."soldAt" = c."soldAt"
+    AND s."quantitySold" = c."quantitySold"
+    AND s."unitSellingPrice" = c."unitSellingPrice"
+    AND s."notes" = 'Internal sale to ' || c.target_module
+);

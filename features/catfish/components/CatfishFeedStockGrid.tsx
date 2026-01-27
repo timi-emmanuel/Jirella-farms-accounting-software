@@ -97,7 +97,7 @@ export function CatfishFeedStockGrid() {
       flex: 1,
       type: 'numericColumn',
       valueGetter: (p: any) => Number(p.data.averageUnitCost || 0),
-      valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
     }
   ], []);
 
@@ -128,3 +128,4 @@ export function CatfishFeedStockGrid() {
     </div>
   );
 }
+

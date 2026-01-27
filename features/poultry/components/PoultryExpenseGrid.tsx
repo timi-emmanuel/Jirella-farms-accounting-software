@@ -1,11 +1,11 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import "ag-grid-community/styles/ag-theme-quartz.css";
 import {
   ColDef,
- CellStyleModule,
+  CellStyleModule,
   ModuleRegistry,
   ClientSideRowModelModule,
   ValidationModule,
@@ -17,6 +17,7 @@ import {
   CustomFilterModule,
   themeQuartz
 } from 'ag-grid-community';
+import { toast } from "@/lib/toast";
 import { Loader2, Plus, Wallet } from 'lucide-react';
 import { Expense } from '@/types';
 import { Button } from "@/components/ui/button";
@@ -91,7 +92,11 @@ export function PoultryExpenseGrid() {
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      alert(payload.error || 'Failed to log expense.');
+      toast({
+        title: "Error",
+        description: payload.error || 'Failed to log expense.',
+        variant: "destructive"
+      });
     } else {
       setShowAdd(false);
       setForm({
@@ -120,10 +125,10 @@ export function PoultryExpenseGrid() {
     },
     {
       field: "amount",
-      headerName: "Amount (NGN)",
+      headerName: "Amount (?)",
       type: 'numericColumn',
       minWidth: 150,
-      valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
     },
     {
       field: "notes",
@@ -180,7 +185,7 @@ export function PoultryExpenseGrid() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="expenseAmount">Amount (NGN)</Label>
+                <Label htmlFor="expenseAmount">Amount (?)</Label>
                 <Input
                   id="expenseAmount"
                   type="number"
@@ -227,3 +232,5 @@ export function PoultryExpenseGrid() {
     </div>
   );
 }
+
+

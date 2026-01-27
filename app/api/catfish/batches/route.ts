@@ -30,7 +30,54 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await query;
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json({ batches: data || [] });
+    const batches = data || [];
+    if (batches.length === 0) {
+      return NextResponse.json({ batches });
+    }
+
+    const batchIds = batches.map((batch: any) => batch.id);
+    const { data: mortalityRows, error: mortalityError } = await admin
+      .from('CatfishMortalityLog')
+      .select('batchId, deadCount')
+      .in('batchId', batchIds);
+
+    if (mortalityError) {
+      return NextResponse.json({ error: mortalityError.message }, { status: 400 });
+    }
+
+    const { data: harvestRows, error: harvestError } = await admin
+      .from('CatfishHarvest')
+      .select('batchId, fishCountHarvested')
+      .in('batchId', batchIds);
+
+    if (harvestError) {
+      return NextResponse.json({ error: harvestError.message }, { status: 400 });
+    }
+
+    const mortalityMap = new Map<string, number>();
+    (mortalityRows || []).forEach((row: any) => {
+      const current = mortalityMap.get(row.batchId) ?? 0;
+      mortalityMap.set(row.batchId, current + Number(row.deadCount || 0));
+    });
+
+    const harvestedMap = new Map<string, number>();
+    (harvestRows || []).forEach((row: any) => {
+      if (row.fishCountHarvested === null || row.fishCountHarvested === undefined) return;
+      const current = harvestedMap.get(row.batchId) ?? 0;
+      harvestedMap.set(row.batchId, current + Number(row.fishCountHarvested || 0));
+    });
+
+    const enriched = batches.map((batch: any) => {
+      const mortalityTotal = mortalityMap.get(batch.id) ?? 0;
+      const harvestedCount = harvestedMap.get(batch.id) ?? 0;
+      const fishesLeft = Math.max(
+        0,
+        Number(batch.initialFingerlingsCount || 0) - Number(mortalityTotal || 0) - Number(harvestedCount || 0)
+      );
+      return { ...batch, mortalityTotal, harvestedCount, fishesLeft };
+    });
+
+    return NextResponse.json({ batches: enriched });
   } catch (error: any) {
     console.error('Catfish batch fetch error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -55,6 +102,39 @@ export async function POST(request: NextRequest) {
     const totalFingerlingCost = roundTo2(fingerlings * unitCost);
 
     const admin = createAdminClient();
+    const { data: pond, error: pondError } = await admin
+      .from('CatfishPond')
+      .select('id, capacityFish')
+      .eq('id', body.pondId)
+      .single();
+
+    if (pondError || !pond) {
+      return NextResponse.json({ error: 'Pond not found' }, { status: 400 });
+    }
+
+    if (Number(pond.capacityFish || 0) > 0 && fingerlings > 0) {
+      const { data: existingBatches, error: batchError } = await admin
+        .from('CatfishBatch')
+        .select('initialFingerlingsCount, status')
+        .eq('pondId', body.pondId);
+
+      if (batchError) {
+        return NextResponse.json({ error: batchError.message }, { status: 400 });
+      }
+
+      const activeTotal = (existingBatches || [])
+        .filter((batch: any) => batch.status !== 'CLOSED')
+        .reduce((sum: number, batch: any) => sum + Number(batch.initialFingerlingsCount || 0), 0);
+
+      const nextTotal = activeTotal + fingerlings;
+      if (nextTotal > Number(pond.capacityFish || 0)) {
+        return NextResponse.json(
+          { error: `Pond capacity exceeded. Capacity: ${pond.capacityFish}, current: ${activeTotal}, new: ${fingerlings}.` },
+          { status: 400 }
+        );
+      }
+    }
+
     const payload = {
       batchCode: body.batchCode,
       pondId: body.pondId,

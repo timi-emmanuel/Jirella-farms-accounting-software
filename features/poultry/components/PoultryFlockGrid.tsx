@@ -17,6 +17,7 @@ import {
   CustomFilterModule,
   themeQuartz
 } from 'ag-grid-community';
+import { toast } from "@/lib/toast";
 import { Loader2, Plus, Users } from 'lucide-react';
 import { PoultryFlock } from '@/types';
 import { Button } from "@/components/ui/button";
@@ -70,7 +71,11 @@ export function PoultryFlockGrid() {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         console.error('Flock load error:', payload.error || response.statusText);
-        alert(payload.error || 'Failed to load flocks. Please try again.');
+        toast({
+          title: "Error",
+          description: payload.error || 'Failed to load flocks. Please try again.',
+          variant: "destructive"
+        });
       } else {
         setRowData(payload.flocks || []);
       }
@@ -80,7 +85,7 @@ export function PoultryFlockGrid() {
         typeof error?.message === 'string' && error.message.toLowerCase().includes('fetch')
           ? 'Network error: unable to reach the server. Check your connection and try again.'
           : 'Unexpected error while loading flocks. Please try again.';
-      alert(message);
+      toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -109,7 +114,11 @@ export function PoultryFlockGrid() {
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      alert(payload.error || 'Failed to create flock.');
+      toast({
+        title: "Error",
+        description: payload.error || 'Failed to create flock.',
+        variant: "destructive"
+      });
     } else {
       setShowAdd(false);
       setForm({
@@ -283,3 +292,4 @@ export function PoultryFlockGrid() {
     </div>
   );
 }
+

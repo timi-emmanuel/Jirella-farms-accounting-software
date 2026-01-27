@@ -33,16 +33,21 @@ export function CatfishBatchDetail() {
 
   const stats = useMemo(() => {
     if (!batch) return [];
+    const mortalityTotal = Number((batch as any).mortalityTotal || 0);
+    const harvestedCount = Number((batch as any).harvestedCount || 0);
+    const fishesLeft = Math.max(
+      0,
+      Number(batch.initialFingerlingsCount || 0) - mortalityTotal - harvestedCount
+    );
     return [
       { label: 'Pond', value: batch.pond?.name || 'Unknown' },
       { label: 'Start Date', value: batch.startDate },
       { label: 'Age (wks)', value: getCatfishAgeWeeks(batch.startDate).toString() },
       { label: 'Stage', value: formatCatfishStage(getCatfishStage(batch.startDate)) },
-      { label: 'Fingerlings', value: batch.initialFingerlingsCount.toLocaleString() },
-      {
-        label: 'Fingerling Cost',
-        value: `NGN ${Number(batch.totalFingerlingCost || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-      },
+      { label: 'Fishes', value: batch.initialFingerlingsCount.toLocaleString() },
+      { label: 'Fishes Left', value: fishesLeft.toLocaleString() },
+      { label: 'Total Mortality', value: mortalityTotal.toLocaleString() },
+      { label: 'Harvested (count)', value: harvestedCount.toLocaleString() },
       { label: 'Status', value: batch.status }
     ];
   }, [batch]);

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/lib/toast";
 
 type TransferLine = {
   product?: { name?: string; unit?: string; unitSizeKg?: number | null };
@@ -89,7 +90,11 @@ export function FinishedFeedTransferGrid() {
     const response = await fetch(endpoint, { method: 'POST' });
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      alert(payload.error || `Failed to ${action.toLowerCase()} request.`);
+      toast({
+        title: "Error",
+        description: payload.error || `Failed to ${action.toLowerCase()} request.`,
+        variant: "destructive"
+      });
     } else {
       setRowData(prev => prev.map(r => r.id === request.id ? { ...r, status: action } : r));
     }
@@ -108,7 +113,11 @@ export function FinishedFeedTransferGrid() {
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      alert(payload.error || 'Failed to complete transfer.');
+      toast({
+        title: "Error",
+        description: payload.error || 'Failed to complete transfer.',
+        variant: "destructive"
+      });
     } else {
       setRowData(prev => prev.map(r => r.id === completeTarget.id ? { ...r, status: 'COMPLETED' } : r));
       setCompleteDialogOpen(false);
@@ -286,3 +295,4 @@ export function FinishedFeedTransferGrid() {
     </div>
   );
 }
+

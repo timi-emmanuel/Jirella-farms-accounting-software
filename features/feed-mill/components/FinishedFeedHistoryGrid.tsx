@@ -137,7 +137,7 @@ export function FinishedFeedHistoryGrid() {
       headerName: "Unit Cost",
       type: 'numericColumn',
       minWidth: 130,
-      valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
     },
     {
       headerName: "Reference",
@@ -204,3 +204,4 @@ export function FinishedFeedHistoryGrid() {
     </div>
   );
 }
+

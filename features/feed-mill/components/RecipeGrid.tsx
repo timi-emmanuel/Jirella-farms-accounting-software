@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import "ag-grid-community/styles/ag-theme-quartz.css";
+import { toast } from "@/lib/toast";
 import {
     ColDef,
     ModuleRegistry,
@@ -149,7 +150,11 @@ export function RecipeGrid() {
             .eq('id', recipeToDelete.id);
 
         if (error) {
-            alert("Failed to delete recipe: " + error.message);
+            toast({
+                title: "Error",
+                description: "Failed to delete recipe: " + error.message,
+                variant: "destructive"
+            });
         } else {
             await logActivity('RECIPE_DELETED', 'Recipe', recipeToDelete.id, `Deleted recipe: ${recipeToDelete.name}`, { name: recipeToDelete.name }, undefined);
             setRowData(prev => prev.filter(r => r.id !== recipeToDelete.id));
@@ -229,6 +234,7 @@ export function RecipeGrid() {
         </div>
     );
 }
+
 
 
 

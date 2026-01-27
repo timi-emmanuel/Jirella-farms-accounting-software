@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
@@ -19,6 +19,7 @@ import {
 } from 'ag-grid-community';
 import { Loader2, Plus } from 'lucide-react';
 import { BsfInsectoriumLog } from '@/types';
+import { toast } from "@/lib/toast";
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -92,7 +93,11 @@ export function BsfInsectoriumLogGrid() {
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      alert(payload.error || 'Failed to record insectorium log.');
+      toast({
+        title: "Error",
+        description: payload.error || 'Failed to record insectorium log.',
+        variant: "destructive"
+      });
     } else {
       setDialogOpen(false);
       setForm({
@@ -233,3 +238,4 @@ export function BsfInsectoriumLogGrid() {
     </div>
   );
 }
+

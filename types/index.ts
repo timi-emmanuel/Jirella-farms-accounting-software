@@ -124,22 +124,6 @@ export interface FeedBatch {
  createdAt: string;
 }
 
-export interface FeedMillSale {
- id: string;
- date: string;
- recipeId: string;
- unitsSold: number;
- unitSellingPrice: number;
- unitCostPrice: number;
- totalRevenue: number;
- costOfGoodsSold: number;
- grossProfit: number;
- createdAt: string;
- updatedAt: string;
- // Relations
- recipe?: Recipe;
-}
-
 export type ProductModule = 'FEED_MILL' | 'POULTRY' | 'BSF' | 'CATFISH';
 export type ExpenseModule = 'FEED_MILL' | 'POULTRY' | 'BSF' | 'CATFISH';
 
@@ -219,6 +203,9 @@ export interface CatfishBatch {
  createdAt: string;
  updatedAt: string;
  pond?: CatfishPond;
+ mortalityTotal?: number;
+ harvestedCount?: number;
+ fishesLeft?: number;
 }
 
 export interface CatfishFeedLog {
@@ -240,7 +227,6 @@ export interface CatfishMortalityLog {
  date: string;
  deadCount: number;
  cause?: string | null;
- notes?: string | null;
  createdAt: string;
  batch?: CatfishBatch;
 }
@@ -250,6 +236,7 @@ export interface CatfishHarvest {
  batchId: string;
  date: string;
  quantityKg: number;
+ fishCountHarvested?: number | null;
  averageFishWeightKg: number;
  notes?: string | null;
  createdAt: string;

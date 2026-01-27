@@ -51,7 +51,8 @@ export function PoultryFeedInventoryGrid() {
     if (!response.ok) {
       console.error('Finished feed load error:', payload.error || response.statusText);
     } else {
-      setRowData(payload.items || []);
+      const items = (payload.items || []).filter((item: FeedProduct) => Number(item.quantityOnHand || 0) > 0);
+      setRowData(items);
     }
     setLoading(false);
   };
@@ -101,7 +102,7 @@ export function PoultryFeedInventoryGrid() {
       flex: 1,
       type: 'numericColumn',
       valueGetter: (p: any) => Number(p.data.averageUnitCost || 0),
-      valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
     }
   ], []);
 
@@ -131,3 +132,4 @@ export function PoultryFeedInventoryGrid() {
     </div>
   );
 }
+

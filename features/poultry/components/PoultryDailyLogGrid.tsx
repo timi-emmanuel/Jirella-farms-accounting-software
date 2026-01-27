@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
@@ -39,6 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from '@/lib/utils';
+import { toast } from "@/lib/toast";
 
 type FeedItem = {
   id: string;
@@ -174,7 +175,11 @@ export function PoultryDailyLogGrid() {
     e.preventDefault();
     if (!form.flockId) return;
     if (feedOver) {
-      alert('Feed usage exceeds available poultry stock.');
+      toast({
+        title: "Error",
+        description: "Feed usage exceeds available poultry stock.",
+        variant: "destructive"
+      });
       return;
     }
 
@@ -198,7 +203,11 @@ export function PoultryDailyLogGrid() {
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      alert(payload.error || 'Failed to save daily log.');
+      toast({
+        title: "Error",
+        description: payload.error || 'Failed to save daily log.',
+        variant: "destructive"
+      });
     } else {
       setShowAdd(false);
       setEditingId(null);
@@ -436,3 +445,4 @@ export function PoultryDailyLogGrid() {
     </div>
   );
 }
+

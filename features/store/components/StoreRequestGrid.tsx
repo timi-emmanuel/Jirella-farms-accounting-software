@@ -18,6 +18,7 @@ import {
  CustomFilterModule,
  themeQuartz
 } from 'ag-grid-community';
+import { toast } from "@/lib/toast";
 import { Loader2, Plus, Package, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -225,7 +226,11 @@ export function StoreRequestGrid() {
 
   if (!response.ok) {
    const payload = await response.json().catch(() => ({}));
-   alert("Failed to create request: " + (payload.error || response.statusText));
+   toast({
+    title: "Error",
+    description: "Failed to create request: " + (payload.error || response.statusText),
+    variant: "destructive"
+   });
   } else {
    setShowNewRequest(false);
    setNewItem({ itemName: '', quantity: '', unit: 'KG', purpose: '' });
@@ -237,7 +242,7 @@ export function StoreRequestGrid() {
  const handleReceive = async () => {
   if (!requestToReceive) return;
   if (!receiveUnitCost || Number(receiveUnitCost) < 0) {
-   alert('Unit cost is required.');
+   toast({ title: "Error", description: "Unit cost is required.", variant: "destructive" });
    return;
   }
   setIsReceiving(true);
@@ -261,10 +266,10 @@ export function StoreRequestGrid() {
    setReceiveDialogOpen(false);
    setRequestToReceive(null);
    loadData();
-   alert("Items received and inventory updated.");
+   toast({ title: "Success", description: "Items received and inventory updated.", variant: "success" });
 
   } catch (error: any) {
-   alert("Error: " + error.message);
+   toast({ title: "Error", description: "Error: " + error.message, variant: "destructive" });
   } finally {
    setIsReceiving(false);
   }
@@ -442,3 +447,4 @@ export function StoreRequestGrid() {
   </div>
  );
 }
+

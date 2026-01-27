@@ -17,6 +17,7 @@ import {
   CustomFilterModule,
   themeQuartz
 } from 'ag-grid-community';
+import { toast } from "@/lib/toast";
 import { Loader2, Plus } from 'lucide-react';
 import { CatfishBatch, CatfishMortalityLog } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -66,8 +67,7 @@ export function CatfishMortalityGrid({ batchId, hideBatchColumn }: Props) {
     batchId: batchId || '',
     date: new Date().toISOString().split('T')[0],
     deadCount: '',
-    cause: '',
-    notes: ''
+    cause: ''
   });
 
   const loadData = async () => {
@@ -103,22 +103,24 @@ export function CatfishMortalityGrid({ batchId, hideBatchColumn }: Props) {
         batchId: form.batchId,
         date: form.date,
         deadCount: Number(form.deadCount || 0),
-        cause: form.cause,
-        notes: form.notes
+        cause: form.cause
       })
     });
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      alert(payload.error || 'Failed to log mortality.');
+      toast({
+        title: "Error",
+        description: payload.error || 'Failed to log mortality.',
+        variant: "destructive"
+      });
     } else {
       setDialogOpen(false);
       setForm({
         batchId: batchId || '',
         date: new Date().toISOString().split('T')[0],
         deadCount: '',
-        cause: '',
-        notes: ''
+        cause: ''
       });
       loadData();
     }
@@ -138,9 +140,8 @@ export function CatfishMortalityGrid({ batchId, hideBatchColumn }: Props) {
     }
     cols.push(
       { field: 'deadCount', headerName: 'Dead Count', type: 'numericColumn', minWidth: 130 },
-      { field: 'cause', headerName: 'Cause', minWidth: 160 },
-      { field: 'notes', headerName: 'Notes', flex: 1.2, minWidth: 200 }
-    );
+      { field: 'cause', headerName: 'Cause', minWidth: 160, flex: 1 },
+      );
     return cols;
   }, [hideBatchColumn]);
 
@@ -162,7 +163,7 @@ export function CatfishMortalityGrid({ batchId, hideBatchColumn }: Props) {
               Log Mortality
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto modal-scrollbar">
+          <DialogContent className="sm:max-w-140 max-h-[90vh] overflow-y-auto modal-scrollbar">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold tracking-tight">Log Mortality</DialogTitle>
             </DialogHeader>
@@ -184,21 +185,19 @@ export function CatfishMortalityGrid({ batchId, hideBatchColumn }: Props) {
                   </Select>
                 </div>
               )}
-              <div className="space-y-2">
-                <Label>Date</Label>
-                <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+              <div className="flex flex-col gap-4 md:flex-row">
+                <div className='space-y-2 flex-1'>
+                   <Label>Date</Label>
+                   <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+                </div>           
+                <div className="space-y-2 flex-1">
+                  <Label>Dead Count</Label>
+                  <Input type="number" value={form.deadCount} onChange={(e) => setForm({ ...form, deadCount: e.target.value })} />
               </div>
-              <div className="space-y-2">
-                <Label>Dead Count</Label>
-                <Input type="number" value={form.deadCount} onChange={(e) => setForm({ ...form, deadCount: e.target.value })} />
-              </div>
+              </div>              
               <div className="space-y-2">
                 <Label>Cause</Label>
                 <Input value={form.cause} onChange={(e) => setForm({ ...form, cause: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Notes</Label>
-                <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
               </div>
               <DialogFooter>
                 <Button type="submit" disabled={submitting} className="w-full">
@@ -211,7 +210,7 @@ export function CatfishMortalityGrid({ batchId, hideBatchColumn }: Props) {
         </Dialog>
       </div>
 
-      <div className="h-[320px] border rounded-2xl overflow-hidden bg-white shadow-xl shadow-slate-200/50">
+      <div className="h-80 border rounded-2xl overflow-hidden bg-white shadow-xl shadow-slate-200/50">
         <AgGridReact
           theme={themeQuartz}
           rowData={rowData}
@@ -230,3 +229,4 @@ export function CatfishMortalityGrid({ batchId, hideBatchColumn }: Props) {
     </div>
   );
 }
+

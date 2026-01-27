@@ -17,6 +17,7 @@ import {
   CustomFilterModule,
   themeQuartz
 } from 'ag-grid-community';
+import { toast } from "@/lib/toast";
 import { Loader2, Plus } from 'lucide-react';
 import { CatfishBatch, CatfishHarvest } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -66,6 +67,7 @@ export function CatfishHarvestGrid({ batchId, hideBatchColumn }: Props) {
     batchId: batchId || '',
     date: new Date().toISOString().split('T')[0],
     quantityKg: '',
+    fishCountHarvested: '',
     averageFishWeightKg: '',
     notes: '',
     closeBatch: false
@@ -104,6 +106,7 @@ export function CatfishHarvestGrid({ batchId, hideBatchColumn }: Props) {
         batchId: form.batchId,
         date: form.date,
         quantityKg: Number(form.quantityKg || 0),
+        fishCountHarvested: form.fishCountHarvested ? Number(form.fishCountHarvested) : null,
         averageFishWeightKg: Number(form.averageFishWeightKg || 0),
         notes: form.notes,
         closeBatch: form.closeBatch
@@ -112,13 +115,18 @@ export function CatfishHarvestGrid({ batchId, hideBatchColumn }: Props) {
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      alert(payload.error || 'Failed to log harvest.');
+      toast({
+        title: "Error",
+        description: payload.error || 'Failed to log harvest.',
+        variant: "destructive"
+      });
     } else {
       setDialogOpen(false);
       setForm({
         batchId: batchId || '',
         date: new Date().toISOString().split('T')[0],
         quantityKg: '',
+        fishCountHarvested: '',
         averageFishWeightKg: '',
         notes: '',
         closeBatch: false
@@ -140,7 +148,15 @@ export function CatfishHarvestGrid({ batchId, hideBatchColumn }: Props) {
       });
     }
     cols.push(
-      { field: 'quantityKg', headerName: 'Quantity (kg)', type: 'numericColumn', minWidth: 140 },
+      { field: 'quantityKg', headerName: 'Harvest Weight (kg)', type: 'numericColumn', minWidth: 160 },
+      {
+        field: 'fishCountHarvested',
+        headerName: 'Fish Count',
+        type: 'numericColumn',
+        minWidth: 130,
+        valueGetter: (p: any) => p.data.fishCountHarvested ?? null,
+        valueFormatter: (p: any) => (p.value === null || p.value === undefined ? '-' : Number(p.value).toLocaleString())
+      },
       { field: 'averageFishWeightKg', headerName: 'Avg Weight (kg)', type: 'numericColumn', minWidth: 150 },
       { field: 'notes', headerName: 'Notes', flex: 1.2, minWidth: 200 }
     );
@@ -193,13 +209,26 @@ export function CatfishHarvestGrid({ batchId, hideBatchColumn }: Props) {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label>Quantity (kg)</Label>
+                  <Label>Harvest Weight (kg)</Label>
                   <Input type="number" step="0.01" value={form.quantityKg} onChange={(e) => setForm({ ...form, quantityKg: e.target.value })} />
                 </div>
                 <div className="space-y-2">
                   <Label>Avg Fish Weight (kg)</Label>
                   <Input type="number" step="0.01" value={form.averageFishWeightKg} onChange={(e) => setForm({ ...form, averageFishWeightKg: e.target.value })} />
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Fish Count Harvested (optional)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={form.fishCountHarvested}
+                  onChange={(e) => setForm({ ...form, fishCountHarvested: e.target.value })}
+                />
+                <p className="text-xs text-slate-500">
+                  Leave blank if you didn&apos;t count fish. This won&apos;t change fish count.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label>Notes</Label>
@@ -244,3 +273,4 @@ export function CatfishHarvestGrid({ batchId, hideBatchColumn }: Props) {
     </div>
   );
 }
+

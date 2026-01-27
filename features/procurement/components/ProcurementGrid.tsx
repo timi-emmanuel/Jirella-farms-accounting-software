@@ -18,6 +18,7 @@ import {
  CustomFilterModule,
  themeQuartz
 } from 'ag-grid-community';
+import { toast } from "@/lib/toast";
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -86,7 +87,11 @@ export function ProcurementGrid() {
 
   if (!response.ok) {
    const payload = await response.json().catch(() => ({}));
-   alert(`Failed to ${action.toLowerCase()} request: ` + (payload.error || response.statusText));
+   toast({
+    title: "Error",
+    description: `Failed to ${action.toLowerCase()} request: ` + (payload.error || response.statusText),
+    variant: "destructive"
+   });
   } else {
    await loadRequests();
   }
@@ -239,3 +244,4 @@ export function ProcurementGrid() {
   </div>
  );
 }
+

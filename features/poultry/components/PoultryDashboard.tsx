@@ -148,7 +148,7 @@ export function PoultryDashboard() {
             <div className="border rounded-xl p-4 bg-slate-50">
               <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Cost per Crate</p>
               <p className="text-2xl font-bold text-slate-900 mt-2">
-                NGN {metrics.costPerCrate.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                ? {metrics.costPerCrate.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </p>
               <p className="text-xs text-slate-500 mt-1">Feed-driven cost only</p>
             </div>
@@ -170,22 +170,22 @@ export function PoultryDashboard() {
             <div>
               <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Poultry P&L</p>
               <p className="text-2xl font-black mt-1">
-                NGN {metrics.profit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                ? {metrics.profit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </p>
             </div>
           </div>
           <div className="mt-6 space-y-2 text-sm text-slate-300">
             <div className="flex justify-between">
               <span>Total Sales</span>
-              <span>NGN {metrics.totalSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              <span>? {metrics.totalSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
             </div>
             <div className="flex justify-between">
               <span>COGS</span>
-              <span>NGN {metrics.totalCogs.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              <span>? {metrics.totalCogs.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
             </div>
             <div className="flex justify-between">
               <span>Overheads</span>
-              <span>NGN {metrics.totalExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              <span>? {metrics.totalExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
             </div>
           </div>
         </div>
@@ -193,3 +193,4 @@ export function PoultryDashboard() {
     </div>
   );
 }
+

@@ -18,6 +18,7 @@ import {
  CustomFilterModule,
  themeQuartz
 } from 'ag-grid-community';
+import { toast } from "@/lib/toast";
 import { Loader2, Plus, TrendingUp } from 'lucide-react';
 import { Sale, Product } from '@/types';
 import { Button } from "@/components/ui/button";
@@ -116,11 +117,11 @@ export function SalesGrid({
 
  const handleAddSale = async (e: React.FormEvent) => {
   e.preventDefault();
-  if (!newSale.productId || Number(newSale.quantitySold) <= 0) return;
-  if (selectedProduct && Number(newSale.quantitySold) > Number(selectedProduct.quantityOnHand || 0)) {
-   alert('Insufficient stock for this sale.');
+ if (!newSale.productId || Number(newSale.quantitySold) <= 0) return;
+ if (selectedProduct && Number(newSale.quantitySold) > Number(selectedProduct.quantityOnHand || 0)) {
+   toast({ title: "Error", description: "Insufficient stock for this sale.", variant: "destructive" });
    return;
-  }
+ }
   setSubmitting(true);
 
   const response = await fetch('/api/sales', {
@@ -135,10 +136,14 @@ export function SalesGrid({
    })
   });
 
-  if (!response.ok) {
-   const payload = await response.json().catch(() => ({}));
-   alert(payload.error || 'Failed to log sale.');
-  } else {
+ if (!response.ok) {
+  const payload = await response.json().catch(() => ({}));
+  toast({
+   title: "Error",
+   description: payload.error || 'Failed to log sale.',
+   variant: "destructive"
+  });
+ } else {
    setShowAddSale(false);
    setNewSale({
     productId: '',
@@ -167,10 +172,14 @@ export function SalesGrid({
    })
   });
 
-  if (!response.ok) {
-   const payload = await response.json().catch(() => ({}));
-   alert(payload.error || 'Failed to create product.');
-  } else {
+ if (!response.ok) {
+  const payload = await response.json().catch(() => ({}));
+  toast({
+   title: "Error",
+   description: payload.error || 'Failed to create product.',
+   variant: "destructive"
+  });
+ } else {
    setShowAddProduct(false);
    setNewProduct({ name: '', module: 'FEED_MILL', unit: '' });
    loadProducts(moduleFilter);
@@ -211,7 +220,7 @@ export function SalesGrid({
   },
   {
    field: "unitSellingPrice",
-   headerName: "Unit Price (NGN)",
+   headerName: "Unit Price (₦)",
    type: 'numericColumn',
    flex: 1,
    filter: false,
@@ -234,7 +243,7 @@ export function SalesGrid({
    valueFormatter: (p: any) => ` ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
   },
   {
-   headerName: "Gross Profit",
+   headerName: "Gross Profit (₦)",
    type: 'numericColumn',
    filter: false,
    flex: 1,
@@ -245,7 +254,7 @@ export function SalesGrid({
    },
    cellRenderer: (p: any) => (
     <span className={p.value >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
-     NGN {Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+      {Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
     </span>
    )
   }
@@ -412,7 +421,7 @@ export function SalesGrid({
          </p>
         </div>
         <div className="space-y-2">
-         <Label htmlFor="price">Unit Price (NGN)</Label>
+         <Label htmlFor="price">Unit Price (₦)</Label>
          <Input
           id="price"
           type="number"
@@ -463,3 +472,5 @@ export function SalesGrid({
   </div>
  );
 }
+
+

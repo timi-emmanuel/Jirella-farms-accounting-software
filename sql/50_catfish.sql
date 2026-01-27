@@ -124,19 +124,25 @@ CREATE TABLE IF NOT EXISTS "CatfishMortalityLog" (
   "date" DATE NOT NULL DEFAULT CURRENT_DATE,
   "deadCount" INTEGER NOT NULL DEFAULT 0,
   "cause" TEXT,
-  "notes" TEXT,
   "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE "CatfishMortalityLog"
+  DROP COLUMN IF EXISTS "notes";
 
 CREATE TABLE IF NOT EXISTS "CatfishHarvest" (
   "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   "batchId" UUID NOT NULL REFERENCES "CatfishBatch"("id") ON DELETE CASCADE,
   "date" DATE NOT NULL DEFAULT CURRENT_DATE,
   "quantityKg" NUMERIC NOT NULL DEFAULT 0,
+  "fishCountHarvested" INTEGER,
   "averageFishWeightKg" NUMERIC NOT NULL DEFAULT 0,
   "notes" TEXT,
   "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE "CatfishHarvest"
+  ADD COLUMN IF NOT EXISTS "fishCountHarvested" INTEGER;
 
 -- Internal purchase handler (Feed Mill -> Catfish)
 CREATE OR REPLACE FUNCTION handle_internal_feed_purchase_catfish(

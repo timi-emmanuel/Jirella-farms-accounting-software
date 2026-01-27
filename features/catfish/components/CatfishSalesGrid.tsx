@@ -17,6 +17,7 @@ import {
   CustomFilterModule,
   themeQuartz
 } from 'ag-grid-community';
+import { toast } from "@/lib/toast";
 import { Loader2, Plus } from 'lucide-react';
 import { Sale, Product, CatfishBatch } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -99,7 +100,7 @@ export function CatfishSalesGrid() {
     if (!form.productId || Number(form.quantitySold) <= 0) return;
     const selectedProduct = products.find((p) => p.id === form.productId);
     if (selectedProduct && Number(form.quantitySold) > Number(selectedProduct.quantityOnHand || 0)) {
-      alert('Insufficient stock for this sale.');
+      toast({ title: "Error", description: "Insufficient stock for this sale.", variant: "destructive" });
       return;
     }
 
@@ -119,7 +120,11 @@ export function CatfishSalesGrid() {
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      alert(payload.error || 'Failed to log catfish sale.');
+      toast({
+        title: "Error",
+        description: payload.error || 'Failed to log catfish sale.',
+        variant: "destructive"
+      });
     } else {
       setDialogOpen(false);
       setForm({
@@ -139,20 +144,20 @@ export function CatfishSalesGrid() {
     { field: 'soldAt', headerName: 'Date', minWidth: 120 },
     { headerName: 'Product', minWidth: 160, valueGetter: (p: any) => p.data.product?.name || 'Unknown' },
     { headerName: 'Batch', minWidth: 140, valueGetter: (p: any) => p.data.catfishBatch?.batchCode || 'Unassigned' },
-    { field: 'quantitySold', headerName: 'Quantity', type: 'numericColumn', minWidth: 120 },
+    { field: 'quantitySold', headerName: 'Quantity (kg)', type: 'numericColumn', minWidth: 120 },
     {
       field: 'unitSellingPrice',
-      headerName: 'Unit Price',
+      headerName: 'Unit Price (₦)',
       type: 'numericColumn',
       minWidth: 120,
-      valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => ` ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
     },
     {
-      headerName: 'Revenue',
+      headerName: 'Revenue (₦)',
       type: 'numericColumn',
       minWidth: 140,
       valueGetter: (p: any) => Number(p.data.quantitySold || 0) * Number(p.data.unitSellingPrice || 0),
-      valueFormatter: (p: any) => `NGN ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => `${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
     }
   ], []);
 
@@ -177,7 +182,7 @@ export function CatfishSalesGrid() {
               Log Sale
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto modal-scrollbar">
+          <DialogContent className="sm:max-w-140 max-h-[90vh] overflow-y-auto modal-scrollbar">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold tracking-tight">Log Catfish Sale</DialogTitle>
             </DialogHeader>
@@ -186,7 +191,8 @@ export function CatfishSalesGrid() {
                 <Label>Date</Label>
                 <Input type="date" value={form.soldAt} onChange={(e) => setForm({ ...form, soldAt: e.target.value })} />
               </div>
-              <div className="space-y-2">
+              <div className='grid grid-cols-2 gap-3'>
+                <div className="space-y-2">
                 <Label>Product</Label>
                 <Select value={form.productId} onValueChange={(value) => setForm({ ...form, productId: value })}>
                   <SelectTrigger>
@@ -200,40 +206,38 @@ export function CatfishSalesGrid() {
                     ))}
                   </SelectContent>
                 </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Batch (optional)</Label>
+                  <Select value={form.batchId} onValueChange={(value) => setForm({ ...form, batchId: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="NONE">Unassigned</SelectItem>
+                      {batches.map((batch) => (
+                        <SelectItem key={batch.id} value={batch.id}>
+                          {batch.batchCode}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Batch (optional)</Label>
-                <Select value={form.batchId} onValueChange={(value) => setForm({ ...form, batchId: value })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="NONE">Unassigned</SelectItem>
-                    {batches.map((batch) => (
-                      <SelectItem key={batch.id} value={batch.id}>
-                        {batch.batchCode}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label>Quantity</Label>
+                  <Label>Quantity (kg)</Label>
                   <Input type="number" step="0.01" value={form.quantitySold} onChange={(e) => setForm({ ...form, quantitySold: e.target.value })} />
                   <p className="text-xs text-slate-500">
                     Available: {selectedStock.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {selectedProduct?.unit || ''}
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Unit Price</Label>
+                  <Label>Unit Price (₦)</Label>
                   <Input type="number" step="0.01" value={form.unitSellingPrice} onChange={(e) => setForm({ ...form, unitSellingPrice: e.target.value })} />
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Notes</Label>
-                <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-              </div>
+              </div>              
               <DialogFooter>
                 <Button type="submit" disabled={submitting} className="w-full">
                   {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
@@ -263,3 +267,5 @@ export function CatfishSalesGrid() {
     </div>
   );
 }
+
+
