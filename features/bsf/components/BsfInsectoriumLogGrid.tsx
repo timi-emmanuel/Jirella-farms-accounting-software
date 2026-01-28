@@ -136,7 +136,7 @@ export function BsfInsectoriumLogGrid() {
       <div className="flex justify-end">
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all hover:scale-105 active:scale-95 px-6">
+            <Button className="bg-emerald-700 hover:bg-emerald-800 shadow-lg shadow-emerald-700/20 transition-all hover:scale-105 active:scale-95 px-6">
               <Plus className="w-4 h-4" />
               New Log
             </Button>
@@ -175,6 +175,7 @@ export function BsfInsectoriumLogGrid() {
                     step="0.01"
                     value={form.eggsHarvestedGrams}
                     onChange={(e) => setForm({ ...form, eggsHarvestedGrams: e.target.value })}
+                    required
                   />
                 </div>
               </div>
@@ -238,4 +239,5 @@ export function BsfInsectoriumLogGrid() {
     </div>
   );
 }
+
 

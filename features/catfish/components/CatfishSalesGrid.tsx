@@ -143,23 +143,34 @@ export function CatfishSalesGrid() {
   const colDefs = useMemo<ColDef<EnrichedSale>[]>(() => [
     { field: 'soldAt', headerName: 'Date', minWidth: 120 },
     { headerName: 'Product', minWidth: 160, valueGetter: (p: any) => p.data.product?.name || 'Unknown' },
-    { headerName: 'Batch', minWidth: 140, valueGetter: (p: any) => p.data.catfishBatch?.batchCode || 'Unassigned' },
+    {
+      headerName: 'Batch',
+      minWidth: 140,
+      valueGetter: (p: any) => {
+        const batchId = p.data.batchId;
+        const fromJoin = p.data.catfishBatch?.batchCode;
+        if (fromJoin) return fromJoin;
+        if (!batchId) return 'Unassigned';
+        const matched = batches.find((batch) => batch.id === batchId);
+        return matched?.batchCode || 'Unassigned';
+      }
+    },
     { field: 'quantitySold', headerName: 'Quantity (kg)', type: 'numericColumn', minWidth: 120 },
     {
       field: 'unitSellingPrice',
       headerName: 'Unit Price (₦)',
       type: 'numericColumn',
       minWidth: 120,
-      valueFormatter: (p: any) => ` ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     },
     {
       headerName: 'Revenue (₦)',
       type: 'numericColumn',
       minWidth: 140,
       valueGetter: (p: any) => Number(p.data.quantitySold || 0) * Number(p.data.unitSellingPrice || 0),
-      valueFormatter: (p: any) => `${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     }
-  ], []);
+  ], [batches]);
 
   const selectedProduct = products.find((p) => p.id === form.productId);
   const selectedStock = Number(selectedProduct?.quantityOnHand || 0);
@@ -177,7 +188,7 @@ export function CatfishSalesGrid() {
       <div className="flex justify-end">
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all hover:scale-105 active:scale-95 px-6">
+            <Button className="bg-emerald-700 hover:bg-emerald-800 shadow-lg shadow-emerald-700/20 transition-all hover:scale-105 active:scale-95 px-6">
               <Plus className="w-4 h-4" />
               Log Sale
             </Button>
@@ -267,5 +278,6 @@ export function CatfishSalesGrid() {
     </div>
   );
 }
+
 
 

@@ -134,10 +134,10 @@ export function FinishedFeedHistoryGrid() {
     },
     {
       field: "unitCostAtTime",
-      headerName: "Unit Cost",
+      headerName: "Unit Cost (₦)",
       type: 'numericColumn',
       minWidth: 130,
-      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     },
     {
       headerName: "Reference",

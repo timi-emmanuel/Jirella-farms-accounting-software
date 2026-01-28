@@ -61,6 +61,7 @@ export function BsfLarvariumBatchGrid() {
   const [form, setForm] = useState({
     batchCode: '',
     startDate: new Date().toISOString().split('T')[0],
+    eggsGramsUsed: '',
     initialLarvaeWeightGrams: '',
     substrateMixRatio: '',
     status: 'GROWING',
@@ -93,6 +94,7 @@ export function BsfLarvariumBatchGrid() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...form,
+        eggsGramsUsed: Number(form.eggsGramsUsed || 0),
         initialLarvaeWeightGrams: Number(form.initialLarvaeWeightGrams || 0)
       })
     });
@@ -109,6 +111,7 @@ export function BsfLarvariumBatchGrid() {
       setForm({
         batchCode: '',
         startDate: new Date().toISOString().split('T')[0],
+        eggsGramsUsed: '',
         initialLarvaeWeightGrams: '',
         substrateMixRatio: '',
         status: 'GROWING',
@@ -131,6 +134,7 @@ export function BsfLarvariumBatchGrid() {
       )
     },
     { field: 'startDate', headerName: 'Start Date', minWidth: 120 },
+    { field: 'eggsGramsUsed', headerName: 'Eggs Used (g)', type: 'numericColumn', minWidth: 140 },
     {
       field: 'initialLarvaeWeightGrams',
       headerName: 'Initial (g)',
@@ -156,7 +160,7 @@ export function BsfLarvariumBatchGrid() {
       <div className="flex justify-end">
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all hover:scale-105 active:scale-95 px-6">
+            <Button className="bg-emerald-700 hover:bg-emerald-800 shadow-lg shadow-emerald-700/20 transition-all hover:scale-105 active:scale-95 px-6">
               <Plus className="w-4 h-4" />
               New Batch
             </Button>
@@ -196,6 +200,17 @@ export function BsfLarvariumBatchGrid() {
                     step="0.01"
                     value={form.initialLarvaeWeightGrams}
                     onChange={(e) => setForm({ ...form, initialLarvaeWeightGrams: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="eggsUsed">Eggs Used (g)</Label>
+                  <Input
+                    id="eggsUsed"
+                    type="number"
+                    step="0.01"
+                    value={form.eggsGramsUsed}
+                    onChange={(e) => setForm({ ...form, eggsGramsUsed: e.target.value })}
+                    required
                   />
                 </div>
                 <div className="space-y-2">
@@ -259,4 +274,5 @@ export function BsfLarvariumBatchGrid() {
     </div>
   );
 }
+
 

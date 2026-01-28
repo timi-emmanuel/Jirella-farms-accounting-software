@@ -64,38 +64,38 @@ export function BsfPnlReportGrid() {
     { field: 'month', headerName: 'Month', minWidth: 120 },
     {
       field: 'revenue',
-      headerName: 'Revenue',
+      headerName: 'Revenue (₦)',
       type: 'numericColumn',
       minWidth: 140,
-      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     },
     {
       field: 'feedCost',
-      headerName: 'Feed Cost',
+      headerName: 'Feed Cost (₦)',
       type: 'numericColumn',
       minWidth: 140,
-      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     },
     {
       field: 'energyCost',
-      headerName: 'Energy',
+      headerName: 'Energy (₦)',
       type: 'numericColumn',
       minWidth: 140,
-      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     },
     {
       field: 'totalCogs',
-      headerName: 'Total COGS',
+      headerName: 'Total COGS (₦)',
       type: 'numericColumn',
       minWidth: 140,
-      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     },
     {
       field: 'grossProfit',
-      headerName: 'Gross Profit',
+      headerName: 'Gross Profit (₦)',
       type: 'numericColumn',
       minWidth: 140,
-      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     }
   ], []);
 

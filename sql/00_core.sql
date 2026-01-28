@@ -157,6 +157,9 @@ CREATE TABLE IF NOT EXISTS "Sale" (
   "quantitySold" NUMERIC NOT NULL,
   "unitSellingPrice" NUMERIC NOT NULL,
   "unitCostAtSale" NUMERIC NOT NULL DEFAULT 0,
+  "sourceUnit" TEXT,
+  "productType" TEXT,
+  "totalAmount" NUMERIC,
   "soldAt" DATE NOT NULL DEFAULT CURRENT_DATE,
   "soldBy" UUID REFERENCES auth.users(id),
   "notes" TEXT,
@@ -210,6 +213,12 @@ ALTER TABLE "FinishedGoodsLedger"
   ADD COLUMN IF NOT EXISTS "locationId" UUID REFERENCES "InventoryLocation"("id") ON DELETE RESTRICT;
 ALTER TABLE "Sale"
   ADD COLUMN IF NOT EXISTS "locationId" UUID REFERENCES "InventoryLocation"("id") ON DELETE RESTRICT;
+ALTER TABLE "Sale"
+  ADD COLUMN IF NOT EXISTS "sourceUnit" TEXT;
+ALTER TABLE "Sale"
+  ADD COLUMN IF NOT EXISTS "productType" TEXT;
+ALTER TABLE "Sale"
+  ADD COLUMN IF NOT EXISTS "totalAmount" NUMERIC;
 
 -- Backfill location for finished goods and sales (idempotent)
 UPDATE "FinishedGoodsInventory" fgi

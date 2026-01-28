@@ -35,10 +35,12 @@ export function CatfishBatchDetail() {
     if (!batch) return [];
     const mortalityTotal = Number((batch as any).mortalityTotal || 0);
     const harvestedCount = Number((batch as any).harvestedCount || 0);
-    const fishesLeft = Math.max(
-      0,
-      Number(batch.initialFingerlingsCount || 0) - mortalityTotal - harvestedCount
-    );
+    const fishesLeft = batch.status === 'CLOSED'
+      ? 0
+      : Math.max(
+          0,
+          Number(batch.initialFingerlingsCount || 0) - mortalityTotal - harvestedCount
+        );
     return [
       { label: 'Pond', value: batch.pond?.name || 'Unknown' },
       { label: 'Start Date', value: batch.startDate },

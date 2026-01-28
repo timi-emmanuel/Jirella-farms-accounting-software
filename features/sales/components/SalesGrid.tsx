@@ -368,7 +368,7 @@ export function SalesGrid({
 
      <Dialog open={showAddSale} onOpenChange={setShowAddSale}>
       <DialogTrigger asChild>
-       <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all hover:scale-105 active:scale-95 px-6 mr-2">
+       <Button className="bg-emerald-700 hover:bg-emerald-800 shadow-lg shadow-emerald-700/20 transition-all hover:scale-105 active:scale-95 px-6 mr-2">
         <Plus className="w-4 h-4 " />
         Log New Sale
        </Button>
@@ -443,7 +443,7 @@ export function SalesGrid({
        </div>
 
        <DialogFooter>
-        <Button type="submit" disabled={submitting} className="w-full bg-emerald-600 hover:bg-emerald-700 py-6 text-base font-semibold transition-all">
+        <Button type="submit" disabled={submitting} className="w-full bg-emerald-700 hover:bg-emerald-800 py-6 text-base font-semibold transition-all">
          {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <TrendingUp className="w-4 h-4 mr-2" />}
          Finalize Sale
         </Button>
@@ -472,5 +472,6 @@ export function SalesGrid({
   </div>
  );
 }
+
 
 

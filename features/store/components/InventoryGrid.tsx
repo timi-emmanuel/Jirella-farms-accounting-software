@@ -123,10 +123,10 @@ export function InventoryGrid() {
   },
   {
    field: "averageUnitCost",
-   headerName: "Avg. Cost",
+   headerName: "Avg. Cost (₦)",
    flex: 1,
    type: 'numericColumn',
-   valueFormatter: (params: any) => `? ${Number(params.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+   valueFormatter: (params: any) => Number(params.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   },
   {
    field: "updatedAt",

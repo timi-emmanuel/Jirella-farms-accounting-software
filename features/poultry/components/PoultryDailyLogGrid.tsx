@@ -289,7 +289,7 @@ export function PoultryDailyLogGrid() {
       <div className="flex justify-end">
         <Dialog open={showAdd} onOpenChange={setShowAdd}>
           <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all hover:scale-105 active:scale-95 px-6">
+            <Button className="bg-emerald-700 hover:bg-emerald-800 shadow-lg shadow-emerald-700/20 transition-all hover:scale-105 active:scale-95 px-6">
               <Plus className="w-4 h-4" />
               New Daily Log
             </Button>
@@ -416,7 +416,7 @@ export function PoultryDailyLogGrid() {
                 <Button
                   type="submit"
                   disabled={submitting || feedOver}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 py-6 text-base font-semibold transition-all"
+                  className="w-full bg-emerald-700 hover:bg-emerald-800 py-6 text-base font-semibold transition-all"
                 >
                   {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                   {editingId ? 'Update Daily Log' : 'Save Daily Log'}
@@ -445,4 +445,5 @@ export function PoultryDailyLogGrid() {
     </div>
   );
 }
+
 

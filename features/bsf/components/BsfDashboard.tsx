@@ -62,7 +62,7 @@ export function BsfDashboard() {
       accent: 'text-emerald-600'
     },
     {
-      label: 'Live Larvae (kg)',
+      label: 'Wet Larvae (kg)',
       value: metrics.totalWetLarvaeKg.toLocaleString(undefined, { maximumFractionDigits: 2 }),
       hint: 'Total harvested',
       icon: Bug,
@@ -88,7 +88,7 @@ export function BsfDashboard() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">BSF Dashboard</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 font-manrope">BSF Dashboard</h1>
           <p className="text-slate-500 text-sm font-medium">
             Insectorium, larvarium, and processing performance at a glance.
           </p>
@@ -114,7 +114,7 @@ export function BsfDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">{card.label}</p>
-                <p className="text-2xl font-black text-slate-900 mt-2">{card.value}</p>
+                <p className="text-2xl font-black text-slate-900 mt-2 font-manrope">{card.value}</p>
                 <p className="text-xs text-slate-500 mt-1">{card.hint}</p>
               </div>
               <div className={`w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center ${card.accent}`}>
@@ -131,14 +131,14 @@ export function BsfDashboard() {
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <div className="border rounded-xl p-4 bg-slate-50">
               <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Oil Extraction</p>
-              <p className="text-2xl font-bold text-slate-900 mt-2">
+              <p className="text-2xl font-bold text-slate-900 mt-2 font-manrope">
                 {metrics.oilExtractionRate.toLocaleString(undefined, { maximumFractionDigits: 2 })}%
               </p>
               <p className="text-xs text-slate-500 mt-1">Oil liters / dry larvae input</p>
             </div>
             <div className="border rounded-xl p-4 bg-slate-50">
               <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Survival Proxy</p>
-              <p className="text-2xl font-bold text-slate-900 mt-2">
+              <p className="text-2xl font-bold text-slate-900 mt-2 font-manrope">
                 {metrics.survivalProxy.toLocaleString(undefined, { maximumFractionDigits: 2 })}x
               </p>
               <p className="text-xs text-slate-500 mt-1">Wet larvae / initial larvae</p>
@@ -153,7 +153,7 @@ export function BsfDashboard() {
             </div>
             <div>
               <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Yield Snapshot</p>
-              <p className="text-2xl font-black mt-1">
+              <p className="text-2xl font-black mt-1 font-manrope">
                 {metrics.totalWetLarvaeKg.toLocaleString(undefined, { maximumFractionDigits: 2 })} kg
               </p>
             </div>

@@ -291,7 +291,7 @@ export function StoreRequestGrid() {
    <div className="flex justify-end">
     <Dialog open={showNewRequest} onOpenChange={setShowNewRequest}>
      <DialogTrigger asChild>
-      <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-all hover:scale-105 active:scale-95">
+      <Button className="bg-emerald-700 hover:bg-emerald-800 shadow-sm transition-all hover:scale-105 active:scale-95">
        <Plus className="w-4 h-4 mr-2" />
        New Procurement Request
       </Button>
@@ -352,7 +352,7 @@ export function StoreRequestGrid() {
         />
        </div>
        <DialogFooter>
-        <Button type="submit" disabled={submitting} className="bg-emerald-600 w-full">
+        <Button type="submit" disabled={submitting} className="bg-emerald-700 w-full">
          {submitting ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : null}
          Submit Request
         </Button>
@@ -447,4 +447,5 @@ export function StoreRequestGrid() {
   </div>
  );
 }
+
 

@@ -217,7 +217,7 @@ export function UserGrid() {
    <div className="flex justify-end">
     <Dialog open={showNewUser} onOpenChange={setShowNewUser}>
      <DialogTrigger asChild>
-      <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-all hover:scale-105 active:scale-95">
+      <Button className="bg-emerald-700 hover:bg-emerald-800 shadow-sm transition-all hover:scale-105 active:scale-95">
        <UserPlus className="w-4 h-4 mr-2" />
        Create New User
       </Button>
@@ -279,7 +279,7 @@ export function UserGrid() {
         </Select>
        </div>
        <DialogFooter>
-        <Button type="submit" disabled={submitting} className="bg-emerald-600 w-full">
+        <Button type="submit" disabled={submitting} className="bg-emerald-700 w-full">
          {submitting ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : null}
          Create User
         </Button>
@@ -333,4 +333,5 @@ export function UserGrid() {
   </div>
  );
 }
+
 

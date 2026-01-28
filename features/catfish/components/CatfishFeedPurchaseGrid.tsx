@@ -66,17 +66,17 @@ export function CatfishFeedPurchaseGrid() {
     { field: 'quantityKg', headerName: 'Quantity (kg)', type: 'numericColumn', minWidth: 140 },
     {
       field: 'unitPrice',
-      headerName: 'Unit Price',
+      headerName: 'Unit Price (₦)',
       type: 'numericColumn',
       minWidth: 130,
-      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     },
     {
       field: 'totalAmount',
-      headerName: 'Total Amount',
+      headerName: 'Total Amount (₦)',
       type: 'numericColumn',
       minWidth: 140,
-      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     }
   ], []);
 

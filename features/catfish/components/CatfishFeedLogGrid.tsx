@@ -179,7 +179,7 @@ export function CatfishFeedLogGrid({ batchId, hideBatchColumn }: Props) {
       <div className="flex justify-end">
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all hover:scale-105 active:scale-95 px-6">
+            <Button className="bg-emerald-700 hover:bg-emerald-800 shadow-lg shadow-emerald-700/20 transition-all hover:scale-105 active:scale-95 px-6">
               <Plus className="w-4 h-4" />
               Log Feeding
             </Button>
@@ -259,5 +259,6 @@ export function CatfishFeedLogGrid({ batchId, hideBatchColumn }: Props) {
     </div>
   );
 }
+
 
 

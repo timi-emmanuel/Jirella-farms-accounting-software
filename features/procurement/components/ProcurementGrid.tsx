@@ -159,7 +159,7 @@ export function ProcurementGrid() {
        <AlertDialogTrigger asChild>
         <Button
          size="sm"
-         className="bg-emerald-600 hover:bg-emerald-700 h-8 px-2"
+         className="bg-emerald-700 hover:bg-emerald-800 h-8 px-2"
          disabled={isProcessing}
         >
          {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-1" />}
@@ -180,7 +180,7 @@ export function ProcurementGrid() {
         <AlertDialogFooter>
          <AlertDialogCancel>Cancel</AlertDialogCancel>
          <AlertDialogAction
-          className="bg-emerald-600"
+          className="bg-emerald-700"
           onClick={() => handleAction(request, 'APPROVED')}
          >
           Confirm Approval
@@ -244,4 +244,5 @@ export function ProcurementGrid() {
   </div>
  );
 }
+
 

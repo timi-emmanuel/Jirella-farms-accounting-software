@@ -70,10 +70,12 @@ export async function GET(request: NextRequest) {
     const enriched = batches.map((batch: any) => {
       const mortalityTotal = mortalityMap.get(batch.id) ?? 0;
       const harvestedCount = harvestedMap.get(batch.id) ?? 0;
-      const fishesLeft = Math.max(
-        0,
-        Number(batch.initialFingerlingsCount || 0) - Number(mortalityTotal || 0) - Number(harvestedCount || 0)
-      );
+      const fishesLeft = batch.status === 'CLOSED'
+        ? 0
+        : Math.max(
+            0,
+            Number(batch.initialFingerlingsCount || 0) - Number(mortalityTotal || 0) - Number(harvestedCount || 0)
+          );
       return { ...batch, mortalityTotal, harvestedCount, fishesLeft };
     });
 

@@ -86,6 +86,11 @@ export async function POST(request: NextRequest) {
     quantitySold: qty,
     unitSellingPrice: roundTo2(Number(unitSellingPrice)),
     unitCostAtSale,
+    sourceUnit: product.module === 'BSF'
+      ? (['BSF Eggs', 'Pupae Shells', 'Dead Fly'].includes(product.name) ? 'INSECTORIUM' : 'LARVARIUM')
+      : null,
+    productType: product.name,
+    totalAmount: roundTo2(qty * Number(unitSellingPrice)),
     soldAt: soldAt ?? new Date().toISOString().split('T')[0],
     soldBy: auth.userId,
     notes: notes ?? null,

@@ -197,7 +197,7 @@ export function IssueRequestGrid() {
       <div className="flex items-center gap-2 h-full">
        <Button
         size="sm"
-        className="bg-emerald-600 hover:bg-emerald-700 h-8 px-2"
+        className="bg-emerald-700 hover:bg-emerald-800 h-8 px-2"
         disabled={isProcessing}
         onClick={() => handleAction(request, 'APPROVED')}
        >
@@ -297,4 +297,5 @@ export function IssueRequestGrid() {
   </div>
  );
 }
+
 

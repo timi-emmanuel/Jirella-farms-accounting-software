@@ -251,7 +251,7 @@ export function ProductionGrid() {
       type: 'numericColumn',
       flex: 1.2,
       valueGetter: (p: any) => calculateBatchTotal(Number(p.data.quantityProduced), Number(p.data.costPerKg)),
-      cellRenderer: (p: any) => `₦${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      cellRenderer: (p: any) => `${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       cellStyle: { fontWeight: 'bold' }
     },
     {
@@ -259,21 +259,21 @@ export function ProductionGrid() {
       headerName: "Cost/kg (₦)",
       type: 'numericColumn',
       flex: 1,
-      cellRenderer: (p: any) => `₦${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      cellRenderer: (p: any) => `${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     },
     {
       headerName: "Cost/15kg Bag (₦)",
       type: 'numericColumn',
       flex: 1,
       valueGetter: (p: any) => p.data.cost15kg || calculateBagCost(Number(p.data.costPerKg), 15),
-      cellRenderer: (p: any) => `₦${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      cellRenderer: (p: any) => `${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     },
     {
       headerName: "Cost/25kg Bag (₦)",
       type: 'numericColumn',
       flex: 1,
       valueGetter: (p: any) => p.data.cost25kg || calculateBagCost(Number(p.data.costPerKg), 25),
-      cellRenderer: (p: any) => `₦${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      cellRenderer: (p: any) => `${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     }
   ];
 
@@ -290,7 +290,7 @@ export function ProductionGrid() {
       <div className="flex justify-end">
         <Dialog open={showAddLog} onOpenChange={setShowAddLog}>
           <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all hover:scale-105 active:scale-95 px-6 mr-4">
+            <Button className="bg-emerald-700 hover:bg-emerald-800 shadow-lg shadow-emerald-700/20 transition-all hover:scale-105 active:scale-95 px-6 mr-4">
               <Plus className="w-4 h-4 " />
               New Production Run
             </Button>
@@ -407,7 +407,7 @@ export function ProductionGrid() {
                       </div>
                       <div>
                         <p className="text-[10px] uppercase font-black tracking-widest text-slate-400">Total Production Cost</p>
-                        <p className="text-2xl font-black text-white">₦{calculations.totalCost.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        <p className="text-2xl font-black text-white">{calculations.totalCost.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                       </div>
                     </div>
                   </div>
@@ -416,15 +416,15 @@ export function ProductionGrid() {
                   <div className="grid grid-cols-3 gap-3">
                     <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex flex-col items-center">
                       <span className="text-[10px] text-slate-500 font-bold uppercase">Cost/kg</span>
-                      <span className="text-base font-bold text-slate-900">₦{calculations.costPerKg.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="text-base font-bold text-slate-900">{calculations.costPerKg.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                     <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-xl flex flex-col items-center">
                       <span className="text-[10px] text-emerald-600 font-bold uppercase">15kg Bag</span>
-                      <span className="text-base font-bold text-emerald-900">₦{calculations.cost15kg.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="text-base font-bold text-emerald-900">{calculations.cost15kg.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                     <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-xl flex flex-col items-center">
                       <span className="text-[10px] text-emerald-600 font-bold uppercase">25kg Bag</span>
-                      <span className="text-base font-bold text-emerald-900">₦{calculations.cost25kg.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="text-base font-bold text-emerald-900">{calculations.cost25kg.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                   </div>
                 </div>
@@ -453,7 +453,7 @@ export function ProductionGrid() {
                       "w-full py-6 text-base font-semibold transition-all shadow-lg",
                       calculations?.hasShortage
                         ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
-                        : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200"
+                        : "bg-emerald-700 hover:bg-emerald-800 shadow-emerald-200"
                     )}
                   >
                     {submitting
@@ -487,4 +487,6 @@ export function ProductionGrid() {
     </div>
   );
 }
+
+
 

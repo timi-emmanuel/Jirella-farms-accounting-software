@@ -164,9 +164,13 @@ export interface Sale {
  id: string;
  productId: string;
  module: ProductModule;
+ locationId?: string;
  quantitySold: number;
  unitSellingPrice: number;
  unitCostAtSale: number;
+ sourceUnit?: string | null;
+ productType?: string | null;
+ totalAmount?: number | null;
  soldAt: string;
  soldBy?: string;
  notes?: string | null;
@@ -372,6 +376,7 @@ export interface BsfLarvariumBatch {
  id: string;
  batchCode: string;
  startDate: string;
+ eggsGramsUsed: number;
  initialLarvaeWeightGrams: number;
  substrateMixRatio?: string | null;
  status: BsfBatchStatus;

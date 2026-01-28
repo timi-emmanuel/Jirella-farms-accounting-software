@@ -12,7 +12,7 @@ const findProducts = async (admin: ReturnType<typeof createAdminClient>) => {
     .from('Product')
     .select('id, name')
     .eq('module', 'BSF')
-    .in('name', ['Live Larvae', 'Frass']);
+    .in('name', ['Wet Larvae', 'Frass']);
 
   const map = new Map((data || []).map((row: any) => [row.name, row.id]));
   return map;
@@ -198,11 +198,11 @@ export async function POST(request: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
     const productMap = await findProducts(admin);
-    const wetId = productMap.get('Live Larvae');
+    const wetId = productMap.get('Wet Larvae');
     const frassId = productMap.get('Frass');
 
     if (!wetId || !frassId) {
-      return NextResponse.json({ error: 'Missing BSF products (Live Larvae/Frass)' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing BSF products (Wet Larvae/Frass)' }, { status: 400 });
     }
 
     if (wetLarvaeKg > 0) {

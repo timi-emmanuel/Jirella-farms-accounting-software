@@ -173,23 +173,23 @@ export function InventoryGrid() {
         {
             field: "averageCost" as const, headerName: "Price (₦/kg)", editable: true, type: 'numericColumn', flex: 1,
             filter: false,
-            cellRenderer: (p: any) => `₦${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            cellRenderer: (p: any) => `${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         },
         {
-            headerName: "Total Cost",
+            headerName: "Total Cost (₦)",
             type: 'numericColumn',
             flex: 1,
             valueGetter: (p: any) => calculateEntryTotal(Number(p.data.purchasedQuantity), Number(p.data.averageCost)),
-            cellRenderer: (p: any) => `₦${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            cellRenderer: (p: any) => `${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             filter: false
         },       
         
         {
-            headerName: "Current Value",
+            headerName: "Current Value (₦)",
             type: 'numericColumn',
             flex: 1.2,
             valueGetter: (p: any) => calculateInventoryValue(Number(p.data.currentStock), Number(p.data.averageCost)),
-            cellRenderer: (p: any) => `₦${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            cellRenderer: (p: any) => `${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             filter: false
         },
         {
@@ -265,7 +265,7 @@ export function InventoryGrid() {
             <div className="flex justify-end">
                 <Dialog open={showAddStock} onOpenChange={setShowAddStock}>
                     <DialogTrigger asChild>
-                        <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all hover:scale-105 active:scale-95 px-6 mr-4">
+                        <Button className="bg-emerald-700 hover:bg-emerald-800 shadow-lg shadow-emerald-700/20 transition-all hover:scale-105 active:scale-95 px-6 mr-4">
                             <Plus className="w-4 h-4 " />
                             Purchase Entry
                         </Button>
@@ -303,7 +303,7 @@ export function InventoryGrid() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="cost">Unit Cost (₦/kg)</Label>
+                                    <Label htmlFor="cost">Unit Cost (/kg)</Label>
                                     <Input
                                         id="cost"
                                         type="number"
@@ -318,11 +318,11 @@ export function InventoryGrid() {
 
                             <div className="bg-emerald-50/50 border border-emerald-100 p-4 rounded-xl flex justify-between items-center font-medium">
                                 <span className="text-emerald-700 text-sm">Estimated Total:</span>
-                                <span className="text-emerald-900 text-lg font-bold">₦{Number(calculateEntryTotal(Number(quantity), Number(unitCost))).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                <span className="text-emerald-900 text-lg font-bold">{Number(calculateEntryTotal(Number(quantity), Number(unitCost))).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                             </div>
 
                             <DialogFooter>
-                                <Button type="submit" disabled={submitting} className="w-full bg-emerald-600 hover:bg-emerald-700 py-6 text-base font-semibold transition-all">
+                                <Button type="submit" disabled={submitting} className="w-full bg-emerald-700 hover:bg-emerald-800 py-6 text-base font-semibold transition-all">
                                     {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ArrowUpRight className="w-4 h-4 mr-2" />}
                                     Confirm Purchase
                                 </Button>
@@ -350,4 +350,6 @@ export function InventoryGrid() {
         </div>
     );
 }
+
+
 

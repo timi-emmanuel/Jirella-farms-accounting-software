@@ -115,11 +115,11 @@ export function FinishedFeedStockGrid() {
       valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     },
     {
-      headerName: "Avg Cost",
+      headerName: "Avg Cost (₦)",
       flex: 1,
       type: 'numericColumn',
       valueGetter: (p: any) => Number(p.data.averageUnitCost || 0),
-      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     },
     {
       headerName: "Actions",
@@ -232,7 +232,7 @@ export function FinishedFeedStockGrid() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="unitPrice">Unit Price (? / kg)</Label>
+              <Label htmlFor="unitPrice">Unit Price (₦/kg)</Label>
               <Input
                 id="unitPrice"
                 type="number"

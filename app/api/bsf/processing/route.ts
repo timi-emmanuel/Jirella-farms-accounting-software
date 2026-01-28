@@ -12,7 +12,7 @@ const fetchProductMap = async (admin: ReturnType<typeof createAdminClient>) => {
     .from('Product')
     .select('id, name')
     .eq('module', 'BSF')
-    .in('name', ['Live Larvae', 'Dry Larvae', 'Larvae Oil', 'Larvae Cake']);
+    .in('name', ['Wet Larvae', 'Dry Larvae', 'Larvae Oil', 'Larvae Cake']);
 
   return new Map((data || []).map((row: any) => [row.name, row.id]));
 };
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
     if (!location) return NextResponse.json({ error: 'BSF location not found' }, { status: 400 });
 
     const products = await fetchProductMap(admin);
-    const wetId = products.get('Live Larvae');
+    const wetId = products.get('Wet Larvae');
     const dryId = products.get('Dry Larvae');
     const oilId = products.get('Larvae Oil');
     const cakeId = products.get('Larvae Cake');
@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
 
       const wetQty = Number(wetStock?.quantityOnHand || 0);
       if (wetQty < inputWeightKg) {
-        return NextResponse.json({ error: 'Insufficient live larvae stock' }, { status: 400 });
+        return NextResponse.json({ error: 'Insufficient wet larvae stock' }, { status: 400 });
       }
     }
 

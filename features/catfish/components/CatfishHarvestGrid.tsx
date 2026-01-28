@@ -154,7 +154,12 @@ export function CatfishHarvestGrid({ batchId, hideBatchColumn }: Props) {
         headerName: 'Fish Count',
         type: 'numericColumn',
         minWidth: 130,
-        valueGetter: (p: any) => p.data.fishCountHarvested ?? null,
+        valueGetter: (p: any) => {
+          const value = p.data.fishCountHarvested;
+          if (value === null || value === undefined) return null;
+          const numeric = Number(value);
+          return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+        },
         valueFormatter: (p: any) => (p.value === null || p.value === undefined ? '-' : Number(p.value).toLocaleString())
       },
       { field: 'averageFishWeightKg', headerName: 'Avg Weight (kg)', type: 'numericColumn', minWidth: 150 },
@@ -176,7 +181,7 @@ export function CatfishHarvestGrid({ batchId, hideBatchColumn }: Props) {
       <div className="flex justify-end">
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all hover:scale-105 active:scale-95 px-6">
+            <Button className="bg-emerald-700 hover:bg-emerald-800 shadow-lg shadow-emerald-700/20 transition-all hover:scale-105 active:scale-95 px-6">
               <Plus className="w-4 h-4" />
               Log Harvest
             </Button>
@@ -273,4 +278,5 @@ export function CatfishHarvestGrid({ batchId, hideBatchColumn }: Props) {
     </div>
   );
 }
+
 

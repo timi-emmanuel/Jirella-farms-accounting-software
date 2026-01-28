@@ -98,7 +98,7 @@ export function PoultryDashboard() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Poultry Dashboard</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 font-manrope">Poultry Dashboard</h1>
           <p className="text-slate-500 text-sm font-medium">
             Daily performance, feed efficiency, and profitability snapshot.
           </p>
@@ -130,7 +130,7 @@ export function PoultryDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">{card.label}</p>
-                <p className="text-2xl font-black text-slate-900 mt-2">{card.value}</p>
+                <p className="text-2xl font-black text-slate-900 mt-2 font-manrope">{card.value}</p>
                 <p className="text-xs text-slate-500 mt-1">{card.hint}</p>
               </div>
               <div className={`w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center ${card.accent}`}>
@@ -147,14 +147,14 @@ export function PoultryDashboard() {
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <div className="border rounded-xl p-4 bg-slate-50">
               <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Cost per Crate</p>
-              <p className="text-2xl font-bold text-slate-900 mt-2">
-                ? {metrics.costPerCrate.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              <p className="text-2xl font-bold text-slate-900 mt-2 font-manrope">
+                ₦ {metrics.costPerCrate.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </p>
               <p className="text-xs text-slate-500 mt-1">Feed-driven cost only</p>
             </div>
             <div className="border rounded-xl p-4 bg-slate-50">
               <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Feed Conversion</p>
-              <p className="text-2xl font-bold text-slate-900 mt-2">
+              <p className="text-2xl font-bold text-slate-900 mt-2 font-manrope">
                 {metrics.fcrPerDozen.toLocaleString(undefined, { maximumFractionDigits: 2 })} kg/dozen
               </p>
               <p className="text-xs text-slate-500 mt-1">Lower is better</p>
@@ -169,23 +169,23 @@ export function PoultryDashboard() {
             </div>
             <div>
               <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Poultry P&L</p>
-              <p className="text-2xl font-black mt-1">
-                ? {metrics.profit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              <p className="text-2xl font-black mt-1 font-manrope">
+                ₦ {metrics.profit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </p>
             </div>
           </div>
           <div className="mt-6 space-y-2 text-sm text-slate-300">
             <div className="flex justify-between">
               <span>Total Sales</span>
-              <span>? {metrics.totalSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              <span>₦ {metrics.totalSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
             </div>
             <div className="flex justify-between">
               <span>COGS</span>
-              <span>? {metrics.totalCogs.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              <span>₦ {metrics.totalCogs.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
             </div>
             <div className="flex justify-between">
               <span>Overheads</span>
-              <span>? {metrics.totalExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              <span>₦ {metrics.totalExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
             </div>
           </div>
         </div>

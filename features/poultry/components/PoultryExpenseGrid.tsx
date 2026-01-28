@@ -125,10 +125,10 @@ export function PoultryExpenseGrid() {
     },
     {
       field: "amount",
-      headerName: "Amount (?)",
+      headerName: "Amount (₦)",
       type: 'numericColumn',
       minWidth: 150,
-      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     },
     {
       field: "notes",
@@ -151,7 +151,7 @@ export function PoultryExpenseGrid() {
       <div className="flex justify-end">
         <Dialog open={showAdd} onOpenChange={setShowAdd}>
           <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all hover:scale-105 active:scale-95 px-6">
+            <Button className="bg-emerald-700 hover:bg-emerald-800 shadow-lg shadow-emerald-700/20 transition-all hover:scale-105 active:scale-95 px-6">
               <Plus className="w-4 h-4" />
               Log Expense
             </Button>
@@ -185,7 +185,7 @@ export function PoultryExpenseGrid() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="expenseAmount">Amount (?)</Label>
+                <Label htmlFor="expenseAmount">Amount (₦)</Label>
                 <Input
                   id="expenseAmount"
                   type="number"
@@ -232,5 +232,6 @@ export function PoultryExpenseGrid() {
     </div>
   );
 }
+
 
 

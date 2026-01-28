@@ -69,38 +69,38 @@ export function BsfBatchPnlGrid() {
     { field: 'startDate', headerName: 'Start Date', minWidth: 120 },
     {
       field: 'revenue',
-      headerName: 'Revenue',
+      headerName: 'Revenue (₦)',
       type: 'numericColumn',
       minWidth: 130,
-      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     },
     {
       field: 'feedCost',
-      headerName: 'Feed Cost',
+      headerName: 'Feed Cost (₦)',
       type: 'numericColumn',
       minWidth: 130,
-      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     },
     {
       field: 'energyCost',
-      headerName: 'Energy',
+      headerName: 'Energy (₦)',
       type: 'numericColumn',
       minWidth: 120,
-      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     },
     {
       field: 'totalCogs',
-      headerName: 'Total COGS',
+      headerName: 'Total COGS (₦)',
       type: 'numericColumn',
       minWidth: 130,
-      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     },
     {
       field: 'profit',
-      headerName: 'Profit',
+      headerName: 'Profit (₦)',
       type: 'numericColumn',
       minWidth: 120,
-      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     }
   ], []);
 

@@ -85,7 +85,12 @@ export function BsfSalesGrid() {
     const batchesPayload = await batchesRes.json().catch(() => ({}));
 
     if (salesRes.ok) setRowData(salesPayload.sales || []);
-    if (productsRes.ok) setProducts(productsPayload.products || []);
+    if (productsRes.ok) {
+      const filtered = (productsPayload.products || []).filter(
+        (product: StockProduct) => product.name !== 'Wet Larvae'
+      );
+      setProducts(filtered);
+    }
     if (batchesRes.ok) setBatches(batchesPayload.batches || []);
 
     setLoading(false);
@@ -142,17 +147,17 @@ export function BsfSalesGrid() {
     { field: 'quantitySold', headerName: 'Quantity', type: 'numericColumn', minWidth: 120 },
     {
       field: 'unitSellingPrice',
-      headerName: 'Unit Price',
+      headerName: 'Unit Price (₦)',
       type: 'numericColumn',
       minWidth: 120,
-      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     },
     {
-      headerName: 'Revenue',
+      headerName: 'Revenue (₦)',
       type: 'numericColumn',
       minWidth: 140,
       valueGetter: (p: any) => Number(p.data.quantitySold || 0) * Number(p.data.unitSellingPrice || 0),
-      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     }
   ], []);
 
@@ -169,7 +174,7 @@ export function BsfSalesGrid() {
       <div className="flex justify-end">
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all hover:scale-105 active:scale-95 px-6">
+            <Button className="bg-emerald-700 hover:bg-emerald-800 shadow-lg shadow-emerald-700/20 transition-all hover:scale-105 active:scale-95 px-6">
               <Plus className="w-4 h-4" />
               Log Sale
             </Button>
@@ -183,36 +188,38 @@ export function BsfSalesGrid() {
                 <Label>Date</Label>
                 <Input type="date" value={form.soldAt} onChange={(e) => setForm({ ...form, soldAt: e.target.value })} />
               </div>
-              <div className="space-y-2">
-                <Label>Product</Label>
-                <Select value={form.productId} onValueChange={(value) => setForm({ ...form, productId: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select product" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {products.map((product) => (
-                      <SelectItem key={product.id} value={product.id}>
-                        {product.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Batch (optional)</Label>
-                <Select value={form.batchId} onValueChange={(value) => setForm({ ...form, batchId: value })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="NONE">Unassigned</SelectItem>
-                    {batches.map((batch) => (
-                      <SelectItem key={batch.id} value={batch.id}>
-                        {batch.batchCode}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Product</Label>
+                  <Select value={form.productId} onValueChange={(value) => setForm({ ...form, productId: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select product" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {products.map((product) => (
+                        <SelectItem key={product.id} value={product.id}>
+                          {product.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Batch (optional)</Label>
+                  <Select value={form.batchId} onValueChange={(value) => setForm({ ...form, batchId: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="NONE">Unassigned</SelectItem>
+                      {batches.map((batch) => (
+                        <SelectItem key={batch.id} value={batch.id}>
+                          {batch.batchCode}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
@@ -220,7 +227,7 @@ export function BsfSalesGrid() {
                   <Input type="number" step="0.01" value={form.quantitySold} onChange={(e) => setForm({ ...form, quantitySold: e.target.value })} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Unit Price</Label>
+                  <Label>Unit Price (₦)</Label>
                   <Input type="number" step="0.01" value={form.unitSellingPrice} onChange={(e) => setForm({ ...form, unitSellingPrice: e.target.value })} />
                 </div>
               </div>
@@ -257,5 +264,6 @@ export function BsfSalesGrid() {
     </div>
   );
 }
+
 
 

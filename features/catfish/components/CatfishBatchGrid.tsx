@@ -55,15 +55,19 @@ ModuleRegistry.registerModules([
 ]);
 
 export function CatfishBatchGrid() {
+  const getToday = () => new Date().toISOString().split('T')[0];
   const [rowData, setRowData] = useState<CatfishBatch[]>([]);
   const [ponds, setPonds] = useState<CatfishPond[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [initialAgeApplied, setInitialAgeApplied] = useState(false);
+  const [startDateTouched, setStartDateTouched] = useState(false);
+  const [startDateBeforeApply, setStartDateBeforeApply] = useState<string | null>(null);
   const [form, setForm] = useState({
     batchCode: '',
     pondId: '',
-    startDate: new Date().toISOString().split('T')[0],
+    startDate: getToday(),
     initialAgeWeeks: '',
     initialFingerlingsCount: '',
     fingerlingUnitCost: '',
@@ -147,7 +151,14 @@ export function CatfishBatchGrid() {
       body: JSON.stringify({
         batchCode: form.batchCode,
         pondId: form.pondId,
-        startDate: form.startDate,
+        startDate: (() => {
+          if (!form.initialAgeWeeks || initialAgeApplied || startDateTouched) return form.startDate;
+          const weeks = Math.max(0, Math.floor(Number(form.initialAgeWeeks)));
+          const base = new Date();
+          base.setHours(0, 0, 0, 0);
+          base.setDate(base.getDate() - weeks * 7);
+          return base.toISOString().split('T')[0];
+        })(),
         initialFingerlingsCount: Number(form.initialFingerlingsCount || 0),
         fingerlingUnitCost: Number(form.fingerlingUnitCost || 0),
         status: form.status,
@@ -167,13 +178,16 @@ export function CatfishBatchGrid() {
       setForm({
         batchCode: '',
         pondId: '',
-        startDate: new Date().toISOString().split('T')[0],
+        startDate: getToday(),
         initialAgeWeeks: '',
         initialFingerlingsCount: '',
         fingerlingUnitCost: '',
         status: 'GROWING',
         notes: ''
       });
+      setInitialAgeApplied(false);
+      setStartDateTouched(false);
+      setStartDateBeforeApply(null);
       loadData();
     }
     setSubmitting(false);
@@ -201,6 +215,8 @@ export function CatfishBatchGrid() {
       minWidth: 130,
       type: 'numericColumn',
       valueGetter: (p: any) => {
+        const status = String(p.data.status || '');
+        if (status === 'CLOSED') return 0;
         const initial = Number(p.data.initialFingerlingsCount || 0);
         const dead = Number(p.data.mortalityTotal || 0);
         return Math.max(0, initial - dead);
@@ -255,7 +271,7 @@ export function CatfishBatchGrid() {
       <div className="flex justify-end">
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all hover:scale-105 active:scale-95 px-6">
+            <Button className="bg-emerald-700 hover:bg-emerald-800 shadow-lg shadow-emerald-700/20 transition-all hover:scale-105 active:scale-95 px-6">
               <Plus className="w-4 h-4" />
               New Batch
             </Button>
@@ -281,7 +297,11 @@ export function CatfishBatchGrid() {
                     id="startDate"
                     type="date"
                     value={form.startDate}
-                    onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                    onChange={(e) => {
+                      setForm({ ...form, startDate: e.target.value });
+                      setStartDateTouched(true);
+                      setInitialAgeApplied(false);
+                    }}
                     required
                   />
                   <p className="text-xs text-slate-500">
@@ -307,15 +327,24 @@ export function CatfishBatchGrid() {
                       variant="outline"
                       onClick={() => {
                         if (!form.initialAgeWeeks) return;
+                        if (initialAgeApplied) {
+                          const fallback = startDateBeforeApply ?? getToday();
+                          setForm({ ...form, startDate: fallback });
+                          setInitialAgeApplied(false);
+                          setStartDateBeforeApply(null);
+                          return;
+                        }
                         const weeks = Math.max(0, Math.floor(Number(form.initialAgeWeeks)));
                         const base = new Date();
                         base.setHours(0, 0, 0, 0);
                         base.setDate(base.getDate() - weeks * 7);
                         const startDate = base.toISOString().split('T')[0];
+                        setStartDateBeforeApply(form.startDate);
                         setForm({ ...form, startDate });
+                        setInitialAgeApplied(true);
                       }}
                     >
-                      Apply to start date
+                      {initialAgeApplied ? 'Cancel' : 'Apply to start date'}
                     </Button>
                     <span className="group relative inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:text-slate-700 cursor-pointer">
                       <Info className="h-4 w-4" />
@@ -421,6 +450,7 @@ export function CatfishBatchGrid() {
     </div>
   );
 }
+
 
 
 

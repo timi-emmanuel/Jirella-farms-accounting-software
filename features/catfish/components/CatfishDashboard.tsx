@@ -79,7 +79,7 @@ export function CatfishDashboard() {
     },
     {
       label: 'Revenue',
-      value: `NGN ${metrics.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+      value: `₦ ${metrics.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
       hint: 'Sales in range',
       icon: Wallet,
       accent: 'text-emerald-700'
@@ -110,7 +110,7 @@ export function CatfishDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">{card.label}</p>
-                <p className="text-xl font-black text-slate-900 mt-2">{card.value}</p>
+                <p className="text-xl font-black text-slate-900 mt-2 font-manrope">{card.value}</p>
                 <p className="text-xs text-slate-500 mt-1">{card.hint}</p>
               </div>
               <div className={`w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center ${card.accent}`}>
@@ -149,7 +149,7 @@ export function CatfishDashboard() {
             </div>
             <div>
               <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Active Batches</p>
-              <p className="text-2xl font-black mt-1">
+              <p className="text-2xl font-black mt-1 font-manrope">
                 {metrics.activeBatches.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </p>
             </div>
@@ -171,4 +171,3 @@ export function CatfishDashboard() {
     </div>
   );
 }
-

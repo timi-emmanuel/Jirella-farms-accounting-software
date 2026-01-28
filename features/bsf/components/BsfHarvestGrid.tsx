@@ -72,7 +72,7 @@ export function BsfHarvestGrid() {
   const colDefs = useMemo<ColDef<HarvestRow>[]>(() => [
     { field: 'createdAt', headerName: 'Date', minWidth: 140, valueFormatter: (p) => formatDate(p.value) },
     { headerName: 'Batch', minWidth: 140, valueGetter: (p: any) => p.data.batch?.batchCode || 'Unknown' },
-    { field: 'wetLarvaeKg', headerName: 'Live Larvae (kg)', type: 'numericColumn', minWidth: 150 },
+    { field: 'wetLarvaeKg', headerName: 'Wet Larvae (kg)', type: 'numericColumn', minWidth: 150 },
     { field: 'processedWetKg', headerName: 'Processed (kg)', type: 'numericColumn', minWidth: 140 },
     { field: 'remainingWetKg', headerName: 'Remaining (kg)', type: 'numericColumn', minWidth: 140 },
     { field: 'frassKg', headerName: 'Frass (kg)', type: 'numericColumn', minWidth: 130 },

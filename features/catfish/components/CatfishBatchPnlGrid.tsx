@@ -72,35 +72,35 @@ export function CatfishBatchPnlGrid() {
       headerName: 'Revenue (₦)',
       type: 'numericColumn',
       minWidth: 130,
-      valueFormatter: (p: any) => `₦ ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     },
     {
       field: 'feedCost',
       headerName: 'Feed Cost (₦)',
       type: 'numericColumn',
       minWidth: 130,
-      valueFormatter: (p: any) => `₦ ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     },
     {
       field: 'fingerlingCost',
       headerName: 'Fishes Cost (₦)',
       type: 'numericColumn',
       minWidth: 130,
-      valueFormatter: (p: any) => `₦ ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     },
     {
       field: 'totalCogs',
       headerName: 'Total COGS (₦)',
       type: 'numericColumn',
       minWidth: 130,
-      valueFormatter: (p: any) => `₦ ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     },
     {
       field: 'profit',
       headerName: 'Profit (₦)',
       type: 'numericColumn',
       minWidth: 120,
-      valueFormatter: (p: any) => `₦ ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     }
   ], []);
 

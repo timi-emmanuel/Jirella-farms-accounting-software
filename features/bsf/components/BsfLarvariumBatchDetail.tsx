@@ -283,6 +283,7 @@ export function BsfLarvariumBatchDetail({ batchId }: { batchId?: string }) {
         <p className="text-sm text-slate-500">Status: {batch.status}</p>
         <div className="mt-3 grid gap-3 md:grid-cols-3">
           <div className="text-sm text-slate-600">Start Date: {batch.startDate}</div>
+          <div className="text-sm text-slate-600">Eggs Used (g): {batch.eggsGramsUsed}</div>
           <div className="text-sm text-slate-600">Initial (g): {batch.initialLarvaeWeightGrams}</div>
           <div className="text-sm text-slate-600">Mix: {batch.substrateMixRatio || 'N/A'}</div>
         </div>
@@ -364,7 +365,7 @@ export function BsfLarvariumBatchDetail({ batchId }: { batchId?: string }) {
                 <form onSubmit={submitHarvest} className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label>Live Larvae (kg)</Label>
+                      <Label>Wet Larvae (kg)</Label>
                       <Input type="number" step="0.01" value={harvestForm.wetLarvaeKg} onChange={(e) => setHarvestForm({ ...harvestForm, wetLarvaeKg: e.target.value })} />
                     </div>
                     <div className="space-y-2">
@@ -394,7 +395,7 @@ export function BsfLarvariumBatchDetail({ batchId }: { batchId?: string }) {
           </div>
           {harvest ? (
             <div className="grid gap-3 text-sm text-slate-600">
-              <div>Live Larvae: {harvest.wetLarvaeKg} kg</div>
+              <div>Wet Larvae: {harvest.wetLarvaeKg} kg</div>
               <div>Frass: {harvest.frassKg} kg</div>
               <div>Residue Waste: {harvest.residueWasteKg} kg</div>
             </div>

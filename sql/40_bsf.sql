@@ -9,9 +9,19 @@ WHERE NOT EXISTS (
 );
 
 -- Seed BSF products (idempotent)
+UPDATE "Product"
+SET "name" = 'Wet Larvae'
+WHERE "name" = 'Live Larvae'
+  AND "module" = 'BSF'
+  AND NOT EXISTS (
+    SELECT 1 FROM "Product"
+    WHERE "name" = 'Wet Larvae' AND "module" = 'BSF'
+  );
+
 INSERT INTO "Product" ("name", "module", "unit", "active")
 VALUES
-  ('Live Larvae', 'BSF', 'KG', TRUE),
+  ('BSF Eggs', 'BSF', 'GRAM', TRUE),
+  ('Wet Larvae', 'BSF', 'KG', TRUE),
   ('Dry Larvae', 'BSF', 'KG', TRUE),
   ('Larvae Oil', 'BSF', 'LITER', TRUE),
   ('Larvae Cake', 'BSF', 'KG', TRUE),
@@ -51,6 +61,7 @@ CREATE TABLE IF NOT EXISTS "BsfLarvariumBatch" (
   "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   "batchCode" TEXT NOT NULL UNIQUE,
   "startDate" DATE NOT NULL DEFAULT CURRENT_DATE,
+  "eggsGramsUsed" NUMERIC NOT NULL DEFAULT 0,
   "initialLarvaeWeightGrams" NUMERIC NOT NULL DEFAULT 0,
   "substrateMixRatio" TEXT,
   "status" TEXT NOT NULL DEFAULT 'GROWING'
@@ -102,6 +113,9 @@ CREATE TABLE IF NOT EXISTS "BsfProcessingRun" (
 -- Optional batch link for sales
 ALTER TABLE "Sale"
   ADD COLUMN IF NOT EXISTS "batchId" UUID REFERENCES "BsfLarvariumBatch"("id") ON DELETE SET NULL;
+
+ALTER TABLE "BsfLarvariumBatch"
+  ADD COLUMN IF NOT EXISTS "eggsGramsUsed" NUMERIC NOT NULL DEFAULT 0;
 
 -- RLS
 ALTER TABLE "BsfInsectoriumLog" ENABLE ROW LEVEL SECURITY;

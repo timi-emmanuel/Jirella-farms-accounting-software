@@ -81,17 +81,17 @@ export function PoultryFeedPurchaseGrid() {
     },
     {
       field: "unitPrice",
-      headerName: "Unit Price (?/kg)",
+      headerName: "Unit Price (₦/kg)",
       type: 'numericColumn',
       minWidth: 150,
-      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     },
     {
       field: "totalAmount",
-      headerName: "Total (?)",
+      headerName: "Total (₦)",
       type: 'numericColumn',
       minWidth: 150,
-      valueFormatter: (p: any) => `? ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
     }
   ], []);
 

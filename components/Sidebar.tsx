@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   Home,
   Calculator,
@@ -136,7 +136,7 @@ function SidebarContent({ pathname, openMenus, toggleMenu, handleSignOut, isAdmi
     <div className="flex flex-col h-full bg-[#0a0f0d] text-slate-300 w-full">
       <div className="flex h-20 items-center px-6 border-b border-white/5 shrink-0">
         <div className="flex flex-col">
-          <span className="text-xl font-black text-white tracking-tighter">
+          <span className="text-xl font-black text-white tracking-tighter font-manrope">
             JIRELLA <span className="text-emerald-500">FARMS</span>
           </span>
           <span className="text-[10px] uppercase tracking-widest text-slate-500 font-bold -mt-1">
@@ -246,7 +246,16 @@ function SidebarContent({ pathname, openMenus, toggleMenu, handleSignOut, isAdmi
 
 export function Sidebar() {
   const pathname = usePathname();
-  const [openMenus, setOpenMenus] = useState<string[]>(['Feed Mill']);
+  const getOpenMenusForPath = (path: string) => {
+    const matches = navigation.filter((item) => {
+      if (!item.subItems || item.subItems.length === 0) return false;
+      return item.subItems.some((sub) => path === sub.href || path.startsWith(`${sub.href}/`)) ||
+        path === item.href || path.startsWith(`${item.href}/`);
+    });
+    return matches.map((item) => item.name);
+  };
+
+  const [openMenus, setOpenMenus] = useState<string[]>(() => getOpenMenusForPath(pathname));
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const { role, loading, isAdmin } = useUserRole();
   const router = useRouter();
@@ -256,6 +265,13 @@ export function Sidebar() {
       prev.includes(name) ? prev.filter(i => i !== name) : [...prev, name]
     )
   }
+
+  useEffect(() => {
+    const nextOpen = getOpenMenusForPath(pathname);
+    if (nextOpen.length > 0) {
+      setOpenMenus(nextOpen);
+    }
+  }, [pathname]);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
