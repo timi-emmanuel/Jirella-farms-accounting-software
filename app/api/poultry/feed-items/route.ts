@@ -62,7 +62,9 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json({ items: enriched });
+    const available = enriched.filter((item) => Number(item.quantityOnHand || 0) > 0);
+
+    return NextResponse.json({ items: available });
   } catch (error: any) {
     console.error('Poultry feed items error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

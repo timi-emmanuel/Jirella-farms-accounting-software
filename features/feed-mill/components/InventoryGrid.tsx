@@ -196,7 +196,7 @@ export function InventoryGrid() {
             field: "updatedAt" as const,
             headerName: "Last Updated",
             flex: 1,
-            cellRenderer: (p: any) => <span className="text-slate-600 text-sm">{new Date(p.value).toLocaleDateString()}</span>,
+            cellRenderer: (p: any) => <span className="text-slate-600 text-sm">{new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-')}</span>,
             filter: false
         }
     ];

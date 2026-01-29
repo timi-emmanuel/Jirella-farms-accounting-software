@@ -141,7 +141,7 @@ export function CatfishSalesGrid() {
   };
 
   const colDefs = useMemo<ColDef<EnrichedSale>[]>(() => [
-    { field: 'soldAt', headerName: 'Date', minWidth: 120 },
+    { field: 'soldAt', headerName: 'Date', minWidth: 120, valueFormatter: (p: any) => new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-') },
     { headerName: 'Product', minWidth: 160, valueGetter: (p: any) => p.data.product?.name || 'Unknown' },
     {
       headerName: 'Batch',

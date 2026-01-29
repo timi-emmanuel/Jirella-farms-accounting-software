@@ -179,3 +179,67 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const auth = await getAuthContext();
+    if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!isRoleAllowed(auth.role, EDIT_ROLES)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'Missing batch id' }, { status: 400 });
+
+    const admin = createAdminClient();
+    const { count: feedCount } = await admin
+      .from('CatfishFeedLog')
+      .select('id', { count: 'exact', head: true })
+      .eq('batchId', id);
+    if ((feedCount ?? 0) > 0) {
+      return NextResponse.json({ error: 'Cannot delete batch with feed logs.' }, { status: 400 });
+    }
+
+    const { count: mortalityCount } = await admin
+      .from('CatfishMortalityLog')
+      .select('id', { count: 'exact', head: true })
+      .eq('batchId', id);
+    if ((mortalityCount ?? 0) > 0) {
+      return NextResponse.json({ error: 'Cannot delete batch with mortality logs.' }, { status: 400 });
+    }
+
+    const { count: harvestCount } = await admin
+      .from('CatfishHarvest')
+      .select('id', { count: 'exact', head: true })
+      .eq('batchId', id);
+    if ((harvestCount ?? 0) > 0) {
+      return NextResponse.json({ error: 'Cannot delete batch with harvest records.' }, { status: 400 });
+    }
+
+    const { data, error } = await admin
+      .from('CatfishBatch')
+      .delete()
+      .eq('id', id)
+      .select('id, batchCode')
+      .single();
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    await logActivityServer({
+      action: 'CATFISH_BATCH_DELETED',
+      entityType: 'CatfishBatch',
+      entityId: data.id,
+      description: `Catfish batch ${data.batchCode} deleted`,
+      metadata: { id: data.id, batchCode: data.batchCode },
+      userId: auth.userId,
+      userRole: auth.role,
+      ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip')
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('Catfish batch delete error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

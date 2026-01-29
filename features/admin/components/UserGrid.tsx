@@ -106,7 +106,11 @@ export function UserGrid() {
    field: "createdAt",
    headerName: "Created At",
    flex: 1,
-   valueFormatter: (p: any) => new Date(p.value).toLocaleDateString() + ' ' + new Date(p.value).toLocaleTimeString(),
+   valueFormatter: (p: any) => {
+    const parsed = new Date(p.value);
+    const datePart = parsed.toLocaleDateString('en-GB').replace(/\//g, '-');
+    return `${datePart} ${parsed.toLocaleTimeString()}`;
+   },
    sort: 'desc'
   },
   {

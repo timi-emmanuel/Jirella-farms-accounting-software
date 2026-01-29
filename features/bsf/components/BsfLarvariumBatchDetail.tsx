@@ -135,14 +135,24 @@ export function BsfLarvariumBatchDetail({ batchId }: { batchId?: string }) {
     e.preventDefault();
     setFeedSubmitting(true);
     try {
+      const pkcKg = Number(feedForm.pkcKg || 0);
+      const wasteKg = Number(feedForm.poultryWasteKg || 0);
+      if (pkcKg < 0 || wasteKg < 0) {
+        toast({
+          title: "Invalid feed",
+          description: "Feed quantities cannot be negative.",
+          variant: "destructive"
+        });
+        return;
+      }
       const response = await fetch('/api/bsf/larvarium/feed-logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           batchId: resolvedBatchId,
           ...feedForm,
-          pkcKg: Number(feedForm.pkcKg || 0),
-          poultryWasteKg: Number(feedForm.poultryWasteKg || 0),
+          pkcKg,
+          poultryWasteKg: wasteKg,
           poultryWasteCostOverride: feedForm.poultryWasteCostOverride ? Number(feedForm.poultryWasteCostOverride) : null
         })
       });
@@ -248,7 +258,7 @@ export function BsfLarvariumBatchDetail({ batchId }: { batchId?: string }) {
   };
 
   const feedCols = useMemo<ColDef<BsfBatchFeedLog>[]>(() => [
-    { field: 'date', headerName: 'Date', minWidth: 120 },
+    { field: 'date', headerName: 'Date', minWidth: 120, valueFormatter: (p: any) => new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-') },
     { field: 'pkcKg', headerName: 'PKC (kg)', type: 'numericColumn', minWidth: 120 },
     { field: 'poultryWasteKg', headerName: 'Waste (kg)', type: 'numericColumn', minWidth: 120 },
     { field: 'poultryWasteCostOverride', headerName: 'Waste Cost', type: 'numericColumn', minWidth: 120 },
@@ -282,7 +292,9 @@ export function BsfLarvariumBatchDetail({ batchId }: { batchId?: string }) {
         <h1 className="text-2xl font-bold text-slate-900">Batch {batch.batchCode}</h1>
         <p className="text-sm text-slate-500">Status: {batch.status}</p>
         <div className="mt-3 grid gap-3 md:grid-cols-3">
-          <div className="text-sm text-slate-600">Start Date: {batch.startDate}</div>
+          <div className="text-sm text-slate-600">
+            Start Date: {batch.startDate ? new Date(batch.startDate).toLocaleDateString('en-GB').replace(/\//g, '-') : ''}
+          </div>
           <div className="text-sm text-slate-600">Eggs Used (g): {batch.eggsGramsUsed}</div>
           <div className="text-sm text-slate-600">Initial (g): {batch.initialLarvaeWeightGrams}</div>
           <div className="text-sm text-slate-600">Mix: {batch.substrateMixRatio || 'N/A'}</div>
@@ -309,11 +321,11 @@ export function BsfLarvariumBatchDetail({ batchId }: { batchId?: string }) {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
                       <Label>PKC (kg)</Label>
-                      <Input type="number" step="0.01" value={feedForm.pkcKg} onChange={(e) => setFeedForm({ ...feedForm, pkcKg: e.target.value })} />
+                      <Input type="number" step="0.01" min="0" value={feedForm.pkcKg} onChange={(e) => setFeedForm({ ...feedForm, pkcKg: e.target.value })} />
                     </div>
                     <div className="space-y-2">
                       <Label>Poultry Waste (kg)</Label>
-                      <Input type="number" step="0.01" value={feedForm.poultryWasteKg} onChange={(e) => setFeedForm({ ...feedForm, poultryWasteKg: e.target.value })} />
+                      <Input type="number" step="0.01" min="0" value={feedForm.poultryWasteKg} onChange={(e) => setFeedForm({ ...feedForm, poultryWasteKg: e.target.value })} />
                     </div>
                   </div>
                   <div className="space-y-2">

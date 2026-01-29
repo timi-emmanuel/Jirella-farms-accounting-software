@@ -76,3 +76,52 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const auth = await getAuthContext();
+    if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!isRoleAllowed(auth.role, EDIT_ROLES)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'Missing flock id' }, { status: 400 });
+
+    const admin = createAdminClient();
+    const { count: logCount } = await admin
+      .from('PoultryDailyLog')
+      .select('id', { count: 'exact', head: true })
+      .eq('flockId', id);
+
+    if ((logCount ?? 0) > 0) {
+      return NextResponse.json({ error: 'Cannot delete flock with daily logs.' }, { status: 400 });
+    }
+
+    const { data, error } = await admin
+      .from('PoultryFlock')
+      .delete()
+      .eq('id', id)
+      .select('id, name')
+      .single();
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    await logActivityServer({
+      action: 'POULTRY_FLOCK_DELETED',
+      entityType: 'PoultryFlock',
+      entityId: data.id,
+      description: `Deleted flock ${data.name}`,
+      metadata: { id: data.id, name: data.name },
+      userId: auth.userId,
+      userRole: auth.role,
+      ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip')
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('Poultry flock delete error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

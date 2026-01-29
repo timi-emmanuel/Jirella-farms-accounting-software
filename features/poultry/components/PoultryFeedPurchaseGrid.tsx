@@ -46,7 +46,7 @@ export function PoultryFeedPurchaseGrid() {
 
   const loadData = async () => {
     setLoading(true);
-    const response = await fetch('/api/finished-goods/internal-sales');
+    const response = await fetch('/api/finished-goods/internal-sales?targetModule=POULTRY');
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       console.error('Feed purchases load error:', payload.error || response.statusText);
@@ -64,7 +64,8 @@ export function PoultryFeedPurchaseGrid() {
     {
       field: "purchaseDate",
       headerName: "Date",
-      minWidth: 140
+      minWidth: 140,
+      valueFormatter: (p: any) => new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-')
     },
     {
       headerName: "Feed",

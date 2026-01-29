@@ -156,7 +156,7 @@ export function StoreRequestGrid() {
    field: "createdAt",
    headerName: "Date Requested",
    flex: 1,
-   valueFormatter: (p: any) => new Date(p.value).toLocaleDateString(),
+   valueFormatter: (p: any) => new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-'),
    sort: 'desc'
   },
   {
@@ -291,12 +291,12 @@ export function StoreRequestGrid() {
    <div className="flex justify-end">
     <Dialog open={showNewRequest} onOpenChange={setShowNewRequest}>
      <DialogTrigger asChild>
-      <Button className="bg-emerald-700 hover:bg-emerald-800 shadow-sm transition-all hover:scale-105 active:scale-95">
+      <Button className="bg-emerald-700 hover:bg-emerald-800 shadow-sm transition-all  active:scale-95">
        <Plus className="w-4 h-4 mr-2" />
        New Procurement Request
       </Button>
      </DialogTrigger>
-     <DialogContent className="sm:max-w-[425px]">
+     <DialogContent className="sm:max-w-106.25">
       <DialogHeader>
        <DialogTitle>New Procurement Request</DialogTitle>
       </DialogHeader>

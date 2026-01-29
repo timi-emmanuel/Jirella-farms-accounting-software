@@ -43,7 +43,7 @@ export function CatfishBatchDetail() {
         );
     return [
       { label: 'Pond', value: batch.pond?.name || 'Unknown' },
-      { label: 'Start Date', value: batch.startDate },
+      { label: 'Start Date', value: batch.startDate ? new Date(batch.startDate).toLocaleDateString('en-GB').replace(/\//g, '-') : '' },
       { label: 'Age (wks)', value: getCatfishAgeWeeks(batch.startDate).toString() },
       { label: 'Stage', value: formatCatfishStage(getCatfishStage(batch.startDate)) },
       { label: 'Fishes', value: batch.initialFingerlingsCount.toLocaleString() },

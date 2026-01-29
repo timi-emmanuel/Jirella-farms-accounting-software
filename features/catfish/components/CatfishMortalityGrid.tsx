@@ -129,7 +129,7 @@ export function CatfishMortalityGrid({ batchId, hideBatchColumn }: Props) {
 
   const colDefs = useMemo<ColDef<CatfishMortalityLog>[]>(() => {
     const cols: ColDef<CatfishMortalityLog>[] = [
-      { field: 'date', headerName: 'Date', minWidth: 120 }
+      { field: 'date', headerName: 'Date', minWidth: 120, valueFormatter: (p: any) => new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-') }
     ];
     if (!hideBatchColumn) {
       cols.push({

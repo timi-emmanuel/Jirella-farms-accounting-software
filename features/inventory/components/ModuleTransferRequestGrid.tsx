@@ -119,7 +119,11 @@ export function ModuleTransferRequestGrid({ moduleKey }: { moduleKey: ModuleKey 
    headerName: "Requested At",
    flex: 1,
    minWidth: 160,
-   valueFormatter: (p: any) => new Date(p.value).toLocaleString()
+   valueFormatter: (p: any) => {
+    const parsed = new Date(p.value);
+    const datePart = parsed.toLocaleDateString('en-GB').replace(/\//g, '-');
+    return `${datePart} ${parsed.toLocaleTimeString()}`;
+   }
   },
   {
    field: "notes",

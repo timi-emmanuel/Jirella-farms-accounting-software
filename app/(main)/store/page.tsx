@@ -19,7 +19,7 @@ export default function StorePage() {
 
    <Tabs defaultValue="inventory" className="flex-1 flex flex-col overflow-hidden">
     <div className="flex items-center justify-between mb-4">
-     <TabsList className="grid w-[560px] grid-cols-3">
+     <TabsList className="grid w-140 grid-cols-3">
       <TabsTrigger value="inventory">
        <Warehouse className="w-4 h-4 mr-2" />
        Inventory

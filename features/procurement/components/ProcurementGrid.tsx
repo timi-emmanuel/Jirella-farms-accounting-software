@@ -221,7 +221,7 @@ export function ProcurementGrid() {
 
  return (
   <div className="flex flex-col h-full space-y-4">
-   <div className="flex-1 bg-white border rounded-lg overflow-hidden shadow-sm ag-theme-quartz">
+  <div className="flex-1 bg-white border rounded-lg overflow-x-auto shadow-sm ag-theme-quartz">
     {rowData.length === 0 ? (
      <div className="flex flex-col items-center justify-center h-full text-slate-400">
       <CheckCircle2 className="w-12 h-12 mb-2 opacity-20" />

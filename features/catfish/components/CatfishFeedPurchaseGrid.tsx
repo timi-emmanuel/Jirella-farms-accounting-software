@@ -61,7 +61,7 @@ export function CatfishFeedPurchaseGrid() {
   }, []);
 
   const colDefs = useMemo<ColDef<PurchaseRow>[]>(() => [
-    { field: 'purchaseDate', headerName: 'Date', minWidth: 120 },
+    { field: 'purchaseDate', headerName: 'Date', minWidth: 120, valueFormatter: (p: any) => new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-') },
     { headerName: 'Feed', minWidth: 180, valueGetter: (p: any) => p.data.product?.name || 'Unknown' },
     { field: 'quantityKg', headerName: 'Quantity (kg)', type: 'numericColumn', minWidth: 140 },
     {

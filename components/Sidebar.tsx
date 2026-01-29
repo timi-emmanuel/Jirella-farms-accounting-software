@@ -46,9 +46,10 @@ const navigation: NavigationItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutGrid }, // Icon changed
   {
     name: 'Feed Mill',
-    href: '/feed-mill', 
+    href: '/feed-mill/dashboard', 
     icon: Factory,
     subItems: [
+      { name: 'Dashboard', href: '/feed-mill/dashboard', icon: LayoutDashboard },
       { name: 'Inventory', href: '/feed-mill/rm-inventory', icon: Package },
       { name: 'Recipes', href: '/feed-mill/recipe-master', icon: FlaskConical }, 
       { name: 'Production', href: '/feed-mill/production', icon: Factory },

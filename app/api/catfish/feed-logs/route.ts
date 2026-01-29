@@ -46,8 +46,9 @@ export async function POST(request: NextRequest) {
     }
 
     const { batchId, date, feedProductId, quantityKg } = await request.json();
-    if (!batchId || !feedProductId || Number(quantityKg) <= 0) {
-      return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    const qtyNum = Number(quantityKg ?? 0);
+    if (!batchId || !feedProductId || qtyNum <= 0) {
+      return NextResponse.json({ error: 'Quantity must be greater than zero' }, { status: 400 });
     }
 
     const admin = createAdminClient();

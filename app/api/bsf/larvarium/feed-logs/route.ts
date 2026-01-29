@@ -50,6 +50,9 @@ export async function POST(request: NextRequest) {
 
     const pkcKg = roundTo2(Number(body.pkcKg || 0));
     const wasteKg = roundTo2(Number(body.poultryWasteKg || 0));
+    if (pkcKg < 0 || wasteKg < 0) {
+      return NextResponse.json({ error: 'Feed quantities must be zero or greater' }, { status: 400 });
+    }
     if (pkcKg <= 0 && wasteKg <= 0) {
       return NextResponse.json({ error: 'Enter PKC or poultry waste usage' }, { status: 400 });
     }

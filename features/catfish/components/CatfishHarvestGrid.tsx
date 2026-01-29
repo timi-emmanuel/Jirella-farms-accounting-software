@@ -138,7 +138,7 @@ export function CatfishHarvestGrid({ batchId, hideBatchColumn }: Props) {
 
   const colDefs = useMemo<ColDef<CatfishHarvest>[]>(() => {
     const cols: ColDef<CatfishHarvest>[] = [
-      { field: 'date', headerName: 'Date', minWidth: 120 }
+      { field: 'date', headerName: 'Date', minWidth: 120, valueFormatter: (p: any) => new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-') }
     ];
     if (!hideBatchColumn) {
       cols.push({

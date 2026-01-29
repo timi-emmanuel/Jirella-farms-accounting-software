@@ -136,7 +136,7 @@ export function InventoryGrid() {
     if (!params.value) return 'N/A';
     const parsed = new Date(params.value);
     if (Number.isNaN(parsed.getTime())) return 'N/A';
-    return parsed.toLocaleDateString();
+    return parsed.toLocaleDateString('en-GB').replace(/\//g, '-');
    },
    sort: 'desc'
   },

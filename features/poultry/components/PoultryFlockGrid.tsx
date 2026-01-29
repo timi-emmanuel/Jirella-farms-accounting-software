@@ -18,7 +18,7 @@ import {
   themeQuartz
 } from 'ag-grid-community';
 import { toast } from "@/lib/toast";
-import { Loader2, Plus, Users } from 'lucide-react';
+import { Loader2, Plus, Trash2, Users } from 'lucide-react';
 import { PoultryFlock } from '@/types';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,6 +56,7 @@ export function PoultryFlockGrid() {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: '',
     breed: '',
@@ -133,6 +134,23 @@ export function PoultryFlockGrid() {
     setSubmitting(false);
   };
 
+  const handleDelete = async (flock: PoultryFlock) => {
+    if (!confirm(`Delete flock "${flock.name}"? This cannot be undone.`)) return;
+    setDeletingId(flock.id);
+    const response = await fetch(`/api/poultry/flocks?id=${flock.id}`, { method: 'DELETE' });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      toast({
+        title: "Error",
+        description: payload.error || 'Failed to delete flock.',
+        variant: "destructive"
+      });
+    } else {
+      loadData();
+    }
+    setDeletingId(null);
+  };
+
   const colDefs = useMemo<ColDef<PoultryFlock>[]>(() => [
     {
       field: "name",
@@ -167,7 +185,8 @@ export function PoultryFlockGrid() {
     {
       field: "startDate",
       headerName: "Start Date",
-      minWidth: 140
+      minWidth: 140,
+      valueFormatter: (p: any) => new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-')
     },
     {
       field: "initialCount",
@@ -180,8 +199,30 @@ export function PoultryFlockGrid() {
       headerName: "Current Birds",
       type: 'numericColumn',
       minWidth: 140
+    },
+    {
+      headerName: "Actions",
+      width: 110,
+      pinned: 'right',
+      sortable: false,
+      filter: false,
+      cellRenderer: (params: any) => {
+        const flock = params.data as PoultryFlock;
+        const isDeleting = deletingId === flock.id;
+        return (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 px-2 text-slate-500 hover:text-rose-600 hover:bg-transparent"
+            disabled={isDeleting}
+            onClick={() => handleDelete(flock)}
+          >
+            {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+          </Button>
+        );
+      }
     }
-  ], []);
+  ], [deletingId]);
 
   if (loading && rowData.length === 0) {
     return (

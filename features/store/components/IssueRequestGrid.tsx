@@ -179,7 +179,7 @@ export function IssueRequestGrid() {
    field: "createdAt",
    headerName: "Date Requested",
    flex: 1,
-   valueFormatter: (p: any) => new Date(p.value).toLocaleDateString(),
+   valueFormatter: (p: any) => new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-'),
    sort: 'desc'
   },
   {

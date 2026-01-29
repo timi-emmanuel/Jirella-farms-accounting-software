@@ -176,3 +176,136 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const auth = await getAuthContext();
+    if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!isRoleAllowed(auth.role, EDIT_ROLES)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'Missing batch id' }, { status: 400 });
+
+    const admin = createAdminClient();
+    const { data: batch, error: batchError } = await admin
+      .from('BsfLarvariumBatch')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (batchError || !batch) {
+      return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
+    }
+
+    const { count: feedCount } = await admin
+      .from('BsfBatchFeedLog')
+      .select('id', { count: 'exact', head: true })
+      .eq('batchId', id);
+
+    if ((feedCount ?? 0) > 0) {
+      return NextResponse.json({ error: 'Cannot delete batch with feed logs.' }, { status: 400 });
+    }
+
+    const { count: harvestCount } = await admin
+      .from('BsfHarvestYield')
+      .select('id', { count: 'exact', head: true })
+      .eq('batchId', id);
+
+    if ((harvestCount ?? 0) > 0) {
+      return NextResponse.json({ error: 'Cannot delete batch with harvest records.' }, { status: 400 });
+    }
+
+    const { count: processingCount } = await admin
+      .from('BsfProcessingRun')
+      .select('id', { count: 'exact', head: true })
+      .eq('batchId', id);
+
+    if ((processingCount ?? 0) > 0) {
+      return NextResponse.json({ error: 'Cannot delete batch with processing records.' }, { status: 400 });
+    }
+
+    const { data: location } = await admin
+      .from('InventoryLocation')
+      .select('id')
+      .eq('code', 'BSF')
+      .single();
+
+    if (!location) {
+      return NextResponse.json({ error: 'BSF location not found' }, { status: 400 });
+    }
+
+    const { data: eggsProduct } = await admin
+      .from('Product')
+      .select('id')
+      .eq('name', 'BSF Eggs')
+      .eq('module', 'BSF')
+      .single();
+
+    if (!eggsProduct) {
+      return NextResponse.json({ error: 'BSF Eggs product not found' }, { status: 400 });
+    }
+
+    const { data: stock } = await admin
+      .from('FinishedGoodsInventory')
+      .select('quantityOnHand')
+      .eq('productId', eggsProduct.id)
+      .eq('locationId', location.id)
+      .single();
+
+    const currentQty = Number(stock?.quantityOnHand || 0);
+    const eggsToRestore = roundTo2(Number(batch.eggsGramsUsed || 0));
+    const nextQty = roundTo2(currentQty + eggsToRestore);
+
+    const { error: updateError } = await admin
+      .from('FinishedGoodsInventory')
+      .update({
+        quantityOnHand: nextQty,
+        updatedAt: new Date().toISOString()
+      })
+      .eq('productId', eggsProduct.id)
+      .eq('locationId', location.id);
+
+    if (updateError) return NextResponse.json({ error: updateError.message }, { status: 400 });
+
+    const { error: ledgerError } = await admin
+      .from('FinishedGoodsLedger')
+      .insert({
+        productId: eggsProduct.id,
+        locationId: location.id,
+        type: 'ADJUSTMENT',
+        quantity: eggsToRestore,
+        unitCostAtTime: 0,
+        referenceType: 'BSF_BATCH_DELETE',
+        referenceId: id,
+        createdBy: auth.userId
+      });
+
+    if (ledgerError) return NextResponse.json({ error: ledgerError.message }, { status: 400 });
+
+    const { error: deleteError } = await admin
+      .from('BsfLarvariumBatch')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 400 });
+
+    await logActivityServer({
+      action: 'BSF_BATCH_DELETED',
+      entityType: 'BsfLarvariumBatch',
+      entityId: id,
+      description: `BSF batch ${batch.batchCode} deleted`,
+      metadata: { id, batchCode: batch.batchCode },
+      userId: auth.userId,
+      userRole: auth.role,
+      ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip')
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('BSF batch delete error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

@@ -73,7 +73,7 @@ export function CatfishDashboard() {
     {
       label: 'Survival Rate',
       value: `${metrics.survivalRate.toLocaleString(undefined, { maximumFractionDigits: 2 })}%`,
-      hint: 'Harvest count vs fingerlings',
+      hint: 'Harvest count vs fishes stocked',
       icon: Gauge,
       accent: 'text-amber-600'
     },

@@ -19,33 +19,6 @@ CREATE TABLE IF NOT EXISTS "RecipeItem" (
   CONSTRAINT "RecipeItem_recipeId_ingredientId_key" UNIQUE ("recipeId", "ingredientId")
 );
 
-CREATE TABLE IF NOT EXISTS "FeedBatch" (
-  "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  "batchNumber" TEXT NOT NULL UNIQUE,
-  "recipeId" UUID NOT NULL REFERENCES "Recipe"("id") ON DELETE RESTRICT,
-  "quantityProduced" DOUBLE PRECISION NOT NULL,
-  "costPerUnit" DOUBLE PRECISION NOT NULL,
-  "totalCost" DOUBLE PRECISION NOT NULL,
-  "date" TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
--- Deprecated: Feed mill sales are now tracked in the unified "Sale" table.
--- Keep this table for historical data; do not write new rows here.
-CREATE TABLE IF NOT EXISTS "FeedMillSale" (
-  "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  "date" DATE NOT NULL DEFAULT CURRENT_DATE,
-  "recipeId" UUID REFERENCES "Recipe"("id") ON DELETE SET NULL,
-  "unitsSold" FLOAT NOT NULL DEFAULT 0,
-  "unitSellingPrice" FLOAT NOT NULL DEFAULT 0,
-  "unitCostPrice" FLOAT NOT NULL DEFAULT 0,
-  "totalRevenue" FLOAT GENERATED ALWAYS AS ("unitsSold" * "unitSellingPrice") STORED,
-  "costOfGoodsSold" FLOAT GENERATED ALWAYS AS ("unitsSold" * "unitCostPrice") STORED,
-  "grossProfit" FLOAT GENERATED ALWAYS AS (("unitsSold" * "unitSellingPrice") - ("unitsSold" * "unitCostPrice")) STORED,
-  "createdAt" TIMESTAMPTZ DEFAULT NOW(),
-  "updatedAt" TIMESTAMPTZ DEFAULT NOW()
-);
-
 CREATE TABLE IF NOT EXISTS "ProductionLog" (
   "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   "date" DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -334,8 +307,6 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- RLS
 ALTER TABLE "Recipe" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "RecipeItem" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "FeedBatch" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "FeedMillSale" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "ProductionLog" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "FinishedGoodsTransferRequest" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "FinishedGoodsTransferLine" ENABLE ROW LEVEL SECURITY;
@@ -364,32 +335,6 @@ BEGIN
     CREATE POLICY "Enable all for authenticated users"
     ON "RecipeItem"
     FOR ALL USING (auth.role() = 'authenticated');
-  END IF;
-END$$;
-
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'FeedBatch'
-      AND policyname = 'Enable all for authenticated users'
-  ) THEN
-    CREATE POLICY "Enable all for authenticated users"
-    ON "FeedBatch"
-    FOR ALL USING (auth.role() = 'authenticated');
-  END IF;
-END$$;
-
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'FeedMillSale'
-      AND policyname = 'Allow all for authenticated users'
-  ) THEN
-    CREATE POLICY "Allow all for authenticated users"
-    ON "FeedMillSale"
-    FOR ALL TO authenticated USING (true) WITH CHECK (true);
   END IF;
 END$$;
 

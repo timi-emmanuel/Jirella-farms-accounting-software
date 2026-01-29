@@ -114,7 +114,8 @@ export function PoultryExpenseGrid() {
     {
       field: "spentAt",
       headerName: "Date",
-      minWidth: 140
+      minWidth: 140,
+      valueFormatter: (p: any) => new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-')
     },
     {
       field: "category",

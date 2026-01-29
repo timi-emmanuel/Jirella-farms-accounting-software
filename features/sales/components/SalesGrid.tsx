@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import "ag-grid-community/styles/ag-theme-quartz.css";
 import {
@@ -59,11 +59,19 @@ ModuleRegistry.registerModules([
 export function SalesGrid({
   initialModule = 'ALL',
   showModuleFilter = true,
-  showStockColumn = true
+  showStockColumn = true,
+  productFilter,
+  headerActionsRight,
+  hideCogsColumn = false,
+  hideGrossProfitColumn = false
 }: {
   initialModule?: ModuleFilter;
   showModuleFilter?: boolean;
   showStockColumn?: boolean;
+  productFilter?: (product: Product & { quantityOnHand?: number; averageUnitCost?: number }) => boolean;
+  headerActionsRight?: ReactNode;
+  hideCogsColumn?: boolean;
+  hideGrossProfitColumn?: boolean;
 }) {
  const [rowData, setRowData] = useState<Sale[]>([]);
  const [products, setProducts] = useState<(Product & { quantityOnHand?: number; averageUnitCost?: number })[]>([]);
@@ -103,8 +111,9 @@ export function SalesGrid({
  const loadProducts = async (moduleValue: ModuleFilter) => {
   const response = await fetch(`/api/products?module=${moduleValue}`);
   const payload = await response.json().catch(() => ({}));
-  if (response.ok) {
-   setProducts(payload.products || []);
+ if (response.ok) {
+   const list = payload.products || [];
+   setProducts(productFilter ? list.filter(productFilter) : list);
   } else {
    console.error('Products load error:', payload.error || response.statusText);
   }
@@ -197,7 +206,12 @@ export function SalesGrid({
    field: "soldAt",
    headerName: "Date",
    flex: 1,
-   minWidth: 120
+   minWidth: 120,
+   valueFormatter: (p: any) => {
+     if (!p.value) return '';
+     const formatted = new Date(p.value).toLocaleDateString('en-GB');
+     return formatted.replace(/\//g, '-');
+   }
   },
   {
    headerName: "Product",
@@ -216,7 +230,8 @@ export function SalesGrid({
    headerName: "Quantity",
    type: 'numericColumn',
    filter: false,
-   flex: 1
+   flex: 1,
+   valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   },
   {
    field: "unitSellingPrice",
@@ -234,30 +249,34 @@ export function SalesGrid({
    valueGetter: (p: any) => Number(p.data.quantitySold) * Number(p.data.unitSellingPrice),
    valueFormatter: (p: any) => ` ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
   },
-  {
-   headerName: "COGS",
-   type: 'numericColumn',
-   filter: false,
-   flex: 1,
-   valueGetter: (p: any) => Number(p.data.quantitySold) * Number(p.data.unitCostAtSale || 0),
-   valueFormatter: (p: any) => ` ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-  },
-  {
-   headerName: "Gross Profit (₦)",
-   type: 'numericColumn',
-   filter: false,
-   flex: 1,
-   valueGetter: (p: any) => {
-    const rev = Number(p.data.quantitySold) * Number(p.data.unitSellingPrice);
-    const cogs = Number(p.data.quantitySold) * Number(p.data.unitCostAtSale || 0);
-    return rev - cogs;
-   },
-   cellRenderer: (p: any) => (
-    <span className={p.value >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
-      {Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-    </span>
-   )
-  }
+  ...(hideCogsColumn
+    ? []
+    : [{
+      headerName: "COGS",
+      type: 'numericColumn',
+      filter: false,
+      flex: 1,
+      valueGetter: (p: any) => Number(p.data.quantitySold) * Number(p.data.unitCostAtSale || 0),
+      valueFormatter: (p: any) => ` ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+    }]),
+  ...(hideGrossProfitColumn
+    ? []
+    : [{
+      headerName: "Gross Profit (₦)",
+      type: 'numericColumn',
+      filter: false,
+      flex: 1,
+      valueGetter: (p: any) => {
+        const rev = Number(p.data.quantitySold) * Number(p.data.unitSellingPrice);
+        const cogs = Number(p.data.quantitySold) * Number(p.data.unitCostAtSale || 0);
+        return rev - cogs;
+      },
+      cellRenderer: (p: any) => (
+        <span className={p.value >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
+          {Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+        </span>
+      )
+    }])
   ];
 
   if (showStockColumn) {
@@ -275,7 +294,7 @@ export function SalesGrid({
   }
 
   return columns;
- }, [stockByProductId, showStockColumn]);
+ }, [stockByProductId, showStockColumn, hideCogsColumn, hideGrossProfitColumn]);
 
  const selectedProduct = products.find(p => p.id === newSale.productId);
  const selectedStock = Number(selectedProduct?.quantityOnHand || 0);
@@ -308,8 +327,12 @@ export function SalesGrid({
      <div />
     )}
 
-    <div className="flex flex-wrap items-center gap-2">
-     <Dialog open={showAddProduct} onOpenChange={setShowAddProduct}>
+    <div className="flex flex-1 flex-wrap items-center justify-between gap-2">
+     <div className="flex items-center gap-2">
+      {headerActionsRight}
+     </div>
+     <div className="flex flex-wrap items-center gap-2">
+      <Dialog open={showAddProduct} onOpenChange={setShowAddProduct}>
       <DialogTrigger asChild>
        <Button variant="outline">New Product</Button>
       </DialogTrigger>
@@ -363,10 +386,10 @@ export function SalesGrid({
          </Button>
         </DialogFooter>
        </form>
-      </DialogContent>
-     </Dialog>
+     </DialogContent>
+    </Dialog>
 
-     <Dialog open={showAddSale} onOpenChange={setShowAddSale}>
+    <Dialog open={showAddSale} onOpenChange={setShowAddSale}>
       <DialogTrigger asChild>
        <Button className="bg-emerald-700 hover:bg-emerald-800 shadow-lg shadow-emerald-700/20 transition-all hover:scale-105 active:scale-95 px-6 mr-2">
         <Plus className="w-4 h-4 " />
@@ -449,8 +472,9 @@ export function SalesGrid({
         </Button>
        </DialogFooter>
       </form>
-     </DialogContent>
-    </Dialog>
+    </DialogContent>
+   </Dialog>
+     </div>
     </div>
    </div>
 
@@ -472,6 +496,8 @@ export function SalesGrid({
   </div>
  );
 }
+
+
 
 
 

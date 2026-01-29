@@ -18,7 +18,7 @@ import {
   themeQuartz
 } from 'ag-grid-community';
 import { toast } from "@/lib/toast";
-import { Loader2, Plus } from 'lucide-react';
+import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { CatfishPond } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -65,6 +65,7 @@ export function CatfishPondGrid() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: '',
     capacityFish: '',
@@ -124,13 +125,52 @@ export function CatfishPondGrid() {
     setSubmitting(false);
   };
 
+  const handleDelete = async (pond: CatfishPond) => {
+    if (!confirm(`Delete pond "${pond.name}"? This cannot be undone.`)) return;
+    setDeletingId(pond.id);
+    const response = await fetch(`/api/catfish/ponds?id=${pond.id}`, { method: 'DELETE' });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      toast({
+        title: "Error",
+        description: payload.error || 'Failed to delete pond.',
+        variant: "destructive"
+      });
+    } else {
+      loadData();
+    }
+    setDeletingId(null);
+  };
+
   const colDefs = useMemo<ColDef<CatfishPond>[]>(() => [
     { field: 'name', headerName: 'Pond', minWidth: 160 },
     { field: 'capacityFish', headerName: 'Capacity', type: 'numericColumn', minWidth: 120 },
     { field: 'waterType', headerName: 'Water Type', minWidth: 140 },
     { field: 'status', headerName: 'Status', minWidth: 120 },
-    { field: 'createdAt', headerName: 'Created', minWidth: 160, valueFormatter: (p) => formatDateTime(p.value) }
-  ], []);
+    { field: 'createdAt', headerName: 'Created', minWidth: 160, valueFormatter: (p) => formatDateTime(p.value) },
+    {
+      headerName: "Actions",
+      width: 110,
+      pinned: 'right',
+      sortable: false,
+      filter: false,
+      cellRenderer: (params: any) => {
+        const pond = params.data as CatfishPond;
+        const isDeleting = deletingId === pond.id;
+        return (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 px-2 text-slate-500 hover:text-rose-600 hover:bg-transparent"
+            disabled={isDeleting}
+            onClick={() => handleDelete(pond)}
+          >
+            {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+          </Button>
+        );
+      }
+    }
+  ], [deletingId]);
 
   if (loading && rowData.length === 0) {
     return (

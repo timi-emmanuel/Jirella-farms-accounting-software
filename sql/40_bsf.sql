@@ -197,3 +197,11 @@ CREATE INDEX IF NOT EXISTS "BsfBatchFeedLog_batch_idx"
 CREATE INDEX IF NOT EXISTS "BsfProcessingRun_batch_idx"
   ON "BsfProcessingRun" ("batchId");
 
+ALTER TABLE "Sale"
+  ADD COLUMN IF NOT EXISTS "sourceUnit" TEXT;
+
+ALTER TABLE "Sale"
+  ADD COLUMN IF NOT EXISTS "productType" TEXT;
+
+ALTER TABLE "Sale"
+  ADD COLUMN IF NOT EXISTS "totalAmount" NUMERIC;

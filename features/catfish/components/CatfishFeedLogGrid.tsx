@@ -99,7 +99,23 @@ export function CatfishFeedLogGrid({ batchId, hideBatchColumn }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.batchId || !form.feedProductId) return;
+    if (!form.batchId || !form.feedProductId) {
+      toast({
+        title: "Missing fields",
+        description: "Please select a batch and feed product.",
+        variant: "destructive"
+      });
+      return;
+    }
+    const qty = Number(form.quantityKg || 0);
+    if (qty < 0) {
+      toast({
+        title: "Invalid feed",
+        description: "Feed quantity cannot be negative.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     setSubmitting(true);
     const response = await fetch('/api/catfish/feed-logs', {
@@ -135,7 +151,7 @@ export function CatfishFeedLogGrid({ batchId, hideBatchColumn }: Props) {
 
   const colDefs = useMemo<ColDef<CatfishFeedLog>[]>(() => {
     const cols: ColDef<CatfishFeedLog>[] = [
-      { field: 'date', headerName: 'Date', minWidth: 120 }
+      { field: 'date', headerName: 'Date', minWidth: 120, valueFormatter: (p: any) => new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-') }
     ];
     if (!hideBatchColumn) {
       cols.push({
@@ -227,7 +243,7 @@ export function CatfishFeedLogGrid({ batchId, hideBatchColumn }: Props) {
               </div>
               <div className="space-y-2">
                 <Label>Quantity (kg)</Label>
-                <Input type="number" step="0.01" value={form.quantityKg} onChange={(e) => setForm({ ...form, quantityKg: e.target.value })} />
+                <Input type="number" step="0.01" min="0" value={form.quantityKg} onChange={(e) => setForm({ ...form, quantityKg: e.target.value })} />
               </div>
               <DialogFooter>
                 <Button type="submit" disabled={submitting} className="w-full">

@@ -173,7 +173,41 @@ export function PoultryDailyLogGrid() {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.flockId) return;
+    if (!form.flockId) {
+      toast({
+        title: "Missing flock",
+        description: "Please select a flock before saving.",
+        variant: "destructive"
+      });
+      return;
+    }
+    const eggsCollected = Number(form.eggsCollected || 0);
+    const eggsDamaged = Number(form.eggsDamaged || 0);
+    const feedConsumed = Number(form.feedConsumedKg || 0);
+    if (eggsCollected < 0 || eggsDamaged < 0) {
+      toast({
+        title: "Invalid eggs",
+        description: "Eggs collected or damaged cannot be negative.",
+        variant: "destructive"
+      });
+      return;
+    }
+    if (feedConsumed < 0) {
+      toast({
+        title: "Invalid feed",
+        description: "Feed consumed cannot be negative.",
+        variant: "destructive"
+      });
+      return;
+    }
+    if (!form.feedProductId || Number(form.feedConsumedKg || 0) <= 0) {
+      toast({
+        title: "Missing feed",
+        description: "Please select a feed item and enter the amount consumed.",
+        variant: "destructive"
+      });
+      return;
+    }
     if (feedOver) {
       toast({
         title: "Error",
@@ -230,7 +264,8 @@ export function PoultryDailyLogGrid() {
     {
       field: "date",
       headerName: "Date",
-      minWidth: 120
+      minWidth: 120,
+      valueFormatter: (p: any) => new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-')
     },
     {
       headerName: "Flock",
@@ -336,6 +371,7 @@ export function PoultryDailyLogGrid() {
                   <Input
                     id="eggsCollected"
                     type="number"
+                    min="0"
                     value={form.eggsCollected}
                     onChange={(e) => setForm({ ...form, eggsCollected: e.target.value })}
                     required
@@ -346,6 +382,7 @@ export function PoultryDailyLogGrid() {
                   <Input
                     id="eggsDamaged"
                     type="number"
+                    min="0"
                     value={form.eggsDamaged}
                     onChange={(e) => setForm({ ...form, eggsDamaged: e.target.value })}
                   />
@@ -355,6 +392,7 @@ export function PoultryDailyLogGrid() {
                   <Input
                     id="mortality"
                     type="number"
+                    min="0"
                     value={form.mortality}
                     onChange={(e) => setForm({ ...form, mortality: e.target.value })}
                   />
@@ -369,11 +407,17 @@ export function PoultryDailyLogGrid() {
                       <SelectValue placeholder="Select feed item" />
                     </SelectTrigger>
                     <SelectContent>
-                      {feedItems.map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.name} (Avail: {Number(item.quantityOnHand || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} {item.unit})
-                        </SelectItem>
-                      ))}
+                      {feedItems.length === 0 ? (
+                        <div className="px-3 py-2 text-xs text-slate-500">
+                          No available feed in poultry inventory.
+                        </div>
+                      ) : (
+                        feedItems.map((item) => (
+                          <SelectItem key={item.id} value={item.id}>
+                            {item.name} (Avail: {Number(item.quantityOnHand || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} {item.unit})
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -383,6 +427,7 @@ export function PoultryDailyLogGrid() {
                     id="feedConsumed"
                     type="number"
                     step="0.01"
+                    min="0"
                     value={form.feedConsumedKg}
                     onChange={(e) => setForm({ ...form, feedConsumedKg: e.target.value })}
                   />

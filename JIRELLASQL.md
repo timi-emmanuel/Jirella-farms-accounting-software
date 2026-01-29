@@ -440,19 +440,6 @@ CREATE TABLE IF NOT EXISTS "Ingredient" (
   "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS "InventoryTransaction" (
-  "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  "ingredientId" UUID NOT NULL REFERENCES "Ingredient"("id") ON DELETE RESTRICT,
-  "type" "TransactionType" NOT NULL,
-  "quantity" DOUBLE PRECISION NOT NULL,
-  "unitPrice" DOUBLE PRECISION NOT NULL,
-  "totalValue" DOUBLE PRECISION NOT NULL,
-  "reference" TEXT,
-  "notes" TEXT,
-  "date" TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS "InventoryLedger" (
   "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   "itemId" UUID NOT NULL REFERENCES "Ingredient"("id") ON DELETE RESTRICT,
@@ -786,7 +773,6 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 ALTER TABLE "Ingredient" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "InventoryLedger" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "InventoryBalance" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "InventoryTransaction" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "TransferRequest" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "TransferRequestLine" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "ProcurementRequest" ENABLE ROW LEVEL SECURITY;
@@ -831,19 +817,6 @@ BEGIN
     CREATE POLICY "Enable read access for authenticated users"
     ON "InventoryBalance"
     FOR SELECT TO authenticated USING (true);
-  END IF;
-END$$;
-
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'InventoryTransaction'
-      AND policyname = 'Enable all for authenticated users'
-  ) THEN
-    CREATE POLICY "Enable all for authenticated users"
-    ON "InventoryTransaction"
-    FOR ALL USING (auth.role() = 'authenticated');
   END IF;
 END$$;
 
@@ -953,10 +926,6 @@ BEGIN
 END$$;
 
 -- Indexes
-CREATE INDEX IF NOT EXISTS "InventoryTransaction_ingredientId_idx"
-  ON "InventoryTransaction" ("ingredientId");
-CREATE INDEX IF NOT EXISTS "InventoryTransaction_createdAt_idx"
-  ON "InventoryTransaction" ("createdAt");
 CREATE INDEX IF NOT EXISTS "StoreRequest_status_idx"
   ON "StoreRequest" ("status");
 CREATE INDEX IF NOT EXISTS "StoreRequest_createdAt_idx"

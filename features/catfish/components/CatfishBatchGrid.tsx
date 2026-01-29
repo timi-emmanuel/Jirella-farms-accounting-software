@@ -18,7 +18,7 @@ import {
   CustomFilterModule,
   themeQuartz
 } from 'ag-grid-community';
-import { Info, Loader2, Plus } from 'lucide-react';
+import { Info, Loader2, Plus, Trash2 } from 'lucide-react';
 import { CatfishBatch, CatfishPond } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -61,6 +61,7 @@ export function CatfishBatchGrid() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [initialAgeApplied, setInitialAgeApplied] = useState(false);
   const [startDateTouched, setStartDateTouched] = useState(false);
   const [startDateBeforeApply, setStartDateBeforeApply] = useState<string | null>(null);
@@ -193,6 +194,23 @@ export function CatfishBatchGrid() {
     setSubmitting(false);
   };
 
+  const handleDelete = async (batch: CatfishBatch) => {
+    if (!confirm(`Delete batch "${batch.batchCode}"? This cannot be undone.`)) return;
+    setDeletingId(batch.id);
+    const response = await fetch(`/api/catfish/batches?id=${batch.id}`, { method: 'DELETE' });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      toast({
+        title: "Error",
+        description: payload.error || 'Failed to delete batch.',
+        variant: "destructive"
+      });
+    } else {
+      loadData();
+    }
+    setDeletingId(null);
+  };
+
   const colDefs = useMemo<ColDef<CatfishBatch>[]>(() => [
     {
       headerName: 'Batch Code',
@@ -205,7 +223,7 @@ export function CatfishBatchGrid() {
         </Link>
       )
     },
-    { field: 'startDate', headerName: 'Start Date', minWidth: 120 },
+    { field: 'startDate', headerName: 'Start Date', minWidth: 120, valueFormatter: (p: any) => new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-') },
     { headerName: 'Pond', minWidth: 140, valueGetter: (p: any) => p.data.pond?.name || 'Unknown' },
     { headerName: 'Age (wks)', minWidth: 120, valueGetter: (p: any) => getCatfishAgeWeeks(p.data.startDate) },
     { headerName: 'Stage', minWidth: 160, valueGetter: (p: any) => formatCatfishStage(getCatfishStage(p.data.startDate)) },
@@ -255,8 +273,30 @@ export function CatfishBatchGrid() {
         );
       }
     },
-    { field: 'notes', headerName: 'Notes', flex: 1.2, minWidth: 200, filter: false }
-  ], []);
+    { field: 'notes', headerName: 'Notes', flex: 1.2, minWidth: 200, filter: false },
+    {
+      headerName: "Actions",
+      width: 110,
+      pinned: 'right',
+      sortable: false,
+      filter: false,
+      cellRenderer: (params: any) => {
+        const batch = params.data as CatfishBatch;
+        const isDeleting = deletingId === batch.id;
+        return (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 px-2 text-slate-500 hover:text-rose-600 hover:bg-transparent"
+            disabled={isDeleting}
+            onClick={() => handleDelete(batch)}
+          >
+            {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+          </Button>
+        );
+      }
+    }
+  ], [deletingId]);
 
   if (loading && rowData.length === 0) {
     return (

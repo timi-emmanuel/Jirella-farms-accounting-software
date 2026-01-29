@@ -187,3 +187,140 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const auth = await getAuthContext();
+    if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!isRoleAllowed(auth.role, EDIT_ROLES)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'Missing log id' }, { status: 400 });
+
+    const admin = createAdminClient();
+    const { data: log, error: logError } = await admin
+      .from('BsfInsectoriumLog')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (logError || !log) {
+      return NextResponse.json({ error: 'Log not found' }, { status: 404 });
+    }
+
+    const { data: location } = await admin
+      .from('InventoryLocation')
+      .select('id')
+      .eq('code', 'BSF')
+      .single();
+
+    if (!location) {
+      return NextResponse.json({ error: 'BSF location not found' }, { status: 400 });
+    }
+
+    const { data: products } = await admin
+      .from('Product')
+      .select('id, name')
+      .eq('module', 'BSF')
+      .in('name', ['BSF Eggs', 'Pupae Shells', 'Dead Fly']);
+
+    const productMap = new Map((products || []).map((row: any) => [row.name, row.id]));
+    const eggsId = productMap.get('BSF Eggs');
+    const shellsId = productMap.get('Pupae Shells');
+    const deadFlyId = productMap.get('Dead Fly');
+
+    if (!eggsId || !shellsId || !deadFlyId) {
+      return NextResponse.json({ error: 'Missing BSF eggs/shells/dead fly product setup' }, { status: 400 });
+    }
+
+    const adjustInventory = async (productId: string, qty: number) => {
+      const { data: stock } = await admin
+        .from('FinishedGoodsInventory')
+        .select('quantityOnHand')
+        .eq('productId', productId)
+        .eq('locationId', location.id)
+        .single();
+
+      const currentQty = Number(stock?.quantityOnHand || 0);
+      if (currentQty < qty) {
+        return { error: `Cannot delete log: insufficient stock to reverse ${qty}.` };
+      }
+
+      const nextQty = roundTo2(currentQty - qty);
+      const { error: updateError } = await admin
+        .from('FinishedGoodsInventory')
+        .update({
+          quantityOnHand: nextQty,
+          updatedAt: new Date().toISOString()
+        })
+        .eq('productId', productId)
+        .eq('locationId', location.id);
+
+      if (updateError) {
+        return { error: updateError.message };
+      }
+
+      const { error: ledgerError } = await admin
+        .from('FinishedGoodsLedger')
+        .insert({
+          productId,
+          locationId: location.id,
+          type: 'ADJUSTMENT',
+          quantity: -qty,
+          unitCostAtTime: 0,
+          referenceType: 'BSF_INSECTORIUM_LOG_DELETE',
+          referenceId: id,
+          createdBy: auth.userId
+        });
+
+      if (ledgerError) {
+        return { error: ledgerError.message };
+      }
+
+      return { error: null };
+    };
+
+    const eggsQty = roundTo2(Number(log.eggsHarvestedGrams || 0));
+    const shellsQty = roundTo2(Number(log.pupaeShellsHarvestedKg || 0));
+    const deadFlyQty = roundTo2(Number(log.deadFlyKg || 0));
+
+    if (eggsQty > 0) {
+      const result = await adjustInventory(eggsId, eggsQty);
+      if (result.error) return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+    if (shellsQty > 0) {
+      const result = await adjustInventory(shellsId, shellsQty);
+      if (result.error) return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+    if (deadFlyQty > 0) {
+      const result = await adjustInventory(deadFlyId, deadFlyQty);
+      if (result.error) return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+
+    const { error: deleteError } = await admin
+      .from('BsfInsectoriumLog')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 400 });
+
+    await logActivityServer({
+      action: 'BSF_INSECTORIUM_LOG_DELETED',
+      entityType: 'BsfInsectoriumLog',
+      entityId: id,
+      description: 'Deleted BSF insectorium log',
+      metadata: { id },
+      userId: auth.userId,
+      userRole: auth.role,
+      ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip')
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('BSF insectorium delete error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

@@ -72,6 +72,9 @@ export async function POST(request: NextRequest) {
     if (collected < 0 || damaged < 0 || deaths < 0) {
       return NextResponse.json({ error: 'Values must be zero or greater' }, { status: 400 });
     }
+    if (feedKg < 0) {
+      return NextResponse.json({ error: 'Feed consumed must be zero or greater' }, { status: 400 });
+    }
     if (damaged > collected) {
       return NextResponse.json({ error: 'Damaged eggs cannot exceed collected' }, { status: 400 });
     }
@@ -193,6 +196,9 @@ export async function PUT(request: NextRequest) {
 
     if (collected < 0 || damaged < 0 || deaths < 0) {
       return NextResponse.json({ error: 'Values must be zero or greater' }, { status: 400 });
+    }
+    if (feedKg < 0) {
+      return NextResponse.json({ error: 'Feed consumed must be zero or greater' }, { status: 400 });
     }
     if (damaged > collected) {
       return NextResponse.json({ error: 'Damaged eggs cannot exceed collected' }, { status: 400 });

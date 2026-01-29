@@ -66,7 +66,7 @@ export function BsfBatchPnlGrid() {
   const colDefs = useMemo<ColDef<BatchRow>[]>(() => [
     { field: 'batchCode', headerName: 'Batch', minWidth: 140 },
     { field: 'status', headerName: 'Status', minWidth: 120 },
-    { field: 'startDate', headerName: 'Start Date', minWidth: 120 },
+    { field: 'startDate', headerName: 'Start Date', minWidth: 120, valueFormatter: (p: any) => new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-') },
     {
       field: 'revenue',
       headerName: 'Revenue (₦)',

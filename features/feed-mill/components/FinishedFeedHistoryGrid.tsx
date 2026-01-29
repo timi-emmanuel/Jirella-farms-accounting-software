@@ -117,7 +117,11 @@ export function FinishedFeedHistoryGrid() {
       field: "createdAt",
       headerName: "Date",
       minWidth: 160,
-      valueFormatter: (p: any) => new Date(p.value).toLocaleString()
+      valueFormatter: (p: any) => {
+        const parsed = new Date(p.value);
+        const datePart = parsed.toLocaleDateString('en-GB').replace(/\//g, '-');
+        return `${datePart} ${parsed.toLocaleTimeString()}`;
+      }
     },
     {
       field: "type",

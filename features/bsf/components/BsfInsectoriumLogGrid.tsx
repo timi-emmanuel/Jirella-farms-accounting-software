@@ -17,7 +17,7 @@ import {
   CustomFilterModule,
   themeQuartz
 } from 'ag-grid-community';
-import { Loader2, Plus } from 'lucide-react';
+import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { BsfInsectoriumLog } from '@/types';
 import { toast } from "@/lib/toast";
 import { Button } from '@/components/ui/button';
@@ -50,6 +50,7 @@ export function BsfInsectoriumLogGrid() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [form, setForm] = useState({
     date: new Date().toISOString().split('T')[0],
     pupaeLoadedKg: '',
@@ -114,14 +115,53 @@ export function BsfInsectoriumLogGrid() {
     setSubmitting(false);
   };
 
+  const handleDelete = async (log: BsfInsectoriumLog) => {
+    if (!confirm(`Delete insectorium log on ${log.date}? This cannot be undone.`)) return;
+    setDeletingId(log.id);
+    const response = await fetch(`/api/bsf/insectorium?id=${log.id}`, { method: 'DELETE' });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      toast({
+        title: "Error",
+        description: payload.error || 'Failed to delete log.',
+        variant: "destructive"
+      });
+    } else {
+      loadData();
+    }
+    setDeletingId(null);
+  };
+
   const colDefs = useMemo<ColDef<BsfInsectoriumLog>[]>(() => [
-    { field: 'date', headerName: 'Date', minWidth: 120 },
+    { field: 'date', headerName: 'Date', minWidth: 120, valueFormatter: (p: any) => new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-') },
     { field: 'pupaeLoadedKg', headerName: 'Pupae Loaded (kg)', type: 'numericColumn', minWidth: 160 },
     { field: 'eggsHarvestedGrams', headerName: 'Eggs Harvested (g)', type: 'numericColumn', minWidth: 170 },
     { field: 'pupaeShellsHarvestedKg', headerName: 'Pupae Shells (kg)', type: 'numericColumn', minWidth: 170 },
     { field: 'deadFlyKg', headerName: 'Dead Fly (kg)', type: 'numericColumn', minWidth: 140 },
-    { field: 'notes', headerName: 'Notes', flex: 1.5, minWidth: 200 }
-  ], []);
+    { field: 'notes', headerName: 'Notes', flex: 1.5, minWidth: 200 },
+    {
+      headerName: "Actions",
+      width: 110,
+      pinned: 'right',
+      sortable: false,
+      filter: false,
+      cellRenderer: (params: any) => {
+        const log = params.data as BsfInsectoriumLog;
+        const isDeleting = deletingId === log.id;
+        return (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 px-2 text-slate-500 hover:text-rose-600 hover:bg-transparent"
+            disabled={isDeleting}
+            onClick={() => handleDelete(log)}
+          >
+            {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+          </Button>
+        );
+      }
+    }
+  ], [deletingId]);
 
   if (loading && rowData.length === 0) {
     return (

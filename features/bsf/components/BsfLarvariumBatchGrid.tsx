@@ -19,7 +19,7 @@ import {
   themeQuartz
 } from 'ag-grid-community';
 import { toast } from "@/lib/toast";
-import { Loader2, Plus } from 'lucide-react';
+import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { BsfLarvariumBatch } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -58,6 +58,7 @@ export function BsfLarvariumBatchGrid() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [form, setForm] = useState({
     batchCode: '',
     startDate: new Date().toISOString().split('T')[0],
@@ -122,6 +123,23 @@ export function BsfLarvariumBatchGrid() {
     setSubmitting(false);
   };
 
+  const handleDelete = async (batch: BsfLarvariumBatch) => {
+    if (!confirm(`Delete batch "${batch.batchCode}"? This cannot be undone.`)) return;
+    setDeletingId(batch.id);
+    const response = await fetch(`/api/bsf/larvarium/batches?id=${batch.id}`, { method: 'DELETE' });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      toast({
+        title: "Error",
+        description: payload.error || 'Failed to delete batch.',
+        variant: "destructive"
+      });
+    } else {
+      loadData();
+    }
+    setDeletingId(null);
+  };
+
   const colDefs = useMemo<ColDef<BsfLarvariumBatch>[]>(() => [
     {
       headerName: 'Batch Code',
@@ -133,7 +151,7 @@ export function BsfLarvariumBatchGrid() {
         </Link>
       )
     },
-    { field: 'startDate', headerName: 'Start Date', minWidth: 120 },
+    { field: 'startDate', headerName: 'Start Date', minWidth: 120, valueFormatter: (p: any) => new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-') },
     { field: 'eggsGramsUsed', headerName: 'Eggs Used (g)', type: 'numericColumn', minWidth: 140 },
     {
       field: 'initialLarvaeWeightGrams',
@@ -142,10 +160,32 @@ export function BsfLarvariumBatchGrid() {
       minWidth: 120
     },
     { field: 'status', headerName: 'Status', minWidth: 120 },
-    { field: 'harvestDate', headerName: 'Harvest Date', minWidth: 120 },
+    { field: 'harvestDate', headerName: 'Harvest Date', minWidth: 120, valueFormatter: (p: any) => p.value ? new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-') : '' },
     { field: 'substrateMixRatio', headerName: 'Mix Ratio', flex: 1.2, minWidth: 180 },
-    { field: 'notes', headerName: 'Notes', flex: 1.4, minWidth: 200 }
-  ], []);
+    { field: 'notes', headerName: 'Notes', flex: 1.4, minWidth: 200 },
+    {
+      headerName: "Actions",
+      width: 110,
+      pinned: 'right',
+      sortable: false,
+      filter: false,
+      cellRenderer: (params: any) => {
+        const batch = params.data as BsfLarvariumBatch;
+        const isDeleting = deletingId === batch.id;
+        return (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 px-2 text-slate-500 hover:text-rose-600 hover:bg-transparent"
+            disabled={isDeleting}
+            onClick={() => handleDelete(batch)}
+          >
+            {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+          </Button>
+        );
+      }
+    }
+  ], [deletingId]);
 
   if (loading && rowData.length === 0) {
     return (
