@@ -1,301 +1,77 @@
-# Farm Management System — MVP Execution Guide
+# Jirella Farm Management System
 
-This README is a complete guide for building the Farm Management System
-from scratch to MVP.
+Modular monolith for farm operations with Supabase (Postgres + Auth) and Next.js.
 
-Follow this document step by step.  
-This is a **modular monolith**, not microservices.
+## What this project includes
 
----
+- Auth and role-based access via Supabase Auth + RLS
+- Inventory and store management
+- Feed mill module (recipes, production, transfers)
+- Poultry module (daily logs, expenses, internal feed purchase)
+- BSF module (insectorium + larvarium + processing)
+- Catfish module (ponds, batches, feed logs, harvests)
+- Activity logging and sales ledgering
 
-## 1. PROJECT GOAL
+## Tech stack
 
-Build an internal web application for farm operations with:
+- Next.js (App Router), React, TypeScript
+- Supabase (@supabase/ssr, @supabase/supabase-js)
+- Tailwind CSS, shadcn/ui, AG Grid
+- PostgreSQL schema managed by SQL scripts in `sql/`
 
-- Login system
-- User roles & role-based views
-- Excel-like editable tables (AG Grid)
-- Feed Mill module (Recipe Master, Ingredients, Batches)
-- Poultry module (more modules can be added later)
-- Accurate proceeds & cost calculations
-- Clean dashboard for daily use
+## Supabase dependency (important)
 
-Target: **Working MVP**, not over-engineered SaaS.
+This project depends on Supabase features:
 
----
+- `auth.users`, `auth.uid()` and `authenticated` role
+- RLS policies across tables
+- Supabase Auth for sessions and user management
 
-## 2. HIGH-LEVEL ARCHITECTURE
+Plain Postgres without Supabase Auth will not run the SQL or app without rework.
 
-Single repository, single application.
+## Environment variables
 
-Architecture style:
-- Modular monolith
-- Domain-based separation (auth, feed mill, poultry, sales)
-- Shared database
-- No microservices
+Set these in `.env.local` (do not commit secrets):
 
-Each Excel sheet maps to:
-- One domain
-- One database model (or set of related models)
-- One AG Grid-based UI
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
 
+## Database setup
 
----
+SQL scripts are idempotent and safe to rerun in order. Recommended order:
 
-## 3. FRONTEND STACK (KEEP IT SIMPLE)
+1. `sql/00_core.sql`
+2. `sql/10_store.sql`
+3. `sql/30_poultry.sql`
+4. `sql/20_feed-mill.sql`
+5. `sql/40_bsf.sql`
+6. `sql/50_catfish.sql`
 
-### Core
-- **Next.js (App Router)**
-- **React**
-- **TypeScript**
+Notes:
+- `sql/20_feed-mill.sql` contains a guarded backfill that only runs if
+  `FeedInternalPurchase` exists (defined in `sql/30_poultry.sql`).
+- `sql/40_bsf.sql` seeds BSF locations, products, and ingredients.
+- `sql/50_catfish.sql` extends roles and module checks for CATFISH.
 
-### UI & Styling
-- **Tailwind CSS**
-- **shadcn/ui** (for buttons, inputs, dialogs)
-- **AG Grid (Community)** for Excel-like tables
-State philosophy:
-- Server is source of truth
-- AG Grid manages table state
-- React Context used sparingly (auth, layout)
+## Running locally
 
+```powershell
+npm install
+npm run dev
+```
 
+## Useful docs
 
-### Do I need a design palette?
-Use:
-- Tailwind default colors
-- shadcn/ui default theme
-- Simple admin-dashboard look
+- `SQL.md` and `JIRELLASQL.md` for schema context
+- `FEEDMILL.md`, `POULTRY.md`, `BSF.md` for module notes
 
-Goal: **functional > beautiful**
+## Deployment / Docker
 
----
+The app can be containerized. Supabase can be:
 
-## 4. BACKEND STACK
+- Hosted (point the app to the hosted project), or
+- Self-hosted (run Supabase services alongside the app)
 
-- **Node.js** (via Next.js API routes)
-- **NextAuth (Auth.js)** for authentication
-- **Zod** for input validation
-- Business logic in plain TypeScript
-- Backend recalculations always override frontend values
-- Never trust client-submitted totals
-
-No separate backend service.
-
----
-
-## 5. DATABASE (BEST CHOICE, NO OVER-ENGINEERING)
-
-### Database
-**Supabase (PostgreSQL)**
-- Database hosted on Supabase
-- SQL-first schema
-- App-level business logic in Next.js
-
----
-
-## 6. AUTHENTICATION & USER ROLES
-
-### Authentication
-- Email + password login
-- Passwords hashed
-- Session-based auth (NextAuth)
-
-### Roles (MVP)
-- **ADMIN** → full access
-- **MANAGER** → operational access
-- **STAFF** → data entry only
-
-Role stored on `User` model.
-
----
-
-## 7. ROLE-BASED VIEWS (IMPORTANT)
-
-### UI Level
-- Hide tabs and actions based on role
-
-### Server Level
-- Protect API routes by role
-- Never trust frontend checks alone
-
-Example:
-- STAFF cannot see reports
-- ADMIN can manage users
-- MANAGER can view summaries
-
----
-
-## 8. MAIN NAVIGATION (MVP)
-
-
-
-
----
-
-## 9. EXCEL-LIKE TABLES (AG GRID)
-
-AG Grid replaces Excel.
-
-### Rules
-- Editable cells for input
-- Calculated columns are read-only
-- Totals calculated instantly in UI
-- Backend recalculates on save
-
-### Mental Mapping
-
-| Excel | App |
-|-----|-----|
-| Sheet | Page |
-| Cell | Grid cell |
-| Formula | JS function |
-| Save | API call |
-
-AG Grid is used for:
-- Recipe Master
-- Feed batches
-- Poultry daily records
-
----
-
-## 10. CALCULATIONS
-
-### Where calculations live
-
-
-Examples:
-- Feed cost
-- Batch cost
-- Total expenses
-- Proceeds / profit
-
-### Rules
-- UI calculation = feedback only
-- Backend calculation = source of truth
-- Always validate against Excel sheets
-- Store raw inputs only (quantities, prices, percentages)
-- Never store derived totals unless required for auditing
-
-
----
-
-## 11. DATABASE MODELS (MVP SCOPE)
-
-Initial MVP models (can evolve):
-- User
-- Ingredient
-- Recipe
-- RecipeItem
-- FeedBatch
-- PoultryFlock
-- PoultryDailyRecord
-- Expense
-- Sale
-
-
-Keep schemas simple. Add fields later.
-
----
-
-
----
-## DATA VALIDATION & AUDITABILITY
-
-- All financial calculations must be reproducible
-- Input changes must be traceable
-- Backend recalculates totals on every save
-- Future versions may include audit logs
-
-Goal:
-Numbers shown today must be explainable tomorrow.
-
-
-## File Structure
-app/
-├── (auth)/
-│   └── login/
-│       └── page.tsx
-├── dashboard/
-│   ├── page.tsx
-│   ├── feed-mill/
-│   │   ├── recipe-master/
-│   │   │   └── page.tsx
-│   │   ├── rm-inventory/
-│   │   │   └── page.tsx
-│   │   └── production/
-│   │       └── page.tsx
-│   │   ├── sales/
-│   │   │   └── page.tsx
-│   │   └── poultry/
-│   │       └── page.tsx   (future)
-├── api/
-│   ├── auth/
-│   ├── users/
-│   ├── feed-mill/
-│   └── inventory/
-├── features/
-│   ├── auth/
-│   │   ├── LoginForm.tsx
-│   │   └── auth.service.ts
-│   ├── dashboard/
-│   │   └── DashboardCards.tsx
-│   ├── feed-mill/
-│   │   ├── RecipeGrid.tsx
-│   │   ├── RMInventoryGrid.tsx
-│   │   ├── ProductionGrid.tsx
-│   │   └── feedMill.service.ts
-│   └── sales/
-│       └── SalesGrid.tsx
-├── components/
-│   ├── AppLayout.tsx
-│   ├── Sidebar.tsx
-│   ├── RoleGuard.tsx
-│   └── TableToolbar.tsx
-├── lib/
-│   ├── db.ts          # Prisma client
-│   ├── auth.ts        # NextAuth config
-│   ├── permissions.ts
-│   └── calculations/ # Excel formulas go here
-│       ├── recipe.ts
-│       ├── inventory.ts
-│       └── production.ts
-│
-├── constants/
-│   └── roles.ts
-│
-├── types/
-│   └── index.ts
-
-
-
-
-## 13. DEVELOPMENT RULES (DO NOT IGNORE)
-
-- One repo
-- No microservices
-- No premature optimization
-- Backend is source of truth
-- Build one feature fully before moving on
-- Validate numbers against Excel constantly
-
----
-
-## 14. MVP DEFINITION (DONE WHEN)
-
-- Users can log in
-- Roles work
-- Feed Mill tables behave like Excel
-- Poultry records can be entered
-- Proceeds can be calculated
-- Boss can use it daily
-
----
-
-## FINAL NOTE
-
-This project is not about fancy architecture.
-It is about **reliability, clarity, and usability**.
-
-Ship the MVP.
-Improve later.
+If you want a Dockerfile or compose setup, add it in `config/` or the repo root.
 
