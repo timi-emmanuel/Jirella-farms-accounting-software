@@ -60,12 +60,6 @@ Notes:
 npm install
 npm run dev
 ```
-
-## Useful docs
-
-- `SQL.md` and `JIRELLASQL.md` for schema context
-- `FEEDMILL.md`, `POULTRY.md`, `BSF.md` for module notes
-
 ## Deployment / Docker
 
 The app can be containerized. Supabase can be:
