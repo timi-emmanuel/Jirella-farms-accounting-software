@@ -464,6 +464,7 @@ BEGIN
       "quantitySold",
       "unitSellingPrice",
       "unitCostAtSale",
+      "saleType",
       "soldAt",
       "soldBy",
       "notes"
@@ -475,6 +476,7 @@ BEGIN
       c."quantitySold",
       c."unitSellingPrice",
       c."unitCostAtSale",
+      'INTERNAL',
       c."soldAt",
       c."soldBy",
       'Internal sale to ' || c.target_module

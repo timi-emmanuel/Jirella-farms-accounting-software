@@ -61,6 +61,16 @@ button{
   /* text-wrap: nowrap; */
 }
 
+.sales-grid .ag-header-cell-label {
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sales-grid .ag-header-cell-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .ag-cell  {
   text-align: center;
 }

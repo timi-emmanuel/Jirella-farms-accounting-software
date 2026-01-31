@@ -69,7 +69,10 @@ export function CatfishSalesGrid() {
     batchId: 'NONE',
     quantitySold: '',
     unitSellingPrice: '',
-    notes: ''
+    notes: '',
+    customerName: '',
+    customerContact: '',
+    customerAddress: ''
   });
 
   const loadData = async () => {
@@ -98,6 +101,10 @@ export function CatfishSalesGrid() {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.productId || Number(form.quantitySold) <= 0) return;
+    if (!form.customerName.trim()) {
+      toast({ title: "Missing customer", description: "Customer name is required for external sales.", variant: "destructive" });
+      return;
+    }
     const selectedProduct = products.find((p) => p.id === form.productId);
     if (selectedProduct && Number(form.quantitySold) > Number(selectedProduct.quantityOnHand || 0)) {
       toast({ title: "Error", description: "Insufficient stock for this sale.", variant: "destructive" });
@@ -114,7 +121,10 @@ export function CatfishSalesGrid() {
         unitSellingPrice: Number(form.unitSellingPrice),
         soldAt: form.soldAt,
         notes: form.notes,
-        batchId: form.batchId === 'NONE' ? null : form.batchId
+        batchId: form.batchId === 'NONE' ? null : form.batchId,
+        customerName: form.customerName,
+        customerContact: form.customerContact || null,
+        customerAddress: form.customerAddress || null
       })
     });
 
@@ -133,7 +143,10 @@ export function CatfishSalesGrid() {
         batchId: 'NONE',
         quantitySold: '',
         unitSellingPrice: '',
-        notes: ''
+        notes: '',
+        customerName: '',
+        customerContact: '',
+        customerAddress: ''
       });
       loadData();
     }
@@ -153,6 +166,33 @@ export function CatfishSalesGrid() {
         if (!batchId) return 'Unassigned';
         const matched = batches.find((batch) => batch.id === batchId);
         return matched?.batchCode || 'Unassigned';
+      }
+    },
+    {
+      headerName: 'Customer Name',
+      minWidth: 160,
+      valueGetter: (p: any) => {
+        const saleType = p.data.saleType ?? 'EXTERNAL';
+        if (saleType !== 'EXTERNAL') return '-';
+        return p.data.customerName || '-';
+      }
+    },
+    {
+      headerName: 'Contact',
+      minWidth: 140,
+      valueGetter: (p: any) => {
+        const saleType = p.data.saleType ?? 'EXTERNAL';
+        if (saleType !== 'EXTERNAL') return '-';
+        return p.data.customerContact || '-';
+      }
+    },
+    {
+      headerName: 'Address',
+      minWidth: 180,
+      valueGetter: (p: any) => {
+        const saleType = p.data.saleType ?? 'EXTERNAL';
+        if (saleType !== 'EXTERNAL') return '-';
+        return p.data.customerAddress || '-';
       }
     },
     { field: 'quantitySold', headerName: 'Quantity (kg)', type: 'numericColumn', minWidth: 120 },
@@ -249,6 +289,23 @@ export function CatfishSalesGrid() {
                   <Input type="number" step="0.01" value={form.unitSellingPrice} onChange={(e) => setForm({ ...form, unitSellingPrice: e.target.value })} />
                 </div>
               </div>              
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-slate-700">Customer Details</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Customer Name</Label>
+                    <Input value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Contact</Label>
+                    <Input value={form.customerContact} onChange={(e) => setForm({ ...form, customerContact: e.target.value })} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Address</Label>
+                  <Input value={form.customerAddress} onChange={(e) => setForm({ ...form, customerAddress: e.target.value })} />
+                </div>
+              </div>
               <DialogFooter>
                 <Button type="submit" disabled={submitting} className="w-full">
                   {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}

@@ -157,6 +157,10 @@ CREATE TABLE IF NOT EXISTS "Sale" (
   "quantitySold" NUMERIC NOT NULL,
   "unitSellingPrice" NUMERIC NOT NULL,
   "unitCostAtSale" NUMERIC NOT NULL DEFAULT 0,
+  "saleType" TEXT NOT NULL DEFAULT 'EXTERNAL',
+  "customerName" TEXT,
+  "customerContact" TEXT,
+  "customerAddress" TEXT,
   "sourceUnit" TEXT,
   "productType" TEXT,
   "totalAmount" NUMERIC,
@@ -219,6 +223,16 @@ ALTER TABLE "Sale"
   ADD COLUMN IF NOT EXISTS "productType" TEXT;
 ALTER TABLE "Sale"
   ADD COLUMN IF NOT EXISTS "totalAmount" NUMERIC;
+ALTER TABLE "Sale"
+  ADD COLUMN IF NOT EXISTS "saleType" TEXT;
+ALTER TABLE "Sale"
+  ADD COLUMN IF NOT EXISTS "customerName" TEXT;
+ALTER TABLE "Sale"
+  ADD COLUMN IF NOT EXISTS "customerContact" TEXT;
+ALTER TABLE "Sale"
+  ADD COLUMN IF NOT EXISTS "customerAddress" TEXT;
+ALTER TABLE "Sale"
+  ALTER COLUMN "saleType" SET DEFAULT 'EXTERNAL';
 
 -- Backfill location for finished goods and sales (idempotent)
 UPDATE "FinishedGoodsInventory" fgi
@@ -238,6 +252,14 @@ SET "locationId" = loc.id
 FROM "Product" p
 JOIN "InventoryLocation" loc ON loc."code" = p."module"
 WHERE s."productId" = p.id AND s."locationId" IS NULL;
+
+UPDATE "Sale"
+SET "saleType" = 'INTERNAL'
+WHERE "saleType" IS NULL AND "notes" ILIKE 'Internal sale to %';
+
+UPDATE "Sale"
+SET "saleType" = 'EXTERNAL'
+WHERE "saleType" IS NULL;
 
 -- Ensure FinishedGoodsLedger check constraint covers new types
 DO $$

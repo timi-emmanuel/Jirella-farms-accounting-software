@@ -69,7 +69,10 @@ export function BsfSalesGrid() {
     batchId: 'NONE',
     quantitySold: '',
     unitSellingPrice: '',
-    notes: ''
+    notes: '',
+    customerName: '',
+    customerContact: '',
+    customerAddress: ''
   });
 
   const loadData = async () => {
@@ -103,6 +106,10 @@ export function BsfSalesGrid() {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.productId || Number(form.quantitySold) <= 0) return;
+    if (!form.customerName.trim()) {
+      toast({ title: "Missing customer", description: "Customer name is required for external sales.", variant: "destructive" });
+      return;
+    }
 
     setSubmitting(true);
     const response = await fetch('/api/sales', {
@@ -114,7 +121,10 @@ export function BsfSalesGrid() {
         unitSellingPrice: Number(form.unitSellingPrice),
         soldAt: form.soldAt,
         notes: form.notes,
-        batchId: form.batchId === 'NONE' ? null : form.batchId
+        batchId: form.batchId === 'NONE' ? null : form.batchId,
+        customerName: form.customerName,
+        customerContact: form.customerContact || null,
+        customerAddress: form.customerAddress || null
       })
     });
 
@@ -133,7 +143,10 @@ export function BsfSalesGrid() {
         batchId: 'NONE',
         quantitySold: '',
         unitSellingPrice: '',
-        notes: ''
+        notes: '',
+        customerName: '',
+        customerContact: '',
+        customerAddress: ''
       });
       loadData();
     }
@@ -144,6 +157,33 @@ export function BsfSalesGrid() {
     { field: 'soldAt', headerName: 'Date', minWidth: 120, valueFormatter: (p: any) => new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-') },
     { headerName: 'Product', minWidth: 160, valueGetter: (p: any) => p.data.product?.name || 'Unknown' },
     { headerName: 'Batch', minWidth: 140, valueGetter: (p: any) => p.data.batch?.batchCode || 'Unassigned' },
+    {
+      headerName: 'Customer Name',
+      minWidth: 160,
+      valueGetter: (p: any) => {
+        const saleType = p.data.saleType ?? 'EXTERNAL';
+        if (saleType !== 'EXTERNAL') return '-';
+        return p.data.customerName || '-';
+      }
+    },
+    {
+      headerName: 'Contact',
+      minWidth: 140,
+      valueGetter: (p: any) => {
+        const saleType = p.data.saleType ?? 'EXTERNAL';
+        if (saleType !== 'EXTERNAL') return '-';
+        return p.data.customerContact || '-';
+      }
+    },
+    {
+      headerName: 'Address',
+      minWidth: 180,
+      valueGetter: (p: any) => {
+        const saleType = p.data.saleType ?? 'EXTERNAL';
+        if (saleType !== 'EXTERNAL') return '-';
+        return p.data.customerAddress || '-';
+      }
+    },
     { field: 'quantitySold', headerName: 'Quantity', type: 'numericColumn', minWidth: 120 },
     {
       field: 'unitSellingPrice',
@@ -234,6 +274,23 @@ export function BsfSalesGrid() {
               <div className="space-y-2">
                 <Label>Notes</Label>
                 <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+              </div>
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-slate-700">Customer Details</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Customer Name</Label>
+                    <Input value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Contact</Label>
+                    <Input value={form.customerContact} onChange={(e) => setForm({ ...form, customerContact: e.target.value })} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Address</Label>
+                  <Input value={form.customerAddress} onChange={(e) => setForm({ ...form, customerAddress: e.target.value })} />
+                </div>
               </div>
               <DialogFooter>
                 <Button type="submit" disabled={submitting} className="w-full">

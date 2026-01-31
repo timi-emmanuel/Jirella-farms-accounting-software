@@ -15,12 +15,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { flockId, quantitySold, unitSellingPrice, soldAt, notes } = await request.json();
+    const {
+      flockId,
+      quantitySold,
+      unitSellingPrice,
+      soldAt,
+      notes,
+      customerName,
+      customerContact,
+      customerAddress
+    } = await request.json();
     const qty = Math.floor(Number(quantitySold || 0));
     const price = roundTo2(Number(unitSellingPrice || 0));
 
     if (!flockId || qty <= 0 || price <= 0) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    }
+    const normalizedCustomerName = typeof customerName === 'string' ? customerName.trim() : '';
+    const normalizedCustomerContact = typeof customerContact === 'string' && customerContact.trim()
+      ? customerContact.trim()
+      : null;
+    const normalizedCustomerAddress = typeof customerAddress === 'string' && customerAddress.trim()
+      ? customerAddress.trim()
+      : null;
+
+    if (!normalizedCustomerName) {
+      return NextResponse.json({ error: 'Customer name is required for external sales' }, { status: 400 });
     }
 
     const admin = createAdminClient();
@@ -96,6 +116,10 @@ export async function POST(request: NextRequest) {
         quantitySold: qty,
         unitSellingPrice: price,
         unitCostAtSale: 0,
+        saleType: 'EXTERNAL',
+        customerName: normalizedCustomerName,
+        customerContact: normalizedCustomerContact,
+        customerAddress: normalizedCustomerAddress,
         soldAt: soldAt ?? new Date().toISOString().split('T')[0],
         soldBy: auth.userId,
         notes: notes ? `Flock: ${flock.name}. ${notes}` : `Flock: ${flock.name}`

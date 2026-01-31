@@ -43,7 +43,10 @@ export function PoultryBirdSaleCard({ onSaleSaved, buttonClassName }: Props) {
     quantitySold: '',
     unitSellingPrice: '',
     soldAt: new Date().toISOString().split('T')[0],
-    notes: ''
+    notes: '',
+    customerName: '',
+    customerContact: '',
+    customerAddress: ''
   });
 
   const loadFlocks = async () => {
@@ -84,6 +87,10 @@ export function PoultryBirdSaleCard({ onSaleSaved, buttonClassName }: Props) {
       toast({ title: "Insufficient birds", description: "Sale exceeds flock current count.", variant: "destructive" });
       return;
     }
+    if (!form.customerName.trim()) {
+      toast({ title: "Missing customer", description: "Customer name is required for external sales.", variant: "destructive" });
+      return;
+    }
 
     setLoading(true);
     const response = await fetch('/api/poultry/bird-sales', {
@@ -94,7 +101,10 @@ export function PoultryBirdSaleCard({ onSaleSaved, buttonClassName }: Props) {
         quantitySold: qty,
         unitSellingPrice: Number(form.unitSellingPrice || 0),
         soldAt: form.soldAt,
-        notes: form.notes
+        notes: form.notes,
+        customerName: form.customerName,
+        customerContact: form.customerContact || null,
+        customerAddress: form.customerAddress || null
       })
     });
 
@@ -113,7 +123,10 @@ export function PoultryBirdSaleCard({ onSaleSaved, buttonClassName }: Props) {
         quantitySold: '',
         unitSellingPrice: '',
         soldAt: new Date().toISOString().split('T')[0],
-        notes: ''
+        notes: '',
+        customerName: '',
+        customerContact: '',
+        customerAddress: ''
       });
       await loadFlocks();
       if (onSaleSaved) onSaleSaved();
@@ -205,6 +218,37 @@ export function PoultryBirdSaleCard({ onSaleSaved, buttonClassName }: Props) {
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
               placeholder="Optional notes"
             />
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-slate-700">Customer Details</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="customerName">Customer Name</Label>
+                <Input
+                  id="customerName"
+                  value={form.customerName}
+                  onChange={(e) => setForm({ ...form, customerName: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="customerContact">Contact</Label>
+                <Input
+                  id="customerContact"
+                  value={form.customerContact}
+                  onChange={(e) => setForm({ ...form, customerContact: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="customerAddress">Address</Label>
+              <Input
+                id="customerAddress"
+                value={form.customerAddress}
+                onChange={(e) => setForm({ ...form, customerAddress: e.target.value })}
+              />
+            </div>
           </div>
 
           <DialogFooter>

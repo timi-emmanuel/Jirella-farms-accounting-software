@@ -36,9 +36,30 @@ export async function POST(request: NextRequest) {
    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const { productId, quantitySold, unitSellingPrice, soldAt, notes, batchId } = await request.json();
+  const {
+   productId,
+   quantitySold,
+   unitSellingPrice,
+   soldAt,
+   notes,
+   batchId,
+   customerName,
+   customerContact,
+   customerAddress
+  } = await request.json();
   if (!productId || !quantitySold || Number(quantitySold) <= 0 || unitSellingPrice === undefined) {
    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+  }
+  const normalizedCustomerName = typeof customerName === 'string' ? customerName.trim() : '';
+  const normalizedCustomerContact = typeof customerContact === 'string' && customerContact.trim()
+   ? customerContact.trim()
+   : null;
+  const normalizedCustomerAddress = typeof customerAddress === 'string' && customerAddress.trim()
+   ? customerAddress.trim()
+   : null;
+
+  if (!normalizedCustomerName) {
+   return NextResponse.json({ error: 'Customer name is required for external sales' }, { status: 400 });
   }
 
   const admin = createAdminClient();
@@ -86,6 +107,10 @@ export async function POST(request: NextRequest) {
     quantitySold: qty,
     unitSellingPrice: roundTo2(Number(unitSellingPrice)),
     unitCostAtSale,
+    saleType: 'EXTERNAL',
+    customerName: normalizedCustomerName,
+    customerContact: normalizedCustomerContact,
+    customerAddress: normalizedCustomerAddress,
     sourceUnit: product.module === 'BSF'
       ? (['BSF Eggs', 'Pupae Shells', 'Dead Fly'].includes(product.name) ? 'INSECTORIUM' : 'LARVARIUM')
       : null,

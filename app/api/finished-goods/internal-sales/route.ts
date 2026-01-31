@@ -85,6 +85,10 @@ export async function POST(request: NextRequest) {
         quantitySold: unitsSold,
         unitSellingPrice,
         unitCostAtSale,
+        saleType: 'INTERNAL',
+        customerName: null,
+        customerContact: null,
+        customerAddress: null,
         soldAt,
         soldBy: auth.userId,
         notes: `Internal sale to ${moduleTarget}`

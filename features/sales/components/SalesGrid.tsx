@@ -87,7 +87,10 @@ export function SalesGrid({
   quantitySold: '',
   unitSellingPrice: '',
   soldAt: new Date().toISOString().split('T')[0],
-  notes: ''
+  notes: '',
+  customerName: '',
+  customerContact: '',
+  customerAddress: ''
  });
 
  const [newProduct, setNewProduct] = useState({
@@ -127,6 +130,10 @@ export function SalesGrid({
  const handleAddSale = async (e: React.FormEvent) => {
   e.preventDefault();
  if (!newSale.productId || Number(newSale.quantitySold) <= 0) return;
+  if (!newSale.customerName.trim()) {
+   toast({ title: "Missing customer", description: "Customer name is required for external sales.", variant: "destructive" });
+   return;
+  }
  if (selectedProduct && Number(newSale.quantitySold) > Number(selectedProduct.quantityOnHand || 0)) {
    toast({ title: "Error", description: "Insufficient stock for this sale.", variant: "destructive" });
    return;
@@ -141,7 +148,10 @@ export function SalesGrid({
     quantitySold: Number(newSale.quantitySold),
     unitSellingPrice: Number(newSale.unitSellingPrice),
     soldAt: newSale.soldAt,
-    notes: newSale.notes
+    notes: newSale.notes,
+    customerName: newSale.customerName,
+    customerContact: newSale.customerContact || null,
+    customerAddress: newSale.customerAddress || null
    })
   });
 
@@ -159,7 +169,10 @@ export function SalesGrid({
     quantitySold: '',
     unitSellingPrice: '',
     soldAt: new Date().toISOString().split('T')[0],
-    notes: ''
+    notes: '',
+    customerName: '',
+    customerContact: '',
+    customerAddress: ''
    });
    loadSales(moduleFilter);
   }
@@ -224,6 +237,36 @@ export function SalesGrid({
    headerName: "Module",
    width: 120,
    filter: true
+  },
+  {
+   headerName: "Customer Name",
+   flex: 1.4,
+   minWidth: 160,
+   valueGetter: (p: any) => {
+    const saleType = p.data.saleType ?? 'EXTERNAL';
+    if (saleType !== 'EXTERNAL') return '-';
+    return p.data.customerName || '-';
+   }
+  },
+  {
+   headerName: "Contact",
+   flex: 1.2,
+   minWidth: 140,
+   valueGetter: (p: any) => {
+    const saleType = p.data.saleType ?? 'EXTERNAL';
+    if (saleType !== 'EXTERNAL') return '-';
+    return p.data.customerContact || '-';
+   }
+  },
+  {
+   headerName: "Address",
+   flex: 1.6,
+   minWidth: 180,
+   valueGetter: (p: any) => {
+    const saleType = p.data.saleType ?? 'EXTERNAL';
+    if (saleType !== 'EXTERNAL') return '-';
+    return p.data.customerAddress || '-';
+   }
   },
   {
    field: "quantitySold",
@@ -308,7 +351,7 @@ export function SalesGrid({
  }
 
  return (
-  <div className="flex flex-col h-full space-y-4">
+  <div className="flex flex-col h-full space-y-4 sales-grid">
    <div className="flex flex-wrap items-center justify-between gap-3">
     {showModuleFilter ? (
      <Select value={moduleFilter} onValueChange={(value: ModuleFilter) => setModuleFilter(value)}>
@@ -465,6 +508,37 @@ export function SalesGrid({
         />
        </div>
 
+       <div className="space-y-3">
+        <p className="text-sm font-semibold text-slate-700">Customer Details</p>
+        <div className="grid grid-cols-2 gap-4">
+         <div className="space-y-2">
+          <Label htmlFor="customerName">Customer Name</Label>
+          <Input
+           id="customerName"
+           value={newSale.customerName}
+           onChange={(e) => setNewSale({ ...newSale, customerName: e.target.value })}
+           required
+          />
+         </div>
+         <div className="space-y-2">
+          <Label htmlFor="customerContact">Contact</Label>
+          <Input
+           id="customerContact"
+           value={newSale.customerContact}
+           onChange={(e) => setNewSale({ ...newSale, customerContact: e.target.value })}
+          />
+         </div>
+        </div>
+        <div className="space-y-2">
+         <Label htmlFor="customerAddress">Address</Label>
+         <Input
+          id="customerAddress"
+          value={newSale.customerAddress}
+          onChange={(e) => setNewSale({ ...newSale, customerAddress: e.target.value })}
+         />
+        </div>
+       </div>
+
        <DialogFooter>
         <Button type="submit" disabled={submitting} className="w-full bg-emerald-700 hover:bg-emerald-800 py-6 text-base font-semibold transition-all">
          {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <TrendingUp className="w-4 h-4 mr-2" />}
@@ -486,8 +560,8 @@ export function SalesGrid({
      defaultColDef={{
       sortable: true,
       filter: true,
-      wrapHeaderText: true,
-      autoHeaderHeight: true,
+      wrapHeaderText: false,
+      autoHeaderHeight: false,
      }}
      pagination={true}
      paginationPageSize={20}

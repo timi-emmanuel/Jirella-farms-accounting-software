@@ -168,6 +168,10 @@ export interface Sale {
  quantitySold: number;
  unitSellingPrice: number;
  unitCostAtSale: number;
+ saleType?: 'EXTERNAL' | 'INTERNAL';
+ customerName?: string | null;
+ customerContact?: string | null;
+ customerAddress?: string | null;
  sourceUnit?: string | null;
  productType?: string | null;
  totalAmount?: number | null;
