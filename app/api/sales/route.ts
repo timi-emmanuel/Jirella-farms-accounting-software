@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
   }
   const normalizedCustomerName = typeof customerName === 'string' ? customerName.trim() : '';
   const normalizedCustomerContact = typeof customerContact === 'string' && customerContact.trim()
-   ? customerContact.trim()
+   ? customerContact.replace(/\D/g, '')
    : null;
   const normalizedCustomerAddress = typeof customerAddress === 'string' && customerAddress.trim()
    ? customerAddress.trim()
@@ -60,6 +60,9 @@ export async function POST(request: NextRequest) {
 
   if (!normalizedCustomerName) {
    return NextResponse.json({ error: 'Customer name is required for external sales' }, { status: 400 });
+  }
+  if (normalizedCustomerContact && !/^\d{11}$/.test(normalizedCustomerContact)) {
+   return NextResponse.json({ error: 'Customer contact must be an 11 digit number' }, { status: 400 });
   }
 
   const admin = createAdminClient();

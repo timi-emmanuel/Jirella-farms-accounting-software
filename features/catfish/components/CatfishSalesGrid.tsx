@@ -105,6 +105,11 @@ export function CatfishSalesGrid() {
       toast({ title: "Missing customer", description: "Customer name is required for external sales.", variant: "destructive" });
       return;
     }
+    const contactDigits = form.customerContact.replace(/\D/g, '');
+    if (contactDigits && !/^\d{11}$/.test(contactDigits)) {
+      toast({ title: "Invalid contact", description: "Contact must be an 11 digit number.", variant: "destructive" });
+      return;
+    }
     const selectedProduct = products.find((p) => p.id === form.productId);
     if (selectedProduct && Number(form.quantitySold) > Number(selectedProduct.quantityOnHand || 0)) {
       toast({ title: "Error", description: "Insufficient stock for this sale.", variant: "destructive" });
@@ -123,7 +128,7 @@ export function CatfishSalesGrid() {
         notes: form.notes,
         batchId: form.batchId === 'NONE' ? null : form.batchId,
         customerName: form.customerName,
-        customerContact: form.customerContact || null,
+        customerContact: contactDigits || null,
         customerAddress: form.customerAddress || null
       })
     });
@@ -298,7 +303,16 @@ export function CatfishSalesGrid() {
                   </div>
                   <div className="space-y-2">
                     <Label>Contact</Label>
-                    <Input value={form.customerContact} onChange={(e) => setForm({ ...form, customerContact: e.target.value })} />
+                    <Input
+                      value={form.customerContact}
+                      inputMode="numeric"
+                      maxLength={11}
+                      placeholder="11-digit number"
+                      onChange={(e) => {
+                        const next = e.target.value.replace(/\D/g, '').slice(0, 11);
+                        setForm({ ...form, customerContact: next });
+                      }}
+                    />
                   </div>
                 </div>
                 <div className="space-y-2">

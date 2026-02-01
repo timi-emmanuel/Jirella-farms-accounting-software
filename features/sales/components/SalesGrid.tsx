@@ -134,6 +134,11 @@ export function SalesGrid({
    toast({ title: "Missing customer", description: "Customer name is required for external sales.", variant: "destructive" });
    return;
   }
+  const contactDigits = newSale.customerContact.replace(/\D/g, '');
+  if (contactDigits && !/^\d{11}$/.test(contactDigits)) {
+   toast({ title: "Invalid contact", description: "Contact must be an 11 digit number.", variant: "destructive" });
+   return;
+  }
  if (selectedProduct && Number(newSale.quantitySold) > Number(selectedProduct.quantityOnHand || 0)) {
    toast({ title: "Error", description: "Insufficient stock for this sale.", variant: "destructive" });
    return;
@@ -150,7 +155,7 @@ export function SalesGrid({
     soldAt: newSale.soldAt,
     notes: newSale.notes,
     customerName: newSale.customerName,
-    customerContact: newSale.customerContact || null,
+    customerContact: contactDigits || null,
     customerAddress: newSale.customerAddress || null
    })
   });
@@ -172,9 +177,10 @@ export function SalesGrid({
     notes: '',
     customerName: '',
     customerContact: '',
-    customerAddress: ''
+   customerAddress: ''
    });
    loadSales(moduleFilter);
+   loadProducts(moduleFilter);
   }
   setSubmitting(false);
  };
@@ -274,6 +280,7 @@ export function SalesGrid({
    type: 'numericColumn',
    filter: false,
    flex: 1,
+   minWidth: 160,
    valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   },
   {
@@ -281,6 +288,7 @@ export function SalesGrid({
    headerName: "Unit Price (₦)",
    type: 'numericColumn',
    flex: 1,
+   minWidth: 160,
    filter: false,
    valueFormatter: (p: any) => `${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
   },
@@ -289,6 +297,7 @@ export function SalesGrid({
    type: 'numericColumn',
    filter: false,
    flex: 1,
+   minWidth: 160,
    valueGetter: (p: any) => Number(p.data.quantitySold) * Number(p.data.unitSellingPrice),
    valueFormatter: (p: any) => ` ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
   },
@@ -299,6 +308,7 @@ export function SalesGrid({
       type: 'numericColumn',
       filter: false,
       flex: 1,
+      minWidth: 160,
       valueGetter: (p: any) => Number(p.data.quantitySold) * Number(p.data.unitCostAtSale || 0),
       valueFormatter: (p: any) => ` ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
     }]),
@@ -309,6 +319,7 @@ export function SalesGrid({
       type: 'numericColumn',
       filter: false,
       flex: 1,
+      minWidth: 180,
       valueGetter: (p: any) => {
         const rev = Number(p.data.quantitySold) * Number(p.data.unitSellingPrice);
         const cogs = Number(p.data.quantitySold) * Number(p.data.unitCostAtSale || 0);
@@ -327,6 +338,7 @@ export function SalesGrid({
       headerName: "Current Stock",
       type: 'numericColumn',
       flex: 1,
+      minWidth: 160,
       filter: false,
       valueGetter: (p: any) => {
         const product = stockByProductId.get(p.data.productId);
@@ -520,12 +532,18 @@ export function SalesGrid({
            required
           />
          </div>
-         <div className="space-y-2">
+        <div className="space-y-2">
           <Label htmlFor="customerContact">Contact</Label>
           <Input
            id="customerContact"
            value={newSale.customerContact}
-           onChange={(e) => setNewSale({ ...newSale, customerContact: e.target.value })}
+           inputMode="numeric"
+           maxLength={11}
+           placeholder="11-digit number"
+           onChange={(e) => {
+            const next = e.target.value.replace(/\D/g, '').slice(0, 11);
+            setNewSale({ ...newSale, customerContact: next });
+           }}
           />
          </div>
         </div>
@@ -562,6 +580,7 @@ export function SalesGrid({
       filter: true,
       wrapHeaderText: false,
       autoHeaderHeight: false,
+      minWidth: 140,
      }}
      pagination={true}
      paginationPageSize={20}

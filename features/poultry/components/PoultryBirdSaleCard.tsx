@@ -91,6 +91,11 @@ export function PoultryBirdSaleCard({ onSaleSaved, buttonClassName }: Props) {
       toast({ title: "Missing customer", description: "Customer name is required for external sales.", variant: "destructive" });
       return;
     }
+    const contactDigits = form.customerContact.replace(/\D/g, '');
+    if (contactDigits && !/^\d{11}$/.test(contactDigits)) {
+      toast({ title: "Invalid contact", description: "Contact must be an 11 digit number.", variant: "destructive" });
+      return;
+    }
 
     setLoading(true);
     const response = await fetch('/api/poultry/bird-sales', {
@@ -103,7 +108,7 @@ export function PoultryBirdSaleCard({ onSaleSaved, buttonClassName }: Props) {
         soldAt: form.soldAt,
         notes: form.notes,
         customerName: form.customerName,
-        customerContact: form.customerContact || null,
+        customerContact: contactDigits || null,
         customerAddress: form.customerAddress || null
       })
     });
@@ -237,7 +242,13 @@ export function PoultryBirdSaleCard({ onSaleSaved, buttonClassName }: Props) {
                 <Input
                   id="customerContact"
                   value={form.customerContact}
-                  onChange={(e) => setForm({ ...form, customerContact: e.target.value })}
+                  inputMode="numeric"
+                  maxLength={11}
+                  placeholder="11-digit number"
+                  onChange={(e) => {
+                    const next = e.target.value.replace(/\D/g, '').slice(0, 11);
+                    setForm({ ...form, customerContact: next });
+                  }}
                 />
               </div>
             </div>

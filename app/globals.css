@@ -56,19 +56,17 @@ button{
 }
 
 .ag-header-cell-label {
-  white-space: wrap;
+  white-space: nowrap;
   text-align: center;
-  /* text-wrap: nowrap; */
 }
 
-.sales-grid .ag-header-cell-label {
+.ag-header-cell-text {
   white-space: nowrap;
-  overflow: hidden;
 }
-.sales-grid .ag-header-cell-text {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+
+.ag-header-viewport,
+.ag-body-viewport {
+  overflow-x: auto !important;
 }
 
 .ag-cell  {
