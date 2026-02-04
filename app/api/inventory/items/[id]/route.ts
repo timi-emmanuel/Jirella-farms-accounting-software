@@ -3,15 +3,15 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthContext, isRoleAllowed } from '@/lib/server/auth';
 import { logActivityServer } from '@/lib/server/activity-log';
 
-export async function PATCH(request: NextRequest, context: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
  try {
+  const { id } = await context.params;
   const auth = await getAuthContext();
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (!isRoleAllowed(auth.role, ['ADMIN', 'STORE_KEEPER'])) {
    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const { id } = context.params;
   const { name, description, unit, trackInFeedMill } = await request.json();
 
   if (!id) {
@@ -58,18 +58,15 @@ export async function PATCH(request: NextRequest, context: { params: { id: strin
  }
 }
 
-export async function DELETE(request: NextRequest, context: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
  try {
+  const { id } = await context.params;
   const auth = await getAuthContext();
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (!isRoleAllowed(auth.role, ['ADMIN', 'STORE_KEEPER'])) {
    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const pathname = new URL(request.url).pathname;
-  const pathParts = pathname.split('/').filter(Boolean);
-  const idFromPath = pathParts.length >= 4 ? pathParts[3] : null;
-  const id = (context.params?.id ?? idFromPath)?.trim();
   if (!id) {
    return NextResponse.json({ error: 'Missing item id' }, { status: 400 });
   }
