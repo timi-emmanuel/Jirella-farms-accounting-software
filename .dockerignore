@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+*.log
+.env.local
+.env.*.local
+bin
+dist
+coverage
+.nyc_output
+.cache
+.parcel-cache
+.DS_Store
+*.tgz
+*.tar.gz
