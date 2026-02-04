@@ -165,9 +165,12 @@ jobs:
       - name: Set up SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.GCP_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
+          chmod 700 ~/.ssh
           ssh-keyscan -H ${{ secrets.STAGING_SERVER_IP }} >> ~/.ssh/known_hosts
+          # Test SSH connection
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_IP }} 'echo "SSH connection successful"'
 
       - name: Prepare deployment files
         run: |
@@ -182,22 +185,23 @@ jobs:
       - name: Deploy to GCP server
         run: |
           # Create directory on server
-          ssh -o StrictHostKeyChecking=no ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_IP }} 'mkdir -p ~/jirella-farm/'
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_IP }} 'mkdir -p ~/jirella-farm/'
           
           # Copy all source files to server for local build
-          tar --exclude='.git' --exclude='node_modules'  -czf /tmp/source.tar.gz .
-          scp -o StrictHostKeyChecking=no /tmp/source.tar.gz ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_IP }}:~/jirella-farm/
-          ssh -o StrictHostKeyChecking=no ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_IP }} 'cd ~/jirella-farm/ && tar -xzf source.tar.gz && rm source.tar.gz'
+          tar --exclude='.git' --exclude='node_modules' --exclude='.next' -czf /tmp/source.tar.gz .
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=30 /tmp/source.tar.gz ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_IP }}:~/jirella-farm/
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_IP }} 'cd ~/jirella-farm/ && tar -xzf source.tar.gz && rm source.tar.gz'
           
-          # Login to GitHub Container Registry on server and execute deployment
-          ssh -o StrictHostKeyChecking=no ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_IP }} '
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          # Execute deployment
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_IP }} '
             cd ~/jirella-farm/
             echo "Current directory: $(pwd)"
             echo "Files in directory:"
             ls -la
             echo "Checking for Dockerfile:"
             ls -la Dockerfile || echo "Dockerfile not found"
+            echo "Checking for docker-compose.yml:"
+            ls -la docker-compose.yml || echo "docker-compose.yml not found"
             chmod +x deploy.sh
             bash deploy.sh
           '
