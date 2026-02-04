@@ -3,15 +3,15 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthContext, isRoleAllowed } from '@/lib/server/auth';
 import { logActivityServer } from '@/lib/server/activity-log';
 
-export async function POST(request: NextRequest, context: { params: { id: string } }) {
+export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
  try {
+  const { id } = await context.params;
   const auth = await getAuthContext();
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (!isRoleAllowed(auth.role, ['ADMIN', 'PROCUREMENT_MANAGER'])) {
    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const { id } = context.params;
   const admin = createAdminClient();
 
   const { data: requestRow, error: fetchError } = await admin
