@@ -10,6 +10,10 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+
+# Copy .env file for build-time environment variables
+COPY .env .env
+
 RUN npm run build
 
 FROM base AS runner
@@ -22,6 +26,8 @@ RUN mkdir .next
 RUN chown nextjs:nodejs .next
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Copy .env for runtime
+COPY --from=builder /app/.env ./
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000
