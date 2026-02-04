@@ -187,19 +187,20 @@ jobs:
           # Create directory on server
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_IP }} 'mkdir -p ~/jirella-farm/'
           
-          # Create a clean copy for deployment
-          mkdir -p /tmp/deploy
-          rsync -av --exclude='.git' --exclude='node_modules' --exclude='.next' --exclude='*.tar.gz' . /tmp/deploy/
+          # Create a clean copy for deployment in workspace
+          mkdir -p ./deploy-temp
+          rsync -av --exclude='.git' --exclude='node_modules' --exclude='.next' --exclude='*.tar.gz' --exclude='deploy-temp' . ./deploy-temp/
           
           # Create tar from clean copy
-          cd /tmp/deploy
+          cd ./deploy-temp
           tar -czf ../source.tar.gz .
+          cd ..
           
           # Copy to server
-          scp -o StrictHostKeyChecking=no -o ConnectTimeout=30 /tmp/source.tar.gz ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_IP }}:~/jirella-farm/
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=30 ./source.tar.gz ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_IP }}:~/jirella-farm/
           
           # Clean up local files
-          rm -rf /tmp/deploy /tmp/source.tar.gz
+          rm -rf ./deploy-temp ./source.tar.gz
           
           # Extract and deploy on server
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_IP }} 'cd ~/jirella-farm/ && tar -xzf source.tar.gz && rm source.tar.gz'
