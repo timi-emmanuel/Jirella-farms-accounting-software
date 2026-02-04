@@ -38,4 +38,8 @@ docker compose up -d --build
 echo "Running containers:"
 docker ps
 
+# Show container logs
+echo "Container logs:"
+docker compose logs --tail=50
+
 echo "Deployment completed successfully"
