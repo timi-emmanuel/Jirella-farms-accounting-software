@@ -6,8 +6,9 @@ import { logActivityServer } from '@/lib/server/activity-log';
 const VIEW_ROLES = ['ADMIN', 'MANAGER', 'BSF_STAFF', 'ACCOUNTANT'];
 const EDIT_ROLES = ['ADMIN', 'MANAGER', 'BSF_STAFF'];
 
-export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const auth = await getAuthContext();
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!isRoleAllowed(auth.role, VIEW_ROLES)) {
@@ -18,7 +19,7 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
     const { data, error } = await admin
       .from('BsfLarvariumBatch')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
@@ -29,8 +30,9 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const auth = await getAuthContext();
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!isRoleAllowed(auth.role, EDIT_ROLES)) {
@@ -50,7 +52,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const { data, error } = await admin
       .from('BsfLarvariumBatch')
       .update(updates)
-      .eq('id', params.id)
+      .eq('id', id)
       .select('*')
       .single();
 
@@ -59,7 +61,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     await logActivityServer({
       action: 'BSF_BATCH_UPDATED',
       entityType: 'BsfLarvariumBatch',
-      entityId: params.id,
+      entityId: id,
       description: 'BSF batch updated',
       metadata: updates,
       userId: auth.userId,

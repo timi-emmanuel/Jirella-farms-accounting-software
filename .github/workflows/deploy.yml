@@ -151,7 +151,7 @@ jobs:
   deploy:
     needs: [version]
     runs-on: [self-hosted, linux, x64]
-    environment: GCP CI
+    #environment: GCP CI
     if: github.ref == 'refs/heads/main' 
     steps:
       - name: Checkout code
