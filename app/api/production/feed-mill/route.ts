@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
    return NextResponse.json({ error: 'Feed mill location not found' }, { status: 400 });
   }
 
-  const itemIds = (recipe.items || []).map((item: any) => item.ingredient?.id).filter(Boolean);
+  const itemIds = (recipe.items || []).map((item: any) => (item.ingredient as any)?.id).filter(Boolean);
   const { data: balances } = await admin
    .from('InventoryBalance')
    .select('itemId, quantityOnHand, averageUnitCost')
@@ -54,8 +54,8 @@ export async function POST(request: NextRequest) {
 
   let computedCostPerKg = 0;
   for (const item of recipe.items || []) {
-   const ingredientId = item.ingredient?.id;
-   const ingredientName = item.ingredient?.name || 'Unknown';
+   const ingredientId = (item.ingredient as any)?.id;
+   const ingredientName = (item.ingredient as any)?.name || 'Unknown';
    const percentage = Number(item.percentage) || 0;
    const requiredQty = roundTo2((percentage / 100) * roundedQtyProduced);
    const balance = balanceMap.get(ingredientId);
