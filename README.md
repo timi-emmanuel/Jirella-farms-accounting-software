@@ -69,3 +69,4 @@ The app can be containerized. Supabase can be:
 
 If you want a Dockerfile or compose setup, add it in `config/` or the repo root.
 
+# Force workflow update
