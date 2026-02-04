@@ -11,8 +11,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Copy .env file for build-time environment variables
-COPY .env .env
+# Debug: Check if .env file exists and show contents
+RUN ls -la .env || echo ".env file not found"
+RUN cat .env || echo "Cannot read .env file"
 
 RUN npm run build
 
