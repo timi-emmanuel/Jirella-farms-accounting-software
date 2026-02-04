@@ -188,8 +188,9 @@ jobs:
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_IP }} 'mkdir -p ~/jirella-farm/'
           
           # Copy all source files to server for local build
-          tar --exclude='.git' --exclude='node_modules' --exclude='.next' -czf /tmp/source.tar.gz .
-          scp -o StrictHostKeyChecking=no -o ConnectTimeout=30 /tmp/source.tar.gz ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_IP }}:~/jirella-farm/
+          tar --exclude='.git' --exclude='node_modules' --exclude='.next' -czf ./source.tar.gz .
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=30 ./source.tar.gz ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_IP }}:~/jirella-farm/
+          rm ./source.tar.gz
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_IP }} 'cd ~/jirella-farm/ && tar -xzf source.tar.gz && rm source.tar.gz'
           
           # Execute deployment
