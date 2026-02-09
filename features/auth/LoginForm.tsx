@@ -2,8 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { Eye, EyeOff, Loader2 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,6 +13,7 @@ export function LoginForm() {
  const router = useRouter()
  const [loading, setLoading] = useState(false)
  const [error, setError] = useState("")
+ const [showPassword, setShowPassword] = useState(false)
 
  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
   event.preventDefault()
@@ -65,15 +65,27 @@ export function LoginForm() {
      </div>
      <div className="grid gap-2">
       <Label htmlFor="password">Password</Label>
-      <Input
-       id="password"
-       name="password"
-       type="password"
-       placeholder="••••••••"
-       autoComplete="current-password"
-       disabled={loading}
-       required
-      />
+      <div className="relative">
+       <Input
+        id="password"
+        name="password"
+        type={showPassword ? "text" : "password"}
+        placeholder="********"
+        autoComplete="current-password"
+        disabled={loading}
+        className="pr-10"
+        required
+       />
+       <button
+        type="button"
+        aria-label={showPassword ? "Hide password" : "Show password"}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
+        onClick={() => setShowPassword((prev) => !prev)}
+        disabled={loading}
+       >
+        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+       </button>
+      </div>
      </div>
      {error && (
       <div className="text-sm font-medium text-destructive animate-in fade-in slide-in-from-top-1">
