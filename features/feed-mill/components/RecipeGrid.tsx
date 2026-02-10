@@ -23,9 +23,21 @@ import {
     themeQuartz
 } from 'ag-grid-community';
 import { createClient } from '@/lib/supabase/client';
-import { Loader2, Trash2, AlertTriangle } from 'lucide-react';
+import { Loader2, Trash2, AlertTriangle, Plus, ArrowUpRight } from 'lucide-react';
 import { useUserRole } from '@/hooks/useUserRole';
 import { logActivity } from '@/lib/logger';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -72,6 +84,10 @@ interface RecipeRow {
 
 export function RecipeGrid() {
     const { isAdmin } = useUserRole();
+    const [showCreateDialog, setShowCreateDialog] = useState(false);
+    const [newProductName, setNewProductName] = useState("");
+    const [newProductDescription, setNewProductDescription] = useState("");
+    const [isCreating, setIsCreating] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [recipeToDelete, setRecipeToDelete] = useState<RecipeRow | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -81,7 +97,7 @@ export function RecipeGrid() {
         const columns: ColDef<RecipeRow>[] = [
             {
                 field: "name",
-                headerName: "Recipe Name",
+                headerName: "Product Name",
                 flex: 1,
                 minWidth: 200
             }
@@ -139,6 +155,52 @@ export function RecipeGrid() {
             sortable: true,
         };
     }, []);
+
+    const handleCreateProduct = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const name = newProductName.trim();
+        if (!name) return;
+
+        setIsCreating(true);
+        const supabase = createClient();
+
+        const { data, error } = await supabase
+            .from('Recipe')
+            .insert({
+                name,
+                description: newProductDescription.trim() || null,
+                targetBatchSize: 100,
+                isActive: true
+            })
+            .select('*, items:RecipeItem(percentage, ingredient:Ingredient(averageCost))')
+            .single();
+
+        if (error) {
+            toast({
+                title: "Error",
+                description: "Failed to create product: " + error.message,
+                variant: "destructive"
+            });
+            setIsCreating(false);
+            return;
+        }
+
+        await logActivity(
+            'RECIPE_CREATED',
+            'Recipe',
+            data.id,
+            `Created recipe: ${data.name}`,
+            { name: data.name },
+            undefined
+        );
+
+        setRowData(prev => [...prev, data as RecipeRow].sort((a, b) => a.name.localeCompare(b.name)));
+        setNewProductName("");
+        setNewProductDescription("");
+        setShowCreateDialog(false);
+        setIsCreating(false);
+    };
+
     const handleDelete = async () => {
         if (!recipeToDelete) return;
         setIsDeleting(true);
@@ -191,6 +253,51 @@ export function RecipeGrid() {
 
     return (
         <div className="flex flex-col h-full space-y-2">
+            <div className="flex justify-end">
+                <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+                    <DialogTrigger asChild>
+                        <Button className="bg-emerald-700 hover:bg-emerald-800 shadow-lg shadow-emerald-700/20 transition-all hover:scale-105 active:scale-95 px-6 mr-2">
+                            <Plus className="w-4 h-4 mr-1" />
+                            New Product
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-106.25">
+                        <DialogHeader>
+                            <DialogTitle className="text-xl font-bold tracking-tight">Create Product</DialogTitle>
+                        </DialogHeader>
+                        <form onSubmit={handleCreateProduct} className="space-y-6 py-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="productName">Product Name</Label>
+                                <Input
+                                    id="productName"
+                                    value={newProductName}
+                                    onChange={(e) => setNewProductName(e.target.value)}
+                                    placeholder="e.g. Grower Mash 25kg"
+                                    className="bg-slate-50/50 border-slate-200"
+                                    required
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="productDescription">Description</Label>
+                                <Textarea
+                                    id="productDescription"
+                                    value={newProductDescription}
+                                    onChange={(e) => setNewProductDescription(e.target.value)}
+                                    placeholder="Enter a short product description"
+                                    className="bg-slate-50/50 border-slate-200"
+                                    rows={3}
+                                />
+                            </div>
+                            <DialogFooter>
+                                <Button type="submit" disabled={isCreating} className="w-full bg-emerald-700 hover:bg-emerald-800 py-6 text-base font-semibold transition-all">
+                                    {isCreating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ArrowUpRight className="w-4 h-4 mr-2" />}
+                                    Create Product
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </DialogContent>
+                </Dialog>
+            </div>
             <div className="ag-theme-quartz flex-1">
                 <AgGridReact
                     rowData={rowData}

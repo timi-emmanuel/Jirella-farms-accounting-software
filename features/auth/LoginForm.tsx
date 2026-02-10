@@ -34,7 +34,7 @@ export function LoginForm() {
    setError(authError.message)
    setLoading(false)
   } else {
-   router.push("/dashboard")
+   router.push("/")
    router.refresh()
   }
  }

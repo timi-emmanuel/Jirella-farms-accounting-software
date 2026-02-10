@@ -157,7 +157,7 @@ export function PoultryExpenseGrid() {
               Log Expense
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[520px]">
+          <DialogContent className="sm:max-w-130">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold tracking-tight flex items-center gap-2">
                 <Wallet className="w-5 h-5 text-emerald-600" />

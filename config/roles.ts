@@ -18,13 +18,13 @@ export type TabName = 'Dashboard' | 'Feed Mill' | 'BSF' | 'Poultry' | 'Catfish' 
 // Configure which roles can access which tabs
 export const NAV_CONFIG: Partial<Record<UserRole, TabName[]>> = {
  ADMIN: ['Dashboard', 'Feed Mill', 'BSF', 'Poultry', 'Catfish', 'Store', 'Procurement', 'Users', 'Activity Logs', 'Sales'],
- FEED_MILL_STAFF: ['Dashboard', 'Feed Mill', 'Sales'],
- BSF_STAFF: ['Dashboard', 'BSF'],
- POULTRY_STAFF: ['Dashboard', 'Poultry'],
- CATFISH_STAFF: ['Dashboard', 'Catfish'],
- ACCOUNTANT: ['Dashboard', 'Feed Mill', 'BSF', 'Poultry', 'Catfish', 'Sales'],
- PROCUREMENT_MANAGER: ['Dashboard', 'Procurement', 'Store', 'BSF'],
- STORE_KEEPER: ['Dashboard', 'Store'],
+ FEED_MILL_STAFF: ['Feed Mill', 'Sales'],
+ BSF_STAFF: ['BSF'],
+ POULTRY_STAFF: ['Poultry'],
+ CATFISH_STAFF: ['Catfish'],
+ ACCOUNTANT: ['Feed Mill', 'BSF', 'Poultry', 'Catfish', 'Sales'],
+ PROCUREMENT_MANAGER: ['Procurement', 'Store', 'BSF'],
+ STORE_KEEPER: ['Store'],
 };
 
 // Helper to check if a specific tab is allowed for a user role

@@ -1,21 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
+type BalanceRow = {
+ itemId: string;
+ quantityOnHand: number | null;
+ averageUnitCost: number | null;
+ updatedAt: string | null;
+};
+
+type ItemRow = {
+ id: string;
+ name: string;
+ description: string | null;
+ unit: string;
+};
+
 export async function GET(request: NextRequest) {
  try {
   const { searchParams } = new URL(request.url);
-  const code = searchParams.get('code');
+  const code = searchParams.get('code')?.trim().toUpperCase();
 
   if (!code) {
    return NextResponse.json({ error: 'Missing location code' }, { status: 400 });
   }
 
   const admin = createAdminClient();
-  const { data: location, error: locationError } = await admin
+  let { data: location, error: locationError } = await admin
    .from('InventoryLocation')
    .select('id, code, name')
    .eq('code', code)
    .single();
+
+  // Backfill STORE location if it has not been seeded yet.
+  if ((locationError || !location) && code === 'STORE') {
+   const { data: created, error: createError } = await admin
+    .from('InventoryLocation')
+    .insert({ code: 'STORE', name: 'Store' })
+    .select('id, code, name')
+    .single();
+
+   if (!createError && created) {
+    location = created;
+    locationError = null;
+   } else {
+    const retry = await admin
+     .from('InventoryLocation')
+     .select('id, code, name')
+     .eq('code', 'STORE')
+     .single();
+    location = retry.data;
+    locationError = retry.error;
+   }
+  }
 
   if (locationError || !location) {
    return NextResponse.json({ error: 'Location not found' }, { status: 404 });
@@ -48,11 +84,9 @@ export async function GET(request: NextRequest) {
    return NextResponse.json({ error: itemError.message }, { status: 400 });
   }
 
-  const balanceMap = new Map(
-   (balances || []).map((b: any) => [b.itemId, b])
-  );
+  const balanceMap = new Map((balances as BalanceRow[] || []).map((b) => [b.itemId, b]));
 
-  const enriched = (items || []).map((item: any) => {
+  const enriched = ((items as ItemRow[]) || []).map((item) => {
    const balance = balanceMap.get(item.id);
    return {
     ...item,
@@ -63,7 +97,7 @@ export async function GET(request: NextRequest) {
   });
 
   return NextResponse.json({ location, items: enriched });
- } catch (error: any) {
+ } catch (error: unknown) {
   console.error('Inventory location error:', error);
   return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
  }
