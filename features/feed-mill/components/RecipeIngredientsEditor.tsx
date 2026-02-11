@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Loader2, Plus, Trash2, Save, Info } from "lucide-react";
 import { Ingredient } from "@/types";
-import { validateRecipePercentages } from "@/lib/calculations/recipe";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
     Table,
     TableBody,
@@ -24,6 +24,14 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
 import { Card } from "@/components/ui/card";
 
 interface EditorProps {
@@ -42,15 +50,18 @@ export function RecipeIngredientsEditor({ recipeId }: EditorProps) {
     const [loading, setLoading] = useState(true);
     const [validationError, setValidationError] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
+    const [showCreateIngredient, setShowCreateIngredient] = useState(false);
+    const [creatingIngredient, setCreatingIngredient] = useState(false);
+    const [ingredientForm, setIngredientForm] = useState({
+        name: "",
+        description: "",
+        unit: "KG",
+        trackInFeedMill: true
+    });
+    const unitOptions = ["KG", "TON", "LITER", "BAG", "CRATE", "PCS"];
 
-    useEffect(() => {
-        loadData();
-    }, [recipeId]);
-
-    const loadData = async () => {
-        setValidationError(null);
+    const loadIngredients = async () => {
         const supabase = createClient();
-
         const { data: ingredients, error: ingError } = await supabase
             .from('Ingredient')
             .select('*')
@@ -58,6 +69,13 @@ export function RecipeIngredientsEditor({ recipeId }: EditorProps) {
 
         if (ingError) setValidationError("Failed to load ingredients: " + ingError.message);
         if (ingredients) setAllIngredients(ingredients as any);
+    };
+
+    const loadData = async () => {
+        setValidationError(null);
+        const supabase = createClient();
+
+        await loadIngredients();
 
         const { data: items, error: itemError } = await supabase
             .from('RecipeItem')
@@ -129,6 +147,43 @@ export function RecipeIngredientsEditor({ recipeId }: EditorProps) {
         setSaving(false);
     };
 
+    const handleCreateIngredient = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const name = ingredientForm.name.trim();
+        if (!name) return;
+
+        setCreatingIngredient(true);
+        const supabase = createClient();
+        const { error } = await supabase
+            .from("Ingredient")
+            .insert({
+                name,
+                description: ingredientForm.description.trim() || null,
+                unit: ingredientForm.unit,
+                trackInFeedMill: ingredientForm.trackInFeedMill
+            });
+
+        if (error) {
+            setValidationError("Failed to create ingredient: " + error.message);
+            setCreatingIngredient(false);
+            return;
+        }
+
+        await loadIngredients();
+        setIngredientForm({
+            name: "",
+            description: "",
+            unit: "KG",
+            trackInFeedMill: true
+        });
+        setShowCreateIngredient(false);
+        setCreatingIngredient(false);
+    };
+
+    useEffect(() => {
+        loadData();
+    }, [recipeId]);
+
     const totalPercentage = rows.reduce((sum, r) => sum + (Number(r.percentage) || 0), 0);
 
     if (loading) return (
@@ -136,8 +191,6 @@ export function RecipeIngredientsEditor({ recipeId }: EditorProps) {
             <Loader2 className="animate-spin text-green-600 w-10 h-10" />
         </div>
     );
-
-    const isPercentageBalanced = validateRecipePercentages(rows.map(r => ({ percentage: Number(r.percentage) || 0 })));
 
     return (
         <div className="space-y-6 custom-scrollbar">
@@ -201,11 +254,78 @@ export function RecipeIngredientsEditor({ recipeId }: EditorProps) {
                     <TableFooter className="bg-slate-50/50">
                         <TableRow>
                             <TableCell>
-                                <Button variant="outline" size="sm" onClick={handleAddRow} className="text-green-700 hover:text-green-800 border-green-200 hover:bg-green-50">
-                                    <Plus className="w-4 h-4 mr-2" /> Add Ingredient
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                    <Button variant="outline" size="sm" onClick={handleAddRow} className="text-green-700 hover:text-green-800 border-green-200 hover:bg-green-50">
+                                        <Plus className="w-4 h-4 mr-2" /> Add Ingredient
+                                    </Button>
+                                    <Dialog open={showCreateIngredient} onOpenChange={setShowCreateIngredient}>
+                                        <DialogTrigger asChild>
+                                            <Button variant="outline" size="sm" className="text-blue-700 hover:text-blue-800 border-blue-200 hover:bg-blue-50">
+                                                <Plus className="w-4 h-4 mr-2" /> New Ingredient
+                                            </Button>
+                                        </DialogTrigger>
+                                        <DialogContent className="sm:max-w-[480px]">
+                                            <DialogHeader>
+                                                <DialogTitle className="text-xl font-bold tracking-tight">Create Ingredient</DialogTitle>
+                                            </DialogHeader>
+                                            <form onSubmit={handleCreateIngredient} className="space-y-4 py-2">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="ingredientName">Ingredient Name</Label>
+                                                    <Input
+                                                        id="ingredientName"
+                                                        value={ingredientForm.name}
+                                                        onChange={(e) => setIngredientForm(prev => ({ ...prev, name: e.target.value }))}
+                                                        placeholder="e.g. Maize"
+                                                        required
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="ingredientUnit">Unit</Label>
+                                                    <Select
+                                                        value={ingredientForm.unit}
+                                                        onValueChange={(value) => setIngredientForm(prev => ({ ...prev, unit: value }))}
+                                                    >
+                                                        <SelectTrigger id="ingredientUnit">
+                                                            <SelectValue placeholder="Select unit" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {unitOptions.map((unit) => (
+                                                                <SelectItem key={unit} value={unit}>{unit}</SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="ingredientDescription">Description</Label>
+                                                    <Textarea
+                                                        id="ingredientDescription"
+                                                        value={ingredientForm.description}
+                                                        onChange={(e) => setIngredientForm(prev => ({ ...prev, description: e.target.value }))}
+                                                        placeholder="Optional description"
+                                                        rows={3}
+                                                    />
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        id="trackInFeedMill"
+                                                        type="checkbox"
+                                                        checked={ingredientForm.trackInFeedMill}
+                                                        onChange={(e) => setIngredientForm(prev => ({ ...prev, trackInFeedMill: e.target.checked }))}
+                                                    />
+                                                    <Label htmlFor="trackInFeedMill">Show in Feed Mill inventory</Label>
+                                                </div>
+                                                <DialogFooter>
+                                                    <Button type="submit" disabled={creatingIngredient} className="bg-blue-600 hover:bg-blue-700">
+                                                        {creatingIngredient ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+                                                        Create Ingredient
+                                                    </Button>
+                                                </DialogFooter>
+                                            </form>
+                                        </DialogContent>
+                                    </Dialog>
+                                </div>
                             </TableCell>
-                            <TableCell className={cn("text-right font-bold", isPercentageBalanced ? "text-green-600" : "text-destructive")}>
+                            <TableCell className="text-right font-bold text-slate-700">
                                 {totalPercentage.toFixed(2)}%
                             </TableCell>
                             <TableCell></TableCell>
@@ -217,12 +337,12 @@ export function RecipeIngredientsEditor({ recipeId }: EditorProps) {
             <div className="flex items-center justify-between p-4 bg-white rounded-xl shadow-sm border">
                 <div className="flex items-center text-sm text-slate-500 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
                     <Info className="w-4 h-4 mr-2 text-blue-500" />
-                    Formula must sum to <span className="font-bold mx-1 text-slate-700">100%</span> to be valid.
+                    Total inclusion is informational and can be above <span className="font-bold mx-1 text-slate-700">100%</span>.
                 </div>
                 <div className="flex items-center gap-4">
                     <Button
                         onClick={handleSave}
-                        disabled={saving || !isPercentageBalanced}
+                        disabled={saving}
                         className="bg-green-600 hover:bg-green-700 shadow-lg shadow-green-600/20 px-4 py-2 h-auto text-base font-semibold transition-all hover:scale-105 active:scale-95"
                     >
                         {saving ? <Loader2 className="w-5 h-5 mr-1 animate-spin" /> : <Save className="w-5 h-5 mr-1" />}

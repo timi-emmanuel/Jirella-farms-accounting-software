@@ -4,29 +4,56 @@ import { getAuthContext, isRoleAllowed } from '@/lib/server/auth';
 import { logActivityServer } from '@/lib/server/activity-log';
 import { roundTo2 } from '@/lib/utils';
 
+const LOCATION_NAMES: Record<string, string> = {
+ STORE: 'Store',
+ FEED_MILL: 'Feed Mill',
+ POULTRY: 'Poultry',
+ BSF: 'BSF',
+ CATFISH: 'Catfish',
+};
+
 export async function POST(request: NextRequest) {
  try {
   const auth = await getAuthContext();
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { itemId, quantity, toLocationCode, notes } = await request.json();
-  if (!itemId || !quantity || Number(quantity) <= 0 || !toLocationCode) {
+  const normalizedToCode = String(toLocationCode || '').trim().toUpperCase();
+  if (!itemId || !quantity || Number(quantity) <= 0 || !normalizedToCode) {
    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
   }
   const roundedQty = roundTo2(Number(quantity));
 
   const admin = createAdminClient();
-  const { data: fromLocation } = await admin
-   .from('InventoryLocation')
-   .select('id')
-   .eq('code', 'STORE')
-   .single();
+  let { data: fromLocation } = await admin
+    .from('InventoryLocation')
+    .select('id')
+    .eq('code', 'STORE')
+    .single();
 
-  const { data: toLocation } = await admin
-   .from('InventoryLocation')
-   .select('id, code')
-   .eq('code', toLocationCode)
-   .single();
+  if (!fromLocation) {
+    const { data: created } = await admin
+      .from('InventoryLocation')
+      .insert({ code: 'STORE', name: LOCATION_NAMES.STORE })
+      .select('id')
+      .single();
+    fromLocation = created ?? null;
+  }
+
+  let { data: toLocation } = await admin
+    .from('InventoryLocation')
+    .select('id, code')
+    .eq('code', normalizedToCode)
+    .single();
+
+  if (!toLocation && LOCATION_NAMES[normalizedToCode]) {
+    const { data: created } = await admin
+      .from('InventoryLocation')
+      .insert({ code: normalizedToCode, name: LOCATION_NAMES[normalizedToCode] })
+      .select('id, code')
+      .single();
+    toLocation = created ?? null;
+  }
 
   if (!fromLocation || !toLocation) {
    return NextResponse.json({ error: 'Invalid location' }, { status: 400 });

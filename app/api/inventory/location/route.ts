@@ -15,6 +15,14 @@ type ItemRow = {
  unit: string;
 };
 
+const LOCATION_NAMES: Record<string, string> = {
+ STORE: 'Store',
+ FEED_MILL: 'Feed Mill',
+ POULTRY: 'Poultry',
+ BSF: 'BSF',
+ CATFISH: 'Catfish',
+};
+
 export async function GET(request: NextRequest) {
  try {
   const { searchParams } = new URL(request.url);
@@ -31,11 +39,11 @@ export async function GET(request: NextRequest) {
    .eq('code', code)
    .single();
 
-  // Backfill STORE location if it has not been seeded yet.
-  if ((locationError || !location) && code === 'STORE') {
+  // Backfill known module locations if they have not been seeded yet.
+  if ((locationError || !location) && LOCATION_NAMES[code]) {
    const { data: created, error: createError } = await admin
     .from('InventoryLocation')
-    .insert({ code: 'STORE', name: 'Store' })
+    .insert({ code, name: LOCATION_NAMES[code] })
     .select('id, code, name')
     .single();
 
@@ -46,7 +54,7 @@ export async function GET(request: NextRequest) {
     const retry = await admin
      .from('InventoryLocation')
      .select('id, code, name')
-     .eq('code', 'STORE')
+     .eq('code', code)
      .single();
     location = retry.data;
     locationError = retry.error;

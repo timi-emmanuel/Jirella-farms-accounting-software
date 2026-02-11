@@ -18,7 +18,7 @@ import {
  CustomFilterModule,
  themeQuartz
 } from 'ag-grid-community';
-import { Loader2, Plus, UserPlus, Trash2, AlertTriangle } from 'lucide-react';
+import { Loader2, UserPlus, UserX, CircleOff, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { UserProfile, UserRole } from '@/types';
 import {
@@ -116,20 +116,38 @@ export function UserGrid() {
   {
    headerName: "Actions",
    width: 100,
-   cellRenderer: (params: any) => (
-    <div className="flex justify-center h-full items-center">
-     <button
-      onClick={() => {
-       setUserToDelete(params.data);
-       setDeleteDialogOpen(true);
-      }}
-      className="p-2 text-slate-400 hover:text-red-600 transition-colors rounded-full hover:bg-red-50"
-      title="Delete User"
-     >
-      <Trash2 className="w-4 h-4" />
-     </button>
-    </div>
-   )
+   cellRenderer: (params: any) => {
+    const user = params.data as UserProfile;
+    const isActive = user.isActive !== false;
+
+    if (!isActive) {
+     return (
+      <div className="flex justify-center h-full items-center">
+       <span
+        className="p-2 text-slate-400 rounded-full bg-slate-100/80 cursor-not-allowed"
+        title="User is deactivated"
+       >
+        <CircleOff className="w-4 h-4" />
+       </span>
+      </div>
+     );
+    }
+
+    return (
+     <div className="flex justify-center h-full items-center">
+      <button
+       onClick={() => {
+        setUserToDelete(user);
+        setDeleteDialogOpen(true);
+       }}
+       className="p-2 text-slate-400 hover:text-red-600 transition-colors rounded-full hover:bg-red-50"
+       title="Deactivate User"
+      >
+       <UserX className="w-4 h-4" />
+      </button>
+     </div>
+    );
+   }
   }
  ], []);
 
@@ -194,8 +212,8 @@ export function UserGrid() {
     throw new Error(data.error || 'Failed to delete user');
    }
 
-   toast({ title: "Success", description: "User deleted successfully", variant: "success" });
-   await logActivity('USER_DELETED', 'User', userToDelete.id, `Admin deleted user: ${userToDelete.email}`, { email: userToDelete.email, role: userToDelete.role });
+   toast({ title: "Success", description: "User deactivated successfully", variant: "success" });
+   await logActivity('USER_DELETED', 'User', userToDelete.id, `Admin deactivated user: ${userToDelete.email}`, { email: userToDelete.email, role: userToDelete.role });
    setDeleteDialogOpen(false);
    setUserToDelete(null);
    loadData();
@@ -312,11 +330,11 @@ export function UserGrid() {
      <AlertDialogHeader>
       <AlertDialogTitle className="flex items-center text-red-600">
        <AlertTriangle className="w-5 h-5 mr-2" />
-       Delete User?
+       Deactivate User?
       </AlertDialogTitle>
       <AlertDialogDescription>
-       Are you sure you want to delete <span className="font-bold text-slate-900">{userToDelete?.email}</span>?
-       This action cannot be undone.
+       Are you sure you want to deactivate <span className="font-bold text-slate-900">{userToDelete?.email}</span>?
+       The user will lose access immediately.
       </AlertDialogDescription>
      </AlertDialogHeader>
      <AlertDialogFooter>
@@ -329,7 +347,7 @@ export function UserGrid() {
        disabled={isDeleting}
        className="bg-red-600 hover:bg-red-700 text-white"
       >
-       {isDeleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Delete User"}
+       {isDeleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Deactivate User"}
       </AlertDialogAction>
      </AlertDialogFooter>
     </AlertDialogContent>

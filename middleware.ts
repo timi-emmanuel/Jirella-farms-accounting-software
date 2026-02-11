@@ -49,6 +49,19 @@ if (!user && (isOnDashboard || isOnRoot)) {
   return NextResponse.redirect(new URL("/login", request.url));
 }
 
+if (user) {
+  const { data: profile } = await supabase
+    .from('users')
+    .select('isActive')
+    .eq('id', user.id)
+    .single();
+
+  if (profile?.isActive === false) {
+    await supabase.auth.signOut();
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+}
+
 if (user && (isOnLogin || isOnRoot)) {
   return NextResponse.redirect(new URL("/dashboard", request.url));
 }

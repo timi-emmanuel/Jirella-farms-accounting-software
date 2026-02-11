@@ -13,11 +13,33 @@ export async function GET(request: NextRequest) {
     }
 
     const admin = createAdminClient();
-    const { data: location } = await admin
+    let { data: location, error: locationError } = await admin
       .from('InventoryLocation')
       .select('id')
       .eq('code', 'POULTRY')
       .single();
+
+    // Backfill POULTRY location if it has not been seeded yet.
+    if ((locationError || !location)) {
+      const { data: created, error: createError } = await admin
+        .from('InventoryLocation')
+        .insert({ code: 'POULTRY', name: 'Poultry' })
+        .select('id')
+        .single();
+
+      if (!createError && created) {
+        location = created;
+        locationError = null;
+      } else {
+        const retry = await admin
+          .from('InventoryLocation')
+          .select('id')
+          .eq('code', 'POULTRY')
+          .single();
+        location = retry.data;
+        locationError = retry.error;
+      }
+    }
 
     if (!location) {
       return NextResponse.json({ error: 'Poultry location not found' }, { status: 400 });

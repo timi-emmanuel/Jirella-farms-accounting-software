@@ -188,6 +188,7 @@ CREATE TABLE IF NOT EXISTS public.users (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT NOT NULL UNIQUE,
   role "UserRole" NOT NULL DEFAULT 'STAFF',
+  "isActive" BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -285,7 +286,7 @@ ALTER TABLE "FinishedGoodsLedger"
     'INTERNAL_PURCHASE_IN'
   ));
 
--- Ensure Product/Sale module checks include BSF
+-- Ensure Product/Sale module checks include BSF and CATFISH
 DO $$
 BEGIN
   IF EXISTS (
@@ -298,7 +299,7 @@ END$$;
 
 ALTER TABLE "Product"
   ADD CONSTRAINT "Product_module_check"
-  CHECK ("module" IN ('FEED_MILL', 'POULTRY', 'BSF'));
+  CHECK ("module" IN ('FEED_MILL', 'POULTRY', 'BSF', 'CATFISH'));
 
 DO $$
 BEGIN
@@ -312,7 +313,7 @@ END$$;
 
 ALTER TABLE "Sale"
   ADD CONSTRAINT "Sale_module_check"
-  CHECK ("module" IN ('FEED_MILL', 'POULTRY', 'BSF'));
+  CHECK ("module" IN ('FEED_MILL', 'POULTRY', 'BSF', 'CATFISH'));
 
 -- Ensure FinishedGoodsInventory has a composite PK for upserts
 DO $$
@@ -330,6 +331,9 @@ END$$;
 INSERT INTO public.users (id, email, role)
 SELECT id, email, 'ADMIN' FROM auth.users
 WHERE id NOT IN (SELECT id FROM public.users);
+
+ALTER TABLE public.users
+  ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN NOT NULL DEFAULT TRUE;
 
 -- RLS
 ALTER TABLE "InventoryLocation" ENABLE ROW LEVEL SECURITY;

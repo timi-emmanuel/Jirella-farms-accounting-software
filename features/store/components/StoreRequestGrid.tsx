@@ -116,14 +116,14 @@ export function StoreRequestGrid() {
   {
    headerName: "Quantity",
    flex: 0.8,
-   filter: true,
+   filter: false,
    type: 'numericColumn',
    valueGetter: (p: any) => p.data.lines?.[0]?.quantityRequested ?? 0
   },
   {
    headerName: "Unit",
    width: 100,
-   filter: true,
+   filter: false,
    valueGetter: (p: any) => p.data.lines?.[0]?.item?.unit || ''
   },
   {

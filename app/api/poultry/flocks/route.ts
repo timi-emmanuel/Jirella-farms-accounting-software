@@ -37,17 +37,32 @@ export async function POST(request: NextRequest) {
     }
 
     const { name, breed, initialCount, startDate, status } = await request.json();
+    const normalizedName = String(name ?? '').trim();
     const count = Number(initialCount);
 
-    if (!name || !Number.isFinite(count) || count < 0) {
+    if (!normalizedName || !Number.isFinite(count) || count < 0) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
     }
 
     const admin = createAdminClient();
+    const { data: existing, error: existingError } = await admin
+      .from('PoultryFlock')
+      .select('id')
+      .ilike('name', normalizedName)
+      .limit(1);
+
+    if (existingError) {
+      return NextResponse.json({ error: existingError.message }, { status: 400 });
+    }
+
+    if ((existing || []).length > 0) {
+      return NextResponse.json({ error: 'Flock name already exists. Use a unique flock name.' }, { status: 409 });
+    }
+
     const { data, error } = await admin
       .from('PoultryFlock')
       .insert({
-        name,
+        name: normalizedName,
         breed: breed ?? null,
         initialCount: Math.round(count),
         currentCount: Math.round(count),

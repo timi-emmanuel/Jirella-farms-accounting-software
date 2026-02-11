@@ -62,14 +62,27 @@ export async function POST(req: NextRequest) {
   }
 
   // 4. Create/Update profile in public.users
-  const { error: profileError } = await supabaseAdmin
+  let { error: profileError } = await supabaseAdmin
    .from('users')
    .upsert({
     id: authData.user.id,
     email: email,
-    role: role
+    role: role,
+    isActive: true
     // Removed updatedAt as it doesn't exist in the current schema
    });
+
+  // Backward compatibility for DBs that have not yet added users.isActive
+  if (profileError && profileError.message?.toLowerCase().includes('isactive')) {
+   const fallback = await supabaseAdmin
+    .from('users')
+    .upsert({
+     id: authData.user.id,
+     email: email,
+     role: role
+    });
+   profileError = fallback.error;
+  }
 
   if (profileError) {
    return NextResponse.json({ error: 'User created in Auth but failed to set Profile: ' + profileError.message }, { status: 500 });
@@ -135,9 +148,18 @@ export async function GET(req: NextRequest) {
   }
 
   // Fetch roles from public.users
-  const { data: publicProfiles, error: publicError } = await supabaseAdmin
+  let { data: publicProfiles, error: publicError } = await supabaseAdmin
    .from('users')
-   .select('id, role');
+   .select('id, role, isActive');
+
+  // Backward compatibility for DBs that have not yet added users.isActive
+  if (publicError && publicError.message?.toLowerCase().includes('isactive')) {
+   const fallback = await supabaseAdmin
+    .from('users')
+    .select('id, role');
+   publicProfiles = (fallback.data || []).map((p: any) => ({ ...p, isActive: true }));
+   publicError = fallback.error;
+  }
 
   if (publicError) {
    console.error("Fetch Public Profiles Error:", publicError);
@@ -147,10 +169,13 @@ export async function GET(req: NextRequest) {
   // Merge Data
   const combinedUsers = authUsers.map(user => {
    const profile = publicProfiles?.find(p => p.id === user.id);
+   const isAuthBanned = Boolean((user as any).banned_until);
    return {
     id: user.id,
     email: user.email,
     role: profile?.role || 'STAFF', // Default if missing
+    // Prefer profile flag; fall back to auth ban status for backward compatibility.
+    isActive: profile?.isActive ?? !isAuthBanned,
     createdAt: user.created_at, // This comes from Auth and is always present
     lastSignIn: user.last_sign_in_at
    };
@@ -214,14 +239,31 @@ export async function DELETE(req: NextRequest) {
    return NextResponse.json({ error: 'Cannot delete your own admin account' }, { status: 400 });
   }
 
-  // 3. Delete user from Supabase Auth
-  const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+  // 3. Soft delete: deactivate profile instead of hard-deleting auth user
+  let { error: profileDeactivateError } = await supabaseAdmin
+   .from('users')
+   .update({ isActive: false })
+   .eq('id', userId);
 
-  if (deleteError) {
-   return NextResponse.json({ error: deleteError.message }, { status: 400 });
+  // Backward compatibility for DBs that have not yet added users.isActive
+  if (profileDeactivateError && profileDeactivateError.message?.toLowerCase().includes('isactive')) {
+   profileDeactivateError = null;
   }
 
-  return NextResponse.json({ message: 'User deleted successfully' });
+  if (profileDeactivateError) {
+   return NextResponse.json({ error: profileDeactivateError.message }, { status: 400 });
+  }
+
+  // 4. Ban account for a long period so user cannot sign in.
+  const { error: banError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+   ban_duration: '876000h'
+  });
+
+  if (banError) {
+   return NextResponse.json({ error: banError.message }, { status: 400 });
+  }
+
+  return NextResponse.json({ message: 'User deactivated successfully' });
 
  } catch (error: any) {
   console.error("API Error:", error);

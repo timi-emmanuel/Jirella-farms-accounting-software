@@ -280,6 +280,24 @@ export function PoultryDailyLogGrid() {
       minWidth: 140
     },
     {
+      headerName: "Crates Collected",
+      type: 'numericColumn',
+      minWidth: 140,
+      valueGetter: (p: any) => {
+        const eggs = Number(p.data?.eggsCollected ?? 0);
+        return Math.floor(eggs / 30);
+      }
+    },
+    {
+      headerName: "Pieces Left",
+      type: 'numericColumn',
+      minWidth: 120,
+      valueGetter: (p: any) => {
+        const eggs = Number(p.data?.eggsCollected ?? 0);
+        return eggs % 30;
+      }
+    },
+    {
       field: "eggsDamaged",
       headerName: "Eggs Damaged",
       type: 'numericColumn',
