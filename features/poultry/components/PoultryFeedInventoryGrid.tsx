@@ -18,6 +18,7 @@ import {
   themeQuartz
 } from 'ag-grid-community';
 import { Loader2 } from 'lucide-react';
+import { toast } from "@/lib/toast";
 
 type FeedProduct = {
   id: string;
@@ -46,10 +47,19 @@ export function PoultryFeedInventoryGrid() {
 
   const loadData = async () => {
     setLoading(true);
-    const response = await fetch('/api/finished-goods/location?code=POULTRY&module=FEED_MILL');
+    const response = await fetch('/api/finished-goods/location?code=POULTRY&module=FEED_MILL', {
+      credentials: 'include'
+    });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      console.error('Finished feed load error:', payload.error || response.statusText);
+      const message = payload.error || response.statusText;
+      if (response.status === 401) {
+        toast({ title: "Session Expired", description: "Please sign in again.", variant: "destructive" });
+      } else if (response.status === 403) {
+        toast({ title: "Access Denied", description: "You do not have access to view feed inventory.", variant: "destructive" });
+      } else {
+        toast({ title: "Error", description: `Failed to load finished feed: ${message}`, variant: "destructive" });
+      }
     } else {
       const items = (payload.items || []).filter((item: FeedProduct) => Number(item.quantityOnHand || 0) > 0);
       setRowData(items);

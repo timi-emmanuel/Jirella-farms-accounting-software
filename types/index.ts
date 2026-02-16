@@ -21,6 +21,9 @@ export interface StoreRequest {
  itemName: string;
  quantity: number;
  unit: string;
+ requestDate?: string | null;
+ unitCost?: number | null;
+ totalCost?: number | null;
  purpose: string | null;
  status: StoreRequestStatus;
  requestedBy: string; // User ID

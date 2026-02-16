@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthContext, isRoleAllowed } from '@/lib/server/auth';
+import { createClient as createServerClient } from '@/lib/supabase/server';
 
 const VIEW_ROLES = ['ADMIN', 'MANAGER', 'FEED_MILL_STAFF', 'POULTRY_STAFF', 'CATFISH_STAFF', 'ACCOUNTANT', 'STORE_KEEPER'];
 
 export async function GET(request: NextRequest) {
   try {
     const auth = await getAuthContext();
-    if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (!isRoleAllowed(auth.role, VIEW_ROLES)) {
+    // Fallback: allow authenticated users whose profile row is temporarily missing/out-of-sync.
+    if (!auth) {
+      const supabase = await createServerClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+    } else if (!isRoleAllowed(auth.role, VIEW_ROLES)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

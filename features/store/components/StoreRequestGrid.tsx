@@ -19,7 +19,7 @@ import {
  themeQuartz
 } from 'ag-grid-community';
 import { toast } from "@/lib/toast";
-import { Loader2, Plus, Package, CheckCircle } from 'lucide-react';
+import { Loader2, Plus, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
  Dialog,
@@ -39,16 +39,6 @@ import {
  SelectTrigger,
  SelectValue,
 } from "@/components/ui/select";
-import {
- AlertDialog,
- AlertDialogAction,
- AlertDialogCancel,
- AlertDialogContent,
- AlertDialogDescription,
- AlertDialogFooter,
- AlertDialogHeader,
- AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 
 // Register modules
 ModuleRegistry.registerModules([
@@ -64,17 +54,17 @@ ModuleRegistry.registerModules([
  CustomFilterModule
 ]);
 
-type ProcurementLine = {
-  item?: { name?: string; unit?: string };
-  quantityRequested: number;
-};
-
-type ProcurementRequestRow = {
+type StoreRequestRow = {
   id: string;
+  itemName: string;
+  quantity: number;
+  unit: string;
+  requestDate?: string | null;
+  unitCost?: number | null;
+  totalCost?: number | null;
+  purpose?: string | null;
   status: string;
-  notes?: string | null;
   createdAt: string;
-  lines?: ProcurementLine[];
 };
 
 type InventoryItem = {
@@ -84,50 +74,67 @@ type InventoryItem = {
 };
 
 export function StoreRequestGrid() {
- const [rowData, setRowData] = useState<ProcurementRequestRow[]>([]);
+ const [rowData, setRowData] = useState<StoreRequestRow[]>([]);
  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
  const [loading, setLoading] = useState(true);
  const [showNewRequest, setShowNewRequest] = useState(false);
  const [submitting, setSubmitting] = useState(false);
-
- const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
- const [requestToReceive, setRequestToReceive] = useState<ProcurementRequestRow | null>(null);
- const [isReceiving, setIsReceiving] = useState(false);
- const [receiveQuantity, setReceiveQuantity] = useState('');
- const [receiveUnitCost, setReceiveUnitCost] = useState('');
- const [receiveNotes, setReceiveNotes] = useState('');
 
  // New Request State
  const [newItem, setNewItem] = useState({
   itemName: '',
   quantity: '',
   unit: 'KG',
+  requestDate: new Date().toISOString().slice(0, 10),
+  unitCost: '',
   purpose: ''
  });
 
- const colDefs = useMemo<ColDef<ProcurementRequestRow>[]>(() => [
+ const computedTotalCost = useMemo(() => {
+  const qty = Number(newItem.quantity);
+  const cost = Number(newItem.unitCost);
+  if (!Number.isFinite(qty) || qty <= 0) return 0;
+  if (!Number.isFinite(cost) || cost < 0) return 0;
+  return qty * cost;
+ }, [newItem.quantity, newItem.unitCost]);
+
+ const colDefs = useMemo<ColDef<StoreRequestRow>[]>(() => [
   {
+   field: "itemName",
    headerName: "Item Name",
    flex: 1.5,
    minWidth: 150,
-   filter: true,
-   valueGetter: (p: any) => p.data.lines?.[0]?.item?.name || 'Unknown'
+   filter: true
   },
   {
+   field: "quantity",
    headerName: "Quantity",
    flex: 0.8,
    filter: false,
-   type: 'numericColumn',
-   valueGetter: (p: any) => p.data.lines?.[0]?.quantityRequested ?? 0
+   type: 'numericColumn'
   },
   {
+   field: "unit",
    headerName: "Unit",
    width: 100,
-   filter: false,
-   valueGetter: (p: any) => p.data.lines?.[0]?.item?.unit || ''
+   filter: false
   },
   {
-   field: "notes",
+   field: "unitCost",
+   headerName: "Unit Cost",
+   width: 120,
+   type: 'numericColumn',
+   valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  },
+  {
+   field: "totalCost",
+   headerName: "Total Cost",
+   width: 130,
+   type: 'numericColumn',
+   valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  },
+  {
+   field: "purpose",
    headerName: "Purpose / Notes",
    flex: 2,
    minWidth: 200,
@@ -153,47 +160,30 @@ export function StoreRequestGrid() {
    }
   },
   {
-   field: "createdAt",
+   field: "requestDate",
    headerName: "Date Requested",
    flex: 1,
-   valueFormatter: (p: any) => new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-'),
+   valueFormatter: (p: any) => {
+    const source = p.value || p.data?.createdAt;
+    if (!source) return '';
+    return new Date(source).toLocaleDateString('en-GB').replace(/\//g, '-');
+   },
    sort: 'desc'
-  },
-  {
-   headerName: "Actions",
-   width: 100,
-   cellRenderer: (params: any) => {
-    if (params.data.status === 'APPROVED') {
-     return (
-      <div className="flex justify-center h-full items-center">
-       <button
-        onClick={() => {
-         setRequestToReceive(params.data);
-         const qty = params.data.lines?.[0]?.quantityRequested ?? 0;
-         setReceiveQuantity(String(qty));
-         setReceiveUnitCost('');
-         setReceiveNotes('');
-         setReceiveDialogOpen(true);
-        }}
-        className="p-2 text-slate-400 hover:text-blue-600 transition-colors rounded-full hover:bg-blue-50"
-        title="Mark as Received (Updates Inventory)"
-       >
-        <CheckCircle className="w-5 h-5" />
-       </button>
-      </div>
-     );
-    }
-    return null;
-   }
   }
  ], []);
 
  const loadData = async () => {
   setLoading(true);
-  const response = await fetch('/api/procurement/requests');
+  const response = await fetch('/api/store/requests');
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-   console.error('Error loading procurement requests:', payload.error || response.statusText);
+ if (!response.ok) {
+   const message = payload.error || response.statusText;
+   console.error('Error loading store requests:', message);
+   toast({
+    title: "Error",
+    description: `Failed to load store requests: ${message}`,
+    variant: "destructive"
+   });
   } else {
    setRowData(payload.requests || []);
   }
@@ -203,8 +193,14 @@ export function StoreRequestGrid() {
  const loadInventoryItems = async () => {
   const response = await fetch('/api/inventory/location?code=STORE');
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-   console.error('Error loading inventory items:', payload.error || response.statusText);
+ if (!response.ok) {
+   const message = payload.error || response.statusText;
+   console.error('Error loading inventory items:', message);
+   toast({
+    title: "Error",
+    description: `Failed to load inventory items: ${message}`,
+    variant: "destructive"
+   });
    return;
   }
   setInventoryItems(payload.items || []);
@@ -213,13 +209,16 @@ export function StoreRequestGrid() {
  const handleCreateRequest = async (e: React.FormEvent) => {
   e.preventDefault();
   setSubmitting(true);
-  const response = await fetch('/api/procurement/requests', {
+  const response = await fetch('/api/store/requests', {
    method: 'POST',
    headers: { 'Content-Type': 'application/json' },
    body: JSON.stringify({
     itemName: newItem.itemName,
     quantity: Number(newItem.quantity),
     unit: newItem.unit,
+    requestDate: newItem.requestDate,
+    unitCost: Number(newItem.unitCost),
+    totalCost: computedTotalCost,
     purpose: newItem.purpose
    })
   });
@@ -233,46 +232,22 @@ export function StoreRequestGrid() {
    });
   } else {
    setShowNewRequest(false);
-   setNewItem({ itemName: '', quantity: '', unit: 'KG', purpose: '' });
+   setNewItem({
+    itemName: '',
+    quantity: '',
+    unit: 'KG',
+    requestDate: new Date().toISOString().slice(0, 10),
+    unitCost: '',
+    purpose: ''
+   });
+   toast({
+    title: "Success",
+    description: "Store request submitted successfully.",
+    variant: "success"
+   });
    loadData();
   }
   setSubmitting(false);
- };
-
- const handleReceive = async () => {
-  if (!requestToReceive) return;
-  if (!receiveUnitCost || Number(receiveUnitCost) < 0) {
-   toast({ title: "Error", description: "Unit cost is required.", variant: "destructive" });
-   return;
-  }
-  setIsReceiving(true);
-
-  try {
-   const response = await fetch(`/api/procurement/requests/${requestToReceive.id}/receive`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-     quantityReceived: Number(receiveQuantity || requestToReceive.lines?.[0]?.quantityRequested || 0),
-     unitCost: Number(receiveUnitCost),
-     notes: receiveNotes
-    })
-   });
-
-   if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.error || 'Failed to receive items');
-   }
-
-   setReceiveDialogOpen(false);
-   setRequestToReceive(null);
-   loadData();
-   toast({ title: "Success", description: "Items received and inventory updated.", variant: "success" });
-
-  } catch (error: any) {
-   toast({ title: "Error", description: "Error: " + error.message, variant: "destructive" });
-  } finally {
-   setIsReceiving(false);
-  }
  };
 
  useEffect(() => {
@@ -293,12 +268,12 @@ export function StoreRequestGrid() {
      <DialogTrigger asChild>
       <Button className="bg-emerald-700 hover:bg-emerald-800 shadow-sm transition-all  active:scale-95">
        <Plus className="w-4 h-4 mr-2" />
-       New Procurement Request
+       New Store Request
       </Button>
      </DialogTrigger>
      <DialogContent className="sm:max-w-106.25">
       <DialogHeader>
-       <DialogTitle>New Procurement Request</DialogTitle>
+       <DialogTitle>New Store Request</DialogTitle>
       </DialogHeader>
       <form onSubmit={handleCreateRequest} className="space-y-4 py-4">
        <div className="space-y-2">
@@ -342,6 +317,41 @@ export function StoreRequestGrid() {
          <Input value={newItem.unit} readOnly />
         </div>
        </div>
+       <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+         <Label htmlFor="requestDate">Date</Label>
+         <Input
+          id="requestDate"
+          type="date"
+          value={newItem.requestDate}
+          onChange={e => setNewItem({ ...newItem, requestDate: e.target.value })}
+          required
+         />
+        </div>
+        <div className="space-y-2">
+         <Label htmlFor="unitCost">Unit Cost</Label>
+         <Input
+          id="unitCost"
+          type="number"
+          step="0.01"
+          min="0"
+          placeholder="0.00"
+          value={newItem.unitCost}
+          onChange={e => setNewItem({ ...newItem, unitCost: e.target.value })}
+          required
+         />
+        </div>
+       </div>
+       <div className="space-y-2">
+        <Label htmlFor="totalCost">Total Cost</Label>
+        <Input
+         id="totalCost"
+         type="number"
+         step="0.01"
+         value={computedTotalCost.toFixed(2)}
+         readOnly
+        />
+       </div>
        <div className="space-y-2">
         <Label htmlFor="purpose">Purpose / Notes</Label>
         <Textarea
@@ -382,68 +392,6 @@ export function StoreRequestGrid() {
      />
     )}
    </div>
-
-   <AlertDialog open={receiveDialogOpen} onOpenChange={setReceiveDialogOpen}>
-    <AlertDialogContent>
-     <AlertDialogHeader>
-      <AlertDialogTitle className="flex items-center text-blue-600">
-       <CheckCircle className="w-5 h-5 mr-2" />
-       Confirm Receipt?
-      </AlertDialogTitle>
-     <AlertDialogDescription>
-      This will add <strong>{requestToReceive?.lines?.[0]?.quantityRequested} {requestToReceive?.lines?.[0]?.item?.unit}</strong> of <strong>{requestToReceive?.lines?.[0]?.item?.name}</strong> to your inventory.
-      <br /><br />
-      Ensure you have physically confirmed the items.
-     </AlertDialogDescription>
-    </AlertDialogHeader>
-     <div className="space-y-4 py-2">
-      <div className="space-y-2">
-       <Label htmlFor="receiveQty">Received Quantity</Label>
-       <Input
-        id="receiveQty"
-        type="number"
-        step="0.01"
-        value={receiveQuantity}
-        onChange={(e) => setReceiveQuantity(e.target.value)}
-        required
-       />
-      </div>
-      <div className="space-y-2">
-       <Label htmlFor="receiveCost">Unit Cost</Label>
-       <Input
-        id="receiveCost"
-        type="number"
-        step="0.01"
-        value={receiveUnitCost}
-        onChange={(e) => setReceiveUnitCost(e.target.value)}
-        required
-       />
-      </div>
-      <div className="space-y-2">
-       <Label htmlFor="receiveNotes">Notes (optional)</Label>
-       <Textarea
-        id="receiveNotes"
-        value={receiveNotes}
-        onChange={(e) => setReceiveNotes(e.target.value)}
-        placeholder="Supplier, invoice, delivery notes..."
-       />
-      </div>
-     </div>
-    <AlertDialogFooter>
-     <AlertDialogCancel disabled={isReceiving}>Cancel</AlertDialogCancel>
-      <AlertDialogAction
-       onClick={(e) => {
-        e.preventDefault();
-        handleReceive();
-       }}
-       disabled={isReceiving}
-       className="bg-blue-600 hover:bg-blue-700 text-white"
-      >
-       {isReceiving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Confirm Receipt"}
-      </AlertDialogAction>
-     </AlertDialogFooter>
-    </AlertDialogContent>
-   </AlertDialog>
   </div>
  );
 }

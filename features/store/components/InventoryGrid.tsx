@@ -67,9 +67,17 @@ export function InventoryGrid() {
  const [deletingId, setDeletingId] = useState<string | null>(null);
 
  const [showNewItem, setShowNewItem] = useState(false);
+ const [showReceive, setShowReceive] = useState(false);
  const [showAdjust, setShowAdjust] = useState(false);
 
  const [newItem, setNewItem] = useState({ name: '', unit: 'KG', description: '', trackInFeedMill: true });
+ const [receiveForm, setReceiveForm] = useState({
+  ingredientId: '',
+  quantity: '',
+  unitPrice: '',
+  reference: 'DIRECT_STORE_ENTRY',
+  notes: ''
+ });
  const [adjustForm, setAdjustForm] = useState({ ingredientId: '', quantity: '', direction: 'OUT', reason: '' });
  const unitOptions = ['KG', 'TON', 'LITER', 'BAG', 'CRATE', 'PCS'];
 
@@ -77,14 +85,19 @@ export function InventoryGrid() {
   if (!confirm(`Delete ${item.name}? This cannot be undone.`)) return;
   setDeletingId(item.id);
   const response = await fetch(`/api/inventory/items/${item.id}`, { method: 'DELETE' });
-  if (!response.ok) {
-   const payload = await response.json().catch(() => ({}));
+ if (!response.ok) {
+  const payload = await response.json().catch(() => ({}));
+  toast({
+   title: "Error",
+   description: payload.error || 'Failed to delete item.',
+   variant: "destructive"
+  });
+ } else {
    toast({
-    title: "Error",
-    description: payload.error || 'Failed to delete item.',
-    variant: "destructive"
+    title: "Success",
+    description: `${item.name} deleted successfully.`,
+    variant: "success"
    });
-  } else {
    loadData();
   }
   setDeletingId(null);
@@ -96,8 +109,7 @@ export function InventoryGrid() {
    headerName: "Item Name",
    flex: 1.5,
    minWidth: 150,
-   filter: true,
-   checkboxSelection: true
+   filter: true
   },
   {
    field: "unit",
@@ -123,10 +135,21 @@ export function InventoryGrid() {
   },
   {
    field: "averageUnitCost",
-   headerName: "Avg. Cost (₦)",
+   headerName: "Avg. Unit Cost (₦)",
    flex: 1,
    type: 'numericColumn',
    valueFormatter: (params: any) => Number(params.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  },
+  {
+   headerName: "Total Cost (₦)",
+   flex: 1,
+   type: 'numericColumn',
+   valueGetter: (params: any) => {
+    const qty = Number(params.data?.quantityOnHand ?? 0);
+    const avg = Number(params.data?.averageUnitCost ?? 0);
+    return qty * avg;
+   },
+   valueFormatter: (params: any) => Number(params.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   },
   {
    field: "updatedAt",
@@ -168,8 +191,14 @@ export function InventoryGrid() {
   setLoading(true);
   const response = await fetch('/api/inventory/location?code=STORE');
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-   console.error('Error loading inventory:', payload.error || response.statusText);
+ if (!response.ok) {
+   const message = payload.error || response.statusText;
+   console.error('Error loading inventory:', message);
+   toast({
+    title: "Error",
+    description: `Failed to load store inventory: ${message}`,
+    variant: "destructive"
+   });
   } else {
    setRowData(payload.items || []);
   }
@@ -199,6 +228,11 @@ export function InventoryGrid() {
   } else {
    setShowNewItem(false);
    setNewItem({ name: '', unit: 'KG', description: '', trackInFeedMill: true });
+   toast({
+    title: "Success",
+    description: "Inventory item created successfully.",
+    variant: "success"
+   });
    loadData();
   }
   setSubmitting(false);
@@ -233,6 +267,56 @@ export function InventoryGrid() {
   } else {
    setShowAdjust(false);
    setAdjustForm({ ingredientId: '', quantity: '', direction: 'OUT', reason: '' });
+   toast({
+    title: "Success",
+    description: "Stock adjustment recorded successfully.",
+    variant: "success"
+   });
+   loadData();
+  }
+  setSubmitting(false);
+ };
+
+ const handleReceive = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!receiveForm.ingredientId) {
+   toast({ title: "Error", description: "Select an item to receive.", variant: "destructive" });
+   return;
+  }
+  setSubmitting(true);
+  const response = await fetch('/api/inventory/receive', {
+   method: 'POST',
+   headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({
+    ingredientId: receiveForm.ingredientId,
+    quantity: Number(receiveForm.quantity),
+    unitPrice: Number(receiveForm.unitPrice),
+    reference: receiveForm.reference || null,
+    notes: receiveForm.notes || null
+   })
+  });
+
+  if (!response.ok) {
+   const payload = await response.json().catch(() => ({}));
+   toast({
+    title: "Error",
+    description: payload.error || 'Failed to receive stock.',
+    variant: "destructive"
+   });
+  } else {
+   setShowReceive(false);
+   setReceiveForm({
+    ingredientId: '',
+    quantity: '',
+    unitPrice: '',
+    reference: 'DIRECT_STORE_ENTRY',
+    notes: ''
+   });
+   toast({
+    title: "Success",
+    description: "Stock received successfully.",
+    variant: "success"
+   });
    loadData();
   }
   setSubmitting(false);
@@ -309,6 +393,88 @@ export function InventoryGrid() {
          <Button type="submit" disabled={submitting}>
           {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
           Create Item
+         </Button>
+        </DialogFooter>
+       </form>
+      </DialogContent>
+     </Dialog>
+
+     <Dialog open={showReceive} onOpenChange={setShowReceive}>
+      <DialogTrigger asChild>
+       <Button className="bg-emerald-700 hover:bg-emerald-800">
+        <Plus className="w-4 h-4 mr-2" />
+        Stock In
+       </Button>
+      </DialogTrigger>
+      <DialogContent>
+       <DialogHeader>
+        <DialogTitle>Receive Stock (Direct Store Entry)</DialogTitle>
+       </DialogHeader>
+       <form onSubmit={handleReceive} className="space-y-4">
+        <div className="space-y-2">
+         <Label>Item</Label>
+         <Select
+          value={receiveForm.ingredientId}
+          onValueChange={(value) => setReceiveForm({ ...receiveForm, ingredientId: value })}
+         >
+          <SelectTrigger>
+           <SelectValue placeholder="Select item" />
+          </SelectTrigger>
+          <SelectContent>
+           {rowData.map(item => (
+            <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>
+           ))}
+          </SelectContent>
+         </Select>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+         <div className="space-y-2">
+          <Label htmlFor="receiveQty">Quantity</Label>
+          <Input
+           id="receiveQty"
+           type="number"
+           step="0.01"
+           min="0.01"
+           value={receiveForm.quantity}
+           onChange={(e) => setReceiveForm({ ...receiveForm, quantity: e.target.value })}
+           required
+          />
+         </div>
+         <div className="space-y-2">
+          <Label htmlFor="receiveUnitPrice">Unit Cost</Label>
+          <Input
+           id="receiveUnitPrice"
+           type="number"
+           step="0.01"
+           min="0"
+           value={receiveForm.unitPrice}
+           onChange={(e) => setReceiveForm({ ...receiveForm, unitPrice: e.target.value })}
+           required
+          />
+         </div>
+        </div>
+        <div className="space-y-2">
+         <Label htmlFor="receiveReference">Reference</Label>
+         <Input
+          id="receiveReference"
+          value={receiveForm.reference}
+          onChange={(e) => setReceiveForm({ ...receiveForm, reference: e.target.value })}
+          placeholder="Invoice / source reference"
+         />
+        </div>
+        <div className="space-y-2">
+         <Label htmlFor="receiveNotes">Notes</Label>
+         <Textarea
+          id="receiveNotes"
+          value={receiveForm.notes}
+          onChange={(e) => setReceiveForm({ ...receiveForm, notes: e.target.value })}
+          placeholder="Optional notes"
+         />
+        </div>
+        <DialogFooter>
+         <Button type="submit" disabled={submitting}>
+          {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+          Confirm Stock In
          </Button>
         </DialogFooter>
        </form>

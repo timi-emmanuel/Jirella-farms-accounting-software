@@ -4,6 +4,22 @@ import { getAuthContext, isRoleAllowed } from '@/lib/server/auth';
 import { logActivityServer } from '@/lib/server/activity-log';
 import { roundTo2 } from '@/lib/utils';
 
+export async function GET() {
+ try {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+   .from('StoreRequest')
+   .select('*')
+   .order('createdAt', { ascending: false });
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  return NextResponse.json({ requests: data || [] });
+ } catch (error: any) {
+  console.error('Store requests fetch error:', error);
+  return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+ }
+}
+
 export async function POST(request: NextRequest) {
  try {
   const auth = await getAuthContext();
@@ -12,11 +28,30 @@ export async function POST(request: NextRequest) {
    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const { itemName, quantity, unit, purpose } = await request.json();
+  const { itemName, quantity, unit, requestDate, unitCost, totalCost, purpose } = await request.json();
   if (!itemName || !quantity || quantity <= 0) {
    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
   }
   const roundedQty = roundTo2(Number(quantity));
+  const parsedUnitCost = Number(unitCost);
+  const roundedUnitCost = Number.isFinite(parsedUnitCost) ? roundTo2(parsedUnitCost) : null;
+  if (roundedUnitCost !== null && roundedUnitCost < 0) {
+   return NextResponse.json({ error: 'Unit cost cannot be negative' }, { status: 400 });
+  }
+  const computedTotalCost = roundedUnitCost !== null ? roundTo2(roundedQty * roundedUnitCost) : null;
+  const roundedTotalCost =
+   totalCost !== undefined && totalCost !== null && Number.isFinite(Number(totalCost))
+    ? roundTo2(Number(totalCost))
+    : computedTotalCost;
+
+  let effectiveDate: string | null = null;
+  if (requestDate) {
+   const parsed = new Date(requestDate);
+   if (Number.isNaN(parsed.getTime())) {
+    return NextResponse.json({ error: 'Invalid request date' }, { status: 400 });
+   }
+   effectiveDate = requestDate;
+  }
 
   const admin = createAdminClient();
   let itemId: string | null = null;
@@ -46,11 +81,18 @@ export async function POST(request: NextRequest) {
   }
 
   const { data: requestRow, error: requestError } = await admin
-   .from('ProcurementRequest')
+   .from('StoreRequest')
    .insert({
+    itemId,
+    itemName,
+    quantity: roundedQty,
+    unit: unit ?? 'KG',
+    requestDate: effectiveDate,
+    unitCost: roundedUnitCost,
+    totalCost: roundedTotalCost,
+    purpose: purpose ?? null,
     status: 'PENDING',
-    createdBy: auth.userId,
-    notes: purpose ?? null
+    requestedBy: auth.userId
    })
    .select('*')
    .single();
@@ -59,24 +101,20 @@ export async function POST(request: NextRequest) {
    return NextResponse.json({ error: requestError.message }, { status: 400 });
   }
 
-  const { error: lineError } = await admin
-   .from('ProcurementRequestLine')
-   .insert({
-    procurementRequestId: requestRow.id,
-    itemId,
-    quantityRequested: roundedQty
-   });
-
-  if (lineError) {
-   return NextResponse.json({ error: lineError.message }, { status: 400 });
-  }
-
   await logActivityServer({
-   action: 'PROCUREMENT_REQUEST_CREATED',
-   entityType: 'ProcurementRequest',
+   action: 'STORE_REQUEST_CREATED',
+   entityType: 'StoreRequest',
    entityId: requestRow?.id,
-   description: `Procurement requested for ${itemName}`,
-   metadata: { item: itemName, qty: roundedQty, unit, purpose },
+   description: `Store request created for ${itemName}`,
+   metadata: {
+    item: itemName,
+    qty: roundedQty,
+    unit: unit ?? 'KG',
+    requestDate: effectiveDate,
+    unitCost: roundedUnitCost,
+    totalCost: roundedTotalCost,
+    purpose
+   },
    userId: auth.userId,
    userRole: auth.role,
    ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip')

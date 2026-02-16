@@ -33,6 +33,9 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   if (payload.itemName) updatePayload.itemName = payload.itemName;
   if (payload.quantity !== undefined) updatePayload.quantity = Number(payload.quantity);
   if (payload.unit) updatePayload.unit = payload.unit;
+  if (payload.requestDate !== undefined) updatePayload.requestDate = payload.requestDate || null;
+  if (payload.unitCost !== undefined) updatePayload.unitCost = payload.unitCost === null ? null : Number(payload.unitCost);
+  if (payload.totalCost !== undefined) updatePayload.totalCost = payload.totalCost === null ? null : Number(payload.totalCost);
   if (payload.purpose !== undefined) updatePayload.purpose = payload.purpose;
   updatePayload.updatedAt = new Date().toISOString();
 

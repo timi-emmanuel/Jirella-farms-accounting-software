@@ -70,10 +70,16 @@ export function IssueRequestGrid() {
 
  const loadRequests = async () => {
   setLoading(true);
-  const response = await fetch('/api/transfers');
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-   console.error('Error loading transfer requests:', payload.error || response.statusText);
+ const response = await fetch('/api/transfers');
+ const payload = await response.json().catch(() => ({}));
+ if (!response.ok) {
+   const message = payload.error || response.statusText;
+   console.error('Error loading transfer requests:', message);
+   toast({
+    title: "Error",
+    description: `Failed to load transfer requests: ${message}`,
+    variant: "destructive"
+   });
   }
   setRowData(payload.requests || []);
   setLoading(false);
@@ -99,6 +105,11 @@ export function IssueRequestGrid() {
   });
  } else {
   setRowData(prev => prev.map(r => r.id === request.id ? { ...r, status: action } : r));
+  toast({
+   title: "Success",
+   description: action === 'APPROVED' ? 'Transfer request approved.' : 'Transfer request rejected.',
+   variant: "success"
+  });
  }
   setProcessingId(null);
  };
@@ -127,6 +138,11 @@ export function IssueRequestGrid() {
    setIssueDialogOpen(false);
    setIssueTarget(null);
    setIssueNotes('');
+   toast({
+    title: "Success",
+    description: "Transfer completed and inventory updated.",
+    variant: "success"
+   });
   }
   setProcessingId(null);
  };

@@ -90,6 +90,9 @@ CREATE TABLE IF NOT EXISTS "StoreRequest" (
   "itemName" TEXT NOT NULL,
   "quantity" NUMERIC NOT NULL,
   "unit" TEXT NOT NULL,
+  "requestDate" DATE DEFAULT CURRENT_DATE,
+  "unitCost" NUMERIC,
+  "totalCost" NUMERIC,
   "purpose" TEXT,
   "status" TEXT NOT NULL DEFAULT 'PENDING'
     CHECK ("status" IN ('PENDING', 'APPROVED', 'REJECTED', 'RECEIVED')),
@@ -126,6 +129,11 @@ ALTER TABLE "Ingredient"
   ADD COLUMN IF NOT EXISTS "purchasedQuantity" FLOAT DEFAULT 0,
   ADD COLUMN IF NOT EXISTS "usedInProduction" FLOAT DEFAULT 0,
   ADD COLUMN IF NOT EXISTS "trackInFeedMill" BOOLEAN DEFAULT TRUE;
+
+ALTER TABLE "StoreRequest"
+  ADD COLUMN IF NOT EXISTS "requestDate" DATE DEFAULT CURRENT_DATE,
+  ADD COLUMN IF NOT EXISTS "unitCost" NUMERIC,
+  ADD COLUMN IF NOT EXISTS "totalCost" NUMERIC;
 
 -- Apply inventory movement with balance update
 CREATE OR REPLACE FUNCTION apply_inventory_movement(
