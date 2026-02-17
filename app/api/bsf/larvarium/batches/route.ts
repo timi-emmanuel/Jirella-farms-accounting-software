@@ -309,3 +309,63 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const auth = await getAuthContext();
+    if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!isRoleAllowed(auth.role, EDIT_ROLES)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'Missing batch id' }, { status: 400 });
+
+    const body = await request.json();
+    const payload: Record<string, any> = {
+      updatedAt: new Date().toISOString()
+    };
+
+    if (body.batchCode !== undefined) payload.batchCode = body.batchCode;
+    if (body.startDate !== undefined) payload.startDate = body.startDate;
+    if (body.initialLarvaeWeightGrams !== undefined) {
+      payload.initialLarvaeWeightGrams = Number(body.initialLarvaeWeightGrams || 0);
+    }
+    if (body.substrateMixRatio !== undefined) payload.substrateMixRatio = body.substrateMixRatio || null;
+    if (body.status !== undefined) payload.status = body.status;
+    if (body.harvestDate !== undefined) payload.harvestDate = body.harvestDate || null;
+    if (body.notes !== undefined) payload.notes = body.notes || null;
+
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('BsfLarvariumBatch')
+      .update(payload)
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) {
+      if (error.code === '23505') {
+        return NextResponse.json({ error: 'Batch code already exists. Use a different code.' }, { status: 400 });
+      }
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    await logActivityServer({
+      action: 'BSF_BATCH_UPDATED',
+      entityType: 'BsfLarvariumBatch',
+      entityId: id,
+      description: `BSF batch ${data.batchCode} updated`,
+      metadata: payload,
+      userId: auth.userId,
+      userRole: auth.role,
+      ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip')
+    });
+
+    return NextResponse.json({ batch: data });
+  } catch (error: any) {
+    console.error('BSF batch update error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

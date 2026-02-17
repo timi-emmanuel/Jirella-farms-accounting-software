@@ -19,7 +19,7 @@ import {
   themeQuartz
 } from 'ag-grid-community';
 import { toast } from "@/lib/toast";
-import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { BsfLarvariumBatch } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -57,8 +57,10 @@ export function BsfLarvariumBatchGrid() {
   const [rowData, setRowData] = useState<BsfLarvariumBatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
     batchCode: '',
     startDate: new Date().toISOString().split('T')[0],
@@ -66,6 +68,16 @@ export function BsfLarvariumBatchGrid() {
     initialLarvaeWeightGrams: '',
     substrateMixRatio: '',
     status: 'GROWING',
+    notes: ''
+  });
+  const [editForm, setEditForm] = useState({
+    id: '',
+    batchCode: '',
+    startDate: new Date().toISOString().split('T')[0],
+    initialLarvaeWeightGrams: '',
+    substrateMixRatio: '',
+    status: 'GROWING',
+    harvestDate: '',
     notes: ''
   });
 
@@ -140,6 +152,58 @@ export function BsfLarvariumBatchGrid() {
     setDeletingId(null);
   };
 
+  const openEdit = (batch: BsfLarvariumBatch) => {
+    setEditForm({
+      id: batch.id,
+      batchCode: batch.batchCode ?? '',
+      startDate: batch.startDate ? new Date(batch.startDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      initialLarvaeWeightGrams: String(batch.initialLarvaeWeightGrams ?? ''),
+      substrateMixRatio: batch.substrateMixRatio ?? '',
+      status: batch.status ?? 'GROWING',
+      harvestDate: batch.harvestDate ? new Date(batch.harvestDate).toISOString().split('T')[0] : '',
+      notes: batch.notes ?? ''
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editForm.id || !editForm.batchCode) return;
+
+    setEditingId(editForm.id);
+    const response = await fetch(`/api/bsf/larvarium/batches?id=${editForm.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        batchCode: editForm.batchCode,
+        startDate: editForm.startDate,
+        initialLarvaeWeightGrams: Number(editForm.initialLarvaeWeightGrams || 0),
+        substrateMixRatio: editForm.substrateMixRatio,
+        status: editForm.status,
+        harvestDate: editForm.harvestDate || null,
+        notes: editForm.notes
+      })
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      toast({
+        title: "Error",
+        description: payload.error || 'Failed to update batch.',
+        variant: "destructive"
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: "Batch updated successfully.",
+        variant: "success"
+      });
+      setEditDialogOpen(false);
+      loadData();
+    }
+    setEditingId(null);
+  };
+
   const colDefs = useMemo<ColDef<BsfLarvariumBatch>[]>(() => [
     {
       headerName: 'Batch Code',
@@ -165,27 +229,39 @@ export function BsfLarvariumBatchGrid() {
     { field: 'notes', headerName: 'Notes', flex: 1.4, minWidth: 200 },
     {
       headerName: "Actions",
-      width: 110,
+      width: 160,
       pinned: 'right',
       sortable: false,
       filter: false,
       cellRenderer: (params: any) => {
         const batch = params.data as BsfLarvariumBatch;
         const isDeleting = deletingId === batch.id;
+        const isEditing = editingId === batch.id;
         return (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-8 px-2 text-slate-500 hover:text-rose-600 hover:bg-transparent"
-            disabled={isDeleting}
-            onClick={() => handleDelete(batch)}
-          >
-            {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-          </Button>
+          <div className="flex items-center justify-center h-full w-full gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2 text-slate-500 hover:text-blue-600 hover:bg-transparent"
+              disabled={isDeleting || isEditing}
+              onClick={() => openEdit(batch)}
+            >
+              {isEditing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pencil className="w-4 h-4" />}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2 text-slate-500 hover:text-rose-600 hover:bg-transparent"
+              disabled={isDeleting || isEditing}
+              onClick={() => handleDelete(batch)}
+            >
+              {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+            </Button>
+          </div>
         );
       }
     }
-  ], [deletingId]);
+  ], [deletingId, editingId]);
 
   if (loading && rowData.length === 0) {
     return (
@@ -289,6 +365,94 @@ export function BsfLarvariumBatchGrid() {
                 <Button type="submit" disabled={submitting} className="w-full">
                   {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                   Save Batch
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto modal-scrollbar">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold tracking-tight">Edit Larvarium Batch</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleEdit} className="space-y-4 py-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="editBatchCode">Batch Code</Label>
+                  <Input
+                    id="editBatchCode"
+                    value={editForm.batchCode}
+                    onChange={(e) => setEditForm({ ...editForm, batchCode: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editStartDate">Start Date</Label>
+                  <Input
+                    id="editStartDate"
+                    type="date"
+                    value={editForm.startDate}
+                    onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="editInitial">Initial Larvae (g)</Label>
+                  <Input
+                    id="editInitial"
+                    type="number"
+                    step="0.01"
+                    value={editForm.initialLarvaeWeightGrams}
+                    onChange={(e) => setEditForm({ ...editForm, initialLarvaeWeightGrams: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editHarvestDate">Harvest Date</Label>
+                  <Input
+                    id="editHarvestDate"
+                    type="date"
+                    value={editForm.harvestDate}
+                    onChange={(e) => setEditForm({ ...editForm, harvestDate: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select value={editForm.status} onValueChange={(value) => setEditForm({ ...editForm, status: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="GROWING">Growing</SelectItem>
+                      <SelectItem value="HARVESTED">Harvested</SelectItem>
+                      <SelectItem value="PROCESSED">Processed</SelectItem>
+                      <SelectItem value="CLOSED">Closed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editMix">Substrate Mix Ratio</Label>
+                <Input
+                  id="editMix"
+                  value={editForm.substrateMixRatio}
+                  onChange={(e) => setEditForm({ ...editForm, substrateMixRatio: e.target.value })}
+                  placeholder="60% PKC / 40% Waste"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editNotes">Notes</Label>
+                <Textarea
+                  id="editNotes"
+                  value={editForm.notes}
+                  onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                />
+              </div>
+              <DialogFooter>
+                <Button type="submit" disabled={editingId === editForm.id} className="w-full">
+                  {editingId === editForm.id ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Save Changes
                 </Button>
               </DialogFooter>
             </form>

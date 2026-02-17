@@ -17,7 +17,7 @@ import {
   CustomFilterModule,
   themeQuartz
 } from 'ag-grid-community';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { BsfInsectoriumLog } from '@/types';
 import { toast } from "@/lib/toast";
 import { Button } from '@/components/ui/button';
@@ -49,9 +49,20 @@ export function BsfInsectoriumLogGrid() {
   const [rowData, setRowData] = useState<BsfInsectoriumLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
+    date: new Date().toISOString().split('T')[0],
+    pupaeLoadedKg: '',
+    eggsHarvestedGrams: '',
+    pupaeShellsHarvestedKg: '',
+    deadFlyKg: '',
+    notes: ''
+  });
+  const [editForm, setEditForm] = useState({
+    id: '',
     date: new Date().toISOString().split('T')[0],
     pupaeLoadedKg: '',
     eggsHarvestedGrams: '',
@@ -132,6 +143,56 @@ export function BsfInsectoriumLogGrid() {
     setDeletingId(null);
   };
 
+  const openEdit = (log: BsfInsectoriumLog) => {
+    setEditForm({
+      id: log.id,
+      date: log.date ? new Date(log.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      pupaeLoadedKg: String(log.pupaeLoadedKg ?? ''),
+      eggsHarvestedGrams: String(log.eggsHarvestedGrams ?? ''),
+      pupaeShellsHarvestedKg: String(log.pupaeShellsHarvestedKg ?? ''),
+      deadFlyKg: String(log.deadFlyKg ?? ''),
+      notes: log.notes ?? ''
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editForm.id) return;
+
+    setEditingId(editForm.id);
+    const response = await fetch(`/api/bsf/insectorium?id=${editForm.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date: editForm.date,
+        pupaeLoadedKg: Number(editForm.pupaeLoadedKg || 0),
+        eggsHarvestedGrams: Number(editForm.eggsHarvestedGrams || 0),
+        pupaeShellsHarvestedKg: Number(editForm.pupaeShellsHarvestedKg || 0),
+        deadFlyKg: Number(editForm.deadFlyKg || 0),
+        notes: editForm.notes
+      })
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      toast({
+        title: "Error",
+        description: payload.error || 'Failed to update log.',
+        variant: "destructive"
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: "Log updated successfully.",
+        variant: "success"
+      });
+      setEditDialogOpen(false);
+      loadData();
+    }
+    setEditingId(null);
+  };
+
   const colDefs = useMemo<ColDef<BsfInsectoriumLog>[]>(() => [
     { field: 'date', headerName: 'Date', minWidth: 120, valueFormatter: (p: any) => new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-') },
     { field: 'pupaeLoadedKg', headerName: 'Pupae Loaded (kg)', type: 'numericColumn', minWidth: 160 },
@@ -141,27 +202,39 @@ export function BsfInsectoriumLogGrid() {
     { field: 'notes', headerName: 'Notes', flex: 1.5, minWidth: 200 },
     {
       headerName: "Actions",
-      width: 110,
+      width: 160,
       pinned: 'right',
       sortable: false,
       filter: false,
       cellRenderer: (params: any) => {
         const log = params.data as BsfInsectoriumLog;
         const isDeleting = deletingId === log.id;
+        const isEditing = editingId === log.id;
         return (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-8 px-2 text-slate-500 hover:text-rose-600 hover:bg-transparent"
-            disabled={isDeleting}
-            onClick={() => handleDelete(log)}
-          >
-            {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-          </Button>
+          <div className="flex items-center justify-center h-full w-full gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2 text-slate-500 hover:text-blue-600 hover:bg-transparent"
+              disabled={isDeleting || isEditing}
+              onClick={() => openEdit(log)}
+            >
+              {isEditing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pencil className="w-4 h-4" />}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2 text-slate-500 hover:text-rose-600 hover:bg-transparent"
+              disabled={isDeleting || isEditing}
+              onClick={() => handleDelete(log)}
+            >
+              {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+            </Button>
+          </div>
         );
       }
     }
-  ], [deletingId]);
+  ], [deletingId, editingId]);
 
   if (loading && rowData.length === 0) {
     return (
@@ -254,6 +327,85 @@ export function BsfInsectoriumLogGrid() {
                 <Button type="submit" disabled={submitting} className="w-full">
                   {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                   Save Log
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto modal-scrollbar">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold tracking-tight">Edit Insectorium Log</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleEdit} className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="editLogDate">Date</Label>
+                <Input
+                  id="editLogDate"
+                  type="date"
+                  value={editForm.date}
+                  onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="editPupaeLoaded">Pupae Loaded (kg)</Label>
+                  <Input
+                    id="editPupaeLoaded"
+                    type="number"
+                    step="0.01"
+                    value={editForm.pupaeLoadedKg}
+                    onChange={(e) => setEditForm({ ...editForm, pupaeLoadedKg: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editEggsHarvested">Eggs Harvested (g)</Label>
+                  <Input
+                    id="editEggsHarvested"
+                    type="number"
+                    step="0.01"
+                    value={editForm.eggsHarvestedGrams}
+                    onChange={(e) => setEditForm({ ...editForm, eggsHarvestedGrams: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="editShells">Pupae Shells (kg)</Label>
+                  <Input
+                    id="editShells"
+                    type="number"
+                    step="0.01"
+                    value={editForm.pupaeShellsHarvestedKg}
+                    onChange={(e) => setEditForm({ ...editForm, pupaeShellsHarvestedKg: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editDeadFlyKg">Dead Fly (kg)</Label>
+                  <Input
+                    id="editDeadFlyKg"
+                    type="number"
+                    step="0.01"
+                    value={editForm.deadFlyKg}
+                    onChange={(e) => setEditForm({ ...editForm, deadFlyKg: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editNotes">Notes</Label>
+                <Textarea
+                  id="editNotes"
+                  value={editForm.notes}
+                  onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                  placeholder="Observations or dead fly notes"
+                />
+              </div>
+              <DialogFooter>
+                <Button type="submit" disabled={editingId === editForm.id} className="w-full">
+                  {editingId === editForm.id ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Save Changes
                 </Button>
               </DialogFooter>
             </form>

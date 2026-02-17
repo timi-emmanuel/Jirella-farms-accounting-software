@@ -18,7 +18,7 @@ import {
   themeQuartz
 } from 'ag-grid-community';
 import { toast } from "@/lib/toast";
-import { Loader2, Plus, Trash2, Users } from 'lucide-react';
+import { Loader2, Pencil, Plus, Trash2, Users } from 'lucide-react';
 import { PoultryFlock } from '@/types';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,12 +55,23 @@ export function PoultryFlockGrid() {
   const [rowData, setRowData] = useState<PoultryFlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: '',
     breed: '',
     initialCount: '',
+    startDate: new Date().toISOString().split('T')[0],
+    status: 'ACTIVE'
+  });
+  const [editForm, setEditForm] = useState({
+    id: '',
+    name: '',
+    breed: '',
+    initialCount: '',
+    currentCount: '',
     startDate: new Date().toISOString().split('T')[0],
     status: 'ACTIVE'
   });
@@ -151,6 +162,56 @@ export function PoultryFlockGrid() {
     setDeletingId(null);
   };
 
+  const openEdit = (flock: PoultryFlock) => {
+    setEditForm({
+      id: flock.id,
+      name: flock.name ?? '',
+      breed: flock.breed ?? '',
+      initialCount: String(flock.initialCount ?? ''),
+      currentCount: String(flock.currentCount ?? ''),
+      startDate: flock.startDate ? new Date(flock.startDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      status: flock.status ?? 'ACTIVE'
+    });
+    setShowEdit(true);
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editForm.id || !editForm.name) return;
+    setEditingId(editForm.id);
+
+    const response = await fetch(`/api/poultry/flocks?id=${editForm.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: editForm.name,
+        breed: editForm.breed || null,
+        initialCount: Number(editForm.initialCount),
+        currentCount: Number(editForm.currentCount),
+        startDate: editForm.startDate,
+        status: editForm.status
+      })
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      toast({
+        title: "Error",
+        description: payload.error || 'Failed to update flock.',
+        variant: "destructive"
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: "Flock updated successfully.",
+        variant: "success"
+      });
+      setShowEdit(false);
+      loadData();
+    }
+    setEditingId(null);
+  };
+
   const colDefs = useMemo<ColDef<PoultryFlock>[]>(() => [
     {
       field: "name",
@@ -202,27 +263,39 @@ export function PoultryFlockGrid() {
     },
     {
       headerName: "Actions",
-      width: 110,
+      width: 160,
       pinned: 'right',
       sortable: false,
       filter: false,
       cellRenderer: (params: any) => {
         const flock = params.data as PoultryFlock;
         const isDeleting = deletingId === flock.id;
+        const isEditing = editingId === flock.id;
         return (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-8 px-2 text-slate-500 hover:text-rose-600 hover:bg-transparent"
-            disabled={isDeleting}
-            onClick={() => handleDelete(flock)}
-          >
-            {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-          </Button>
+          <div className="flex items-center justify-center h-full w-full gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2 text-slate-500 hover:text-blue-600 hover:bg-transparent"
+              disabled={isDeleting || isEditing}
+              onClick={() => openEdit(flock)}
+            >
+              {isEditing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pencil className="w-4 h-4" />}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2 text-slate-500 hover:text-rose-600 hover:bg-transparent"
+              disabled={isDeleting || isEditing}
+              onClick={() => handleDelete(flock)}
+            >
+              {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+            </Button>
+          </div>
         );
       }
     }
-  ], [deletingId]);
+  ], [deletingId, editingId]);
 
   if (loading && rowData.length === 0) {
     return (
@@ -314,6 +387,90 @@ export function PoultryFlockGrid() {
           </DialogContent>
         </Dialog>
       </div>
+
+      <Dialog open={showEdit} onOpenChange={setShowEdit}>
+        <DialogContent className="sm:max-w-130">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold tracking-tight flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-blue-600" />
+              Edit Flock
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEdit} className="space-y-5 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="editFlockName">Flock Name</Label>
+              <Input
+                id="editFlockName"
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                required
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="editBreed">Breed (optional)</Label>
+                <Input
+                  id="editBreed"
+                  value={editForm.breed}
+                  onChange={(e) => setEditForm({ ...editForm, breed: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editStartDate">Start Date</Label>
+                <Input
+                  id="editStartDate"
+                  type="date"
+                  value={editForm.startDate}
+                  onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="editInitialCount">Initial Bird Count</Label>
+                <Input
+                  id="editInitialCount"
+                  type="number"
+                  min="0"
+                  value={editForm.initialCount}
+                  onChange={(e) => setEditForm({ ...editForm, initialCount: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editCurrentCount">Current Bird Count</Label>
+                <Input
+                  id="editCurrentCount"
+                  type="number"
+                  min="0"
+                  value={editForm.currentCount}
+                  onChange={(e) => setEditForm({ ...editForm, currentCount: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={editForm.status} onValueChange={(value) => setEditForm({ ...editForm, status: value })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ACTIVE">ACTIVE</SelectItem>
+                  <SelectItem value="CLOSED">CLOSED</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={!!editingId} className="w-full">
+                {editingId ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <div className="flex-1 border rounded-2xl overflow-hidden bg-white shadow-xl shadow-slate-200/50">
         <AgGridReact

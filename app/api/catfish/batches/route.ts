@@ -243,3 +243,102 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const auth = await getAuthContext();
+    if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!isRoleAllowed(auth.role, EDIT_ROLES)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'Missing batch id' }, { status: 400 });
+
+    const body = await request.json();
+    if (!body.batchCode || !body.pondId) {
+      return NextResponse.json({ error: 'Batch code and pond are required' }, { status: 400 });
+    }
+
+    const fingerlings = Number(body.initialFingerlingsCount || 0);
+    const unitCost = Number(body.fingerlingUnitCost || 0);
+    const totalFingerlingCost = roundTo2(fingerlings * unitCost);
+
+    const admin = createAdminClient();
+    const { data: pond, error: pondError } = await admin
+      .from('CatfishPond')
+      .select('id, capacityFish')
+      .eq('id', body.pondId)
+      .single();
+
+    if (pondError || !pond) {
+      return NextResponse.json({ error: 'Pond not found' }, { status: 400 });
+    }
+
+    if (Number(pond.capacityFish || 0) > 0 && fingerlings > 0) {
+      const { data: existingBatches, error: batchError } = await admin
+        .from('CatfishBatch')
+        .select('id, initialFingerlingsCount, status')
+        .eq('pondId', body.pondId);
+
+      if (batchError) {
+        return NextResponse.json({ error: batchError.message }, { status: 400 });
+      }
+
+      const activeTotal = (existingBatches || [])
+        .filter((batch: any) => batch.status !== 'CLOSED' && batch.id !== id)
+        .reduce((sum: number, batch: any) => sum + Number(batch.initialFingerlingsCount || 0), 0);
+
+      const nextTotal = activeTotal + fingerlings;
+      if (nextTotal > Number(pond.capacityFish || 0)) {
+        return NextResponse.json(
+          { error: `Pond capacity exceeded. Capacity: ${pond.capacityFish}, current: ${activeTotal}, new: ${fingerlings}.` },
+          { status: 400 }
+        );
+      }
+    }
+
+    const payload = {
+      batchCode: body.batchCode,
+      pondId: body.pondId,
+      startDate: body.startDate ?? new Date().toISOString().split('T')[0],
+      initialFingerlingsCount: fingerlings,
+      fingerlingUnitCost: roundTo2(unitCost),
+      totalFingerlingCost,
+      status: body.status ?? 'GROWING',
+      notes: body.notes ?? null,
+      updatedAt: new Date().toISOString()
+    };
+
+    const { data, error } = await admin
+      .from('CatfishBatch')
+      .update(payload)
+      .eq('id', id)
+      .select('*, pond:CatfishPond(*)')
+      .single();
+
+    if (error) {
+      if (error.code === '23505') {
+        return NextResponse.json({ error: 'Batch code already exists. Use a different code.' }, { status: 400 });
+      }
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    await logActivityServer({
+      action: 'CATFISH_BATCH_UPDATED',
+      entityType: 'CatfishBatch',
+      entityId: data.id,
+      description: `Catfish batch ${data.batchCode} updated`,
+      metadata: payload,
+      userId: auth.userId,
+      userRole: auth.role,
+      ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip')
+    });
+
+    return NextResponse.json({ batch: data });
+  } catch (error: any) {
+    console.error('Catfish batch update error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

@@ -239,7 +239,7 @@ export async function DELETE(request: NextRequest) {
     const adjustInventory = async (productId: string, qty: number) => {
       const { data: stock } = await admin
         .from('FinishedGoodsInventory')
-        .select('quantityOnHand')
+        .select('quantityOnHand, averageUnitCost')
         .eq('productId', productId)
         .eq('locationId', location.id)
         .single();
@@ -321,6 +321,168 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('BSF insectorium delete error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const auth = await getAuthContext();
+    if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!isRoleAllowed(auth.role, EDIT_ROLES)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'Missing log id' }, { status: 400 });
+
+    const body = await request.json();
+    const admin = createAdminClient();
+
+    const { data: existing, error: existingError } = await admin
+      .from('BsfInsectoriumLog')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (existingError || !existing) {
+      return NextResponse.json({ error: 'Log not found' }, { status: 404 });
+    }
+
+    const nextValues = {
+      date: body.date ?? existing.date,
+      pupaeLoadedKg: Number(body.pupaeLoadedKg ?? existing.pupaeLoadedKg ?? 0),
+      eggsHarvestedGrams: Number(body.eggsHarvestedGrams ?? existing.eggsHarvestedGrams ?? 0),
+      pupaeShellsHarvestedKg: Number(body.pupaeShellsHarvestedKg ?? existing.pupaeShellsHarvestedKg ?? 0),
+      deadFlyKg: Number(body.deadFlyKg ?? existing.deadFlyKg ?? 0),
+      notes: body.notes === undefined ? existing.notes : body.notes
+    };
+
+    if (!nextValues.date) {
+      return NextResponse.json({ error: 'Date is required' }, { status: 400 });
+    }
+    if (nextValues.eggsHarvestedGrams <= 0) {
+      return NextResponse.json({ error: 'Eggs harvested is required' }, { status: 400 });
+    }
+
+    const { data: location } = await admin
+      .from('InventoryLocation')
+      .select('id')
+      .eq('code', 'BSF')
+      .single();
+
+    if (!location) {
+      return NextResponse.json({ error: 'BSF location not found' }, { status: 400 });
+    }
+
+    const { data: products } = await admin
+      .from('Product')
+      .select('id, name')
+      .eq('module', 'BSF')
+      .in('name', ['BSF Eggs', 'Pupae Shells', 'Dead Fly']);
+
+    const productMap = new Map((products || []).map((row: any) => [row.name, row.id]));
+    const eggsId = productMap.get('BSF Eggs');
+    const shellsId = productMap.get('Pupae Shells');
+    const deadFlyId = productMap.get('Dead Fly');
+
+    if (!eggsId || !shellsId || !deadFlyId) {
+      return NextResponse.json({ error: 'Missing BSF eggs/shells/dead fly product setup' }, { status: 400 });
+    }
+
+    const adjustInventoryByDelta = async (productId: string, delta: number) => {
+      if (!delta) return null;
+
+      const { data: stock } = await admin
+        .from('FinishedGoodsInventory')
+        .select('quantityOnHand, averageUnitCost')
+        .eq('productId', productId)
+        .eq('locationId', location.id)
+        .single();
+
+      const currentQty = Number(stock?.quantityOnHand || 0);
+      const nextQty = roundTo2(currentQty + delta);
+
+      if (nextQty < 0) {
+        return `Cannot update log: insufficient stock to reverse ${Math.abs(delta)}.`;
+      }
+
+      const currentAvg = Number(stock?.averageUnitCost || 0);
+
+      const { error: updateError } = await admin
+        .from('FinishedGoodsInventory')
+        .upsert({
+          productId,
+          locationId: location.id,
+          quantityOnHand: nextQty,
+          averageUnitCost: currentAvg,
+          updatedAt: new Date().toISOString()
+        });
+
+      if (updateError) return updateError.message;
+
+      const { error: ledgerError } = await admin
+        .from('FinishedGoodsLedger')
+        .insert({
+          productId,
+          locationId: location.id,
+          type: delta > 0 ? 'PRODUCTION_IN' : 'ADJUSTMENT',
+          quantity: roundTo2(delta),
+          unitCostAtTime: 0,
+          referenceType: 'BSF_INSECTORIUM_LOG_UPDATE',
+          referenceId: id,
+          createdBy: auth.userId
+        });
+
+      return ledgerError?.message ?? null;
+    };
+
+    const eggsDelta = roundTo2(nextValues.eggsHarvestedGrams - Number(existing.eggsHarvestedGrams || 0));
+    const shellsDelta = roundTo2(nextValues.pupaeShellsHarvestedKg - Number(existing.pupaeShellsHarvestedKg || 0));
+    const deadFlyDelta = roundTo2(nextValues.deadFlyKg - Number(existing.deadFlyKg || 0));
+
+    const eggsErr = await adjustInventoryByDelta(eggsId, eggsDelta);
+    if (eggsErr) return NextResponse.json({ error: eggsErr }, { status: 400 });
+    const shellsErr = await adjustInventoryByDelta(shellsId, shellsDelta);
+    if (shellsErr) return NextResponse.json({ error: shellsErr }, { status: 400 });
+    const deadFlyErr = await adjustInventoryByDelta(deadFlyId, deadFlyDelta);
+    if (deadFlyErr) return NextResponse.json({ error: deadFlyErr }, { status: 400 });
+
+    const payload = {
+      ...nextValues,
+      notes: nextValues.notes ?? null,
+      updatedAt: new Date().toISOString()
+    };
+
+    const { data, error } = await admin
+      .from('BsfInsectoriumLog')
+      .update(payload)
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) {
+      if (error.code === '23505') {
+        return NextResponse.json({ error: 'Entry already made for this date.' }, { status: 400 });
+      }
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    await logActivityServer({
+      action: 'BSF_INSECTORIUM_LOG_UPDATED',
+      entityType: 'BsfInsectoriumLog',
+      entityId: id,
+      description: 'BSF insectorium log updated',
+      metadata: payload,
+      userId: auth.userId,
+      userRole: auth.role,
+      ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip')
+    });
+
+    return NextResponse.json({ log: data });
+  } catch (error: any) {
+    console.error('BSF insectorium update error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

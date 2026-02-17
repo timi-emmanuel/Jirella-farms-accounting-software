@@ -92,6 +92,121 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function PATCH(request: NextRequest) {
+  try {
+    const auth = await getAuthContext();
+    if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!isRoleAllowed(auth.role, EDIT_ROLES)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'Missing flock id' }, { status: 400 });
+
+    const payload = await request.json();
+    const admin = createAdminClient();
+
+    const { data: existing, error: existingError } = await admin
+      .from('PoultryFlock')
+      .select('id, name')
+      .eq('id', id)
+      .single();
+
+    if (existingError || !existing) {
+      return NextResponse.json({ error: 'Flock not found' }, { status: 404 });
+    }
+
+    const updatePayload: Record<string, any> = {};
+
+    if (payload.name !== undefined) {
+      const normalizedName = String(payload.name ?? '').trim();
+      if (!normalizedName) {
+        return NextResponse.json({ error: 'Flock name is required' }, { status: 400 });
+      }
+
+      const { data: duplicate, error: duplicateError } = await admin
+        .from('PoultryFlock')
+        .select('id')
+        .ilike('name', normalizedName)
+        .neq('id', id)
+        .limit(1);
+
+      if (duplicateError) {
+        return NextResponse.json({ error: duplicateError.message }, { status: 400 });
+      }
+      if ((duplicate || []).length > 0) {
+        return NextResponse.json({ error: 'Flock name already exists. Use a unique flock name.' }, { status: 409 });
+      }
+
+      updatePayload.name = normalizedName;
+    }
+
+    if (payload.breed !== undefined) {
+      const breed = String(payload.breed ?? '').trim();
+      updatePayload.breed = breed ? breed : null;
+    }
+
+    if (payload.initialCount !== undefined) {
+      const initialCount = Number(payload.initialCount);
+      if (!Number.isFinite(initialCount) || initialCount < 0) {
+        return NextResponse.json({ error: 'Invalid initial count' }, { status: 400 });
+      }
+      updatePayload.initialCount = Math.round(initialCount);
+    }
+
+    if (payload.currentCount !== undefined) {
+      const currentCount = Number(payload.currentCount);
+      if (!Number.isFinite(currentCount) || currentCount < 0) {
+        return NextResponse.json({ error: 'Invalid current count' }, { status: 400 });
+      }
+      updatePayload.currentCount = Math.round(currentCount);
+    }
+
+    if (payload.startDate !== undefined) {
+      updatePayload.startDate = payload.startDate;
+    }
+
+    if (payload.status !== undefined) {
+      if (!['ACTIVE', 'CLOSED'].includes(String(payload.status))) {
+        return NextResponse.json({ error: 'Invalid flock status' }, { status: 400 });
+      }
+      updatePayload.status = payload.status;
+    }
+
+    if (Object.keys(updatePayload).length === 0) {
+      return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+    }
+
+    updatePayload.updatedAt = new Date().toISOString();
+
+    const { data, error } = await admin
+      .from('PoultryFlock')
+      .update(updatePayload)
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    await logActivityServer({
+      action: 'POULTRY_FLOCK_UPDATED',
+      entityType: 'PoultryFlock',
+      entityId: data.id,
+      description: `Updated flock ${data.name}`,
+      metadata: updatePayload,
+      userId: auth.userId,
+      userRole: auth.role,
+      ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip')
+    });
+
+    return NextResponse.json({ flock: data });
+  } catch (error: any) {
+    console.error('Poultry flock update error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
 export async function DELETE(request: NextRequest) {
   try {
     const auth = await getAuthContext();

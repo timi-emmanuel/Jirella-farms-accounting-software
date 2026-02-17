@@ -18,7 +18,7 @@ import {
   CustomFilterModule,
   themeQuartz
 } from 'ag-grid-community';
-import { Info, Loader2, Plus, Trash2 } from 'lucide-react';
+import { Info, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { CatfishBatch, CatfishPond } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -60,8 +60,10 @@ export function CatfishBatchGrid() {
   const [ponds, setPonds] = useState<CatfishPond[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [initialAgeApplied, setInitialAgeApplied] = useState(false);
   const [startDateTouched, setStartDateTouched] = useState(false);
   const [startDateBeforeApply, setStartDateBeforeApply] = useState<string | null>(null);
@@ -70,6 +72,16 @@ export function CatfishBatchGrid() {
     pondId: '',
     startDate: getToday(),
     initialAgeWeeks: '',
+    initialFingerlingsCount: '',
+    fingerlingUnitCost: '',
+    status: 'GROWING',
+    notes: ''
+  });
+  const [editForm, setEditForm] = useState({
+    id: '',
+    batchCode: '',
+    pondId: '',
+    startDate: getToday(),
     initialFingerlingsCount: '',
     fingerlingUnitCost: '',
     status: 'GROWING',
@@ -211,6 +223,58 @@ export function CatfishBatchGrid() {
     setDeletingId(null);
   };
 
+  const openEdit = (batch: CatfishBatch) => {
+    setEditForm({
+      id: batch.id,
+      batchCode: batch.batchCode ?? '',
+      pondId: batch.pondId ?? '',
+      startDate: batch.startDate ? new Date(batch.startDate).toISOString().split('T')[0] : getToday(),
+      initialFingerlingsCount: String(batch.initialFingerlingsCount ?? ''),
+      fingerlingUnitCost: String(batch.fingerlingUnitCost ?? ''),
+      status: batch.status ?? 'GROWING',
+      notes: batch.notes ?? ''
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editForm.id || !editForm.batchCode || !editForm.pondId) return;
+    setEditingId(editForm.id);
+
+    const response = await fetch(`/api/catfish/batches?id=${editForm.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        batchCode: editForm.batchCode,
+        pondId: editForm.pondId,
+        startDate: editForm.startDate,
+        initialFingerlingsCount: Number(editForm.initialFingerlingsCount || 0),
+        fingerlingUnitCost: Number(editForm.fingerlingUnitCost || 0),
+        status: editForm.status,
+        notes: editForm.notes
+      })
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      toast({
+        title: "Error",
+        description: payload.error || 'Failed to update batch.',
+        variant: "destructive"
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: "Batch updated successfully.",
+        variant: "success"
+      });
+      setEditDialogOpen(false);
+      loadData();
+    }
+    setEditingId(null);
+  };
+
   const colDefs = useMemo<ColDef<CatfishBatch>[]>(() => [
     {
       headerName: 'Batch Code',
@@ -276,27 +340,39 @@ export function CatfishBatchGrid() {
     { field: 'notes', headerName: 'Notes', flex: 1.2, minWidth: 200, filter: false },
     {
       headerName: "Actions",
-      width: 110,
+      width: 160,
       pinned: 'right',
       sortable: false,
       filter: false,
       cellRenderer: (params: any) => {
         const batch = params.data as CatfishBatch;
         const isDeleting = deletingId === batch.id;
+        const isEditing = editingId === batch.id;
         return (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-8 px-2 text-slate-500 hover:text-rose-600 hover:bg-transparent"
-            disabled={isDeleting}
-            onClick={() => handleDelete(batch)}
-          >
-            {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-          </Button>
+          <div className="flex items-center justify-center h-full w-full gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2 text-slate-500 hover:text-blue-600 hover:bg-transparent"
+              disabled={isDeleting || isEditing}
+              onClick={() => openEdit(batch)}
+            >
+              {isEditing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pencil className="w-4 h-4" />}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2 text-slate-500 hover:text-rose-600 hover:bg-transparent"
+              disabled={isDeleting || isEditing}
+              onClick={() => handleDelete(batch)}
+            >
+              {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+            </Button>
+          </div>
         );
       }
     }
-  ], [deletingId]);
+  ], [deletingId, editingId]);
 
   if (loading && rowData.length === 0) {
     return (
@@ -465,6 +541,99 @@ export function CatfishBatchGrid() {
                 <Button type="submit" disabled={submitting} className="w-full">
                   {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                   Save Batch
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent className="sm:max-w-155 max-h-[90vh] overflow-y-auto modal-scrollbar">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold tracking-tight">Edit Catfish Batch</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleEdit} className="space-y-4 py-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="editBatchCode">Batch Code</Label>
+                  <Input
+                    id="editBatchCode"
+                    value={editForm.batchCode}
+                    onChange={(e) => setEditForm({ ...editForm, batchCode: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editStartDate">Start Date</Label>
+                  <Input
+                    id="editStartDate"
+                    type="date"
+                    value={editForm.startDate}
+                    onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Pond</Label>
+                <Select value={editForm.pondId} onValueChange={(value) => setEditForm({ ...editForm, pondId: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select pond" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ponds.map((pond) => (
+                      <SelectItem key={pond.id} value={pond.id}>
+                        {pond.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Quantity</Label>
+                  <Input
+                    type="number"
+                    value={editForm.initialFingerlingsCount}
+                    onChange={(e) => setEditForm({ ...editForm, initialFingerlingsCount: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Unit Cost</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={editForm.fingerlingUnitCost}
+                    onChange={(e) => setEditForm({ ...editForm, fingerlingUnitCost: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={editForm.status} onValueChange={(value) => setEditForm({ ...editForm, status: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="GROWING">Growing</SelectItem>
+                    <SelectItem value="HARVESTING">Harvesting</SelectItem>
+                    <SelectItem value="CLOSED">Closed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editNotes">Notes</Label>
+                <Textarea
+                  id="editNotes"
+                  value={editForm.notes}
+                  onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                />
+              </div>
+              <DialogFooter>
+                <Button type="submit" disabled={editingId === editForm.id} className="w-full">
+                  {editingId === editForm.id ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Save Changes
                 </Button>
               </DialogFooter>
             </form>

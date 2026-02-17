@@ -127,3 +127,59 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const auth = await getAuthContext();
+    if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!isRoleAllowed(auth.role, EDIT_ROLES)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'Missing pond id' }, { status: 400 });
+
+    const { name, capacityFish, waterType, status } = await request.json();
+    if (!name) return NextResponse.json({ error: 'Pond name is required' }, { status: 400 });
+
+    const admin = createAdminClient();
+    const payload = {
+      name,
+      capacityFish: Number(capacityFish || 0),
+      waterType: waterType ?? 'EARTHEN',
+      status: status ?? 'ACTIVE',
+      updatedAt: new Date().toISOString()
+    };
+
+    const { data, error } = await admin
+      .from('CatfishPond')
+      .update(payload)
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) {
+      if (error.code === '23505') {
+        return NextResponse.json({ error: 'Pond name already exists. Use a different name.' }, { status: 400 });
+      }
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    await logActivityServer({
+      action: 'CATFISH_POND_UPDATED',
+      entityType: 'CatfishPond',
+      entityId: data.id,
+      description: `Catfish pond ${data.name} updated`,
+      metadata: payload,
+      userId: auth.userId,
+      userRole: auth.role,
+      ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip')
+    });
+
+    return NextResponse.json({ pond: data });
+  } catch (error: any) {
+    console.error('Catfish pond update error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
