@@ -39,6 +39,7 @@ type StoreHistoryRow = {
  direction: 'IN' | 'OUT';
  quantity: number;
  unitCost?: number | null;
+ datePurchased?: string | null;
  referenceType?: string | null;
  referenceId?: string | null;
  notes?: string | null;
@@ -95,6 +96,18 @@ export function StoreHistoryGrid() {
    headerName: 'Unit',
    width: 90,
    valueGetter: (p: any) => p.data.item?.unit || ''
+  },
+  {
+   field: 'datePurchased',
+   headerName: 'Date Purchased',
+   flex: 1,
+   minWidth: 130,
+   valueFormatter: (p: any) => {
+    if (!p.value) return '-';
+    const parsed = new Date(p.value);
+    if (Number.isNaN(parsed.getTime())) return '-';
+    return parsed.toLocaleDateString('en-GB').replace(/\//g, '-');
+   }
   },
   {
    field: 'unitCost',

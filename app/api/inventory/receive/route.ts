@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const { ingredientId, quantity, unitPrice, reference, notes } = await request.json();
+  const { ingredientId, quantity, unitPrice, purchaseDate, reference, notes } = await request.json();
 
   if (!ingredientId || !quantity || quantity <= 0 || unitPrice === undefined || unitPrice < 0) {
    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
@@ -32,6 +32,10 @@ export async function POST(request: NextRequest) {
 
   const qty = roundTo2(Number(quantity));
   const unitCost = roundTo2(Number(unitPrice));
+  const normalizedPurchaseDate = purchaseDate ? String(purchaseDate) : new Date().toISOString().split('T')[0];
+  if (Number.isNaN(new Date(normalizedPurchaseDate).getTime())) {
+   return NextResponse.json({ error: 'Invalid purchase date' }, { status: 400 });
+  }
 
   const { data: storeLocation, error: locationError } = await admin
    .from('InventoryLocation')
@@ -53,7 +57,8 @@ export async function POST(request: NextRequest) {
    p_reference_type: reference ?? null,
    p_reference_id: null,
    p_notes: notes ?? null,
-   p_created_by: auth.userId
+   p_created_by: auth.userId,
+   p_purchase_date: normalizedPurchaseDate
   });
 
   if (movementError) {
@@ -65,7 +70,7 @@ export async function POST(request: NextRequest) {
    entityType: 'Ingredient',
    entityId: ingredientId,
    description: `Received ${qty} into inventory: ${item.name}`,
-   metadata: { quantity: qty, unitPrice: unitCost, reference, notes, location: 'STORE' },
+   metadata: { quantity: qty, unitPrice: unitCost, purchaseDate: normalizedPurchaseDate, reference, notes, location: 'STORE' },
    userId: auth.userId,
    userRole: auth.role,
    ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip')

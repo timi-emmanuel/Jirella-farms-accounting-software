@@ -41,7 +41,7 @@ export async function GET() {
 
   const { data, error } = await admin
    .from('InventoryLedger')
-   .select('id, type, direction, quantity, unitCost, referenceType, referenceId, notes, createdBy, createdAt, item:Ingredient(name, unit)')
+   .select('id, type, direction, quantity, unitCost, datePurchased, referenceType, referenceId, notes, createdBy, createdAt, item:Ingredient(name, unit)')
    .eq('locationId', location.id)
    .order('createdAt', { ascending: false })
    .limit(500);

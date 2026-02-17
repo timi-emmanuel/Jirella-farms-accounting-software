@@ -5,6 +5,8 @@ type BalanceRow = {
  itemId: string;
  quantityOnHand: number | null;
  averageUnitCost: number | null;
+ lastPurchaseUnitCost: number | null;
+ lastPurchaseDate: string | null;
  updatedAt: string | null;
 };
 
@@ -67,7 +69,7 @@ export async function GET(request: NextRequest) {
 
   const { data: balances, error: balanceError } = await admin
    .from('InventoryBalance')
-   .select('itemId, quantityOnHand, averageUnitCost, updatedAt')
+   .select('itemId, quantityOnHand, averageUnitCost, lastPurchaseUnitCost, lastPurchaseDate, updatedAt')
    .eq('locationId', location.id);
 
   if (balanceError) {
@@ -100,6 +102,8 @@ export async function GET(request: NextRequest) {
     ...item,
     quantityOnHand: balance?.quantityOnHand ?? 0,
     averageUnitCost: balance?.averageUnitCost ?? 0,
+    lastPurchaseUnitCost: balance?.lastPurchaseUnitCost ?? 0,
+    lastPurchaseDate: balance?.lastPurchaseDate ?? null,
     updatedAt: balance?.updatedAt ?? null
    };
   });

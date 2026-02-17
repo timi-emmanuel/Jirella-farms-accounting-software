@@ -51,6 +51,30 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
    ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip')
   });
 
+  // Track item edits in store history timeline.
+  const { data: storeLocation } = await admin
+   .from('InventoryLocation')
+   .select('id')
+   .eq('code', 'STORE')
+   .single();
+
+  if (storeLocation?.id) {
+   await admin
+    .from('InventoryLedger')
+    .insert({
+     itemId: id,
+     locationId: storeLocation.id,
+     type: 'ADJUSTMENT',
+     quantity: 0,
+     direction: 'IN',
+     unitCost: null,
+     referenceType: 'ITEM_EDIT',
+     referenceId: id,
+     notes: 'Inventory item details updated',
+     createdBy: auth.userId
+    });
+  }
+
   return NextResponse.json({ item: data });
  } catch (error: any) {
   console.error('Inventory item update error:', error);

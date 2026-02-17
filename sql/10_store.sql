@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS "InventoryLedger" (
   "quantity" NUMERIC NOT NULL,
   "direction" TEXT NOT NULL CHECK ("direction" IN ('IN', 'OUT')),
   "unitCost" NUMERIC,
+  "datePurchased" DATE,
   "referenceType" TEXT,
   "referenceId" TEXT,
   "notes" TEXT,
@@ -37,6 +38,8 @@ CREATE TABLE IF NOT EXISTS "InventoryBalance" (
   "locationId" UUID NOT NULL REFERENCES "InventoryLocation"("id") ON DELETE CASCADE,
   "quantityOnHand" NUMERIC NOT NULL DEFAULT 0,
   "averageUnitCost" NUMERIC NOT NULL DEFAULT 0,
+  "lastPurchaseUnitCost" NUMERIC NOT NULL DEFAULT 0,
+  "lastPurchaseDate" DATE,
   "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   PRIMARY KEY ("itemId", "locationId")
 );
@@ -135,6 +138,36 @@ ALTER TABLE "StoreRequest"
   ADD COLUMN IF NOT EXISTS "unitCost" NUMERIC,
   ADD COLUMN IF NOT EXISTS "totalCost" NUMERIC;
 
+ALTER TABLE "InventoryLedger"
+  ADD COLUMN IF NOT EXISTS "datePurchased" DATE;
+
+ALTER TABLE "InventoryBalance"
+  ADD COLUMN IF NOT EXISTS "lastPurchaseUnitCost" NUMERIC NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "lastPurchaseDate" DATE;
+
+-- Backfill latest purchase details from historical receipts
+WITH latest_receipt AS (
+  SELECT DISTINCT ON ("itemId", "locationId")
+    "itemId",
+    "locationId",
+    COALESCE("unitCost", 0) AS "unitCost",
+    COALESCE("datePurchased", ("createdAt" AT TIME ZONE 'UTC')::date) AS "purchaseDate"
+  FROM "InventoryLedger"
+  WHERE "type" = 'RECEIPT' AND "direction" = 'IN'
+  ORDER BY
+    "itemId",
+    "locationId",
+    COALESCE("datePurchased", ("createdAt" AT TIME ZONE 'UTC')::date) DESC,
+    "createdAt" DESC
+)
+UPDATE "InventoryBalance" ib
+SET
+  "lastPurchaseUnitCost" = ROUND(latest_receipt."unitCost"::numeric, 2),
+  "lastPurchaseDate" = latest_receipt."purchaseDate"
+FROM latest_receipt
+WHERE ib."itemId" = latest_receipt."itemId"
+  AND ib."locationId" = latest_receipt."locationId";
+
 -- Apply inventory movement with balance update
 CREATE OR REPLACE FUNCTION apply_inventory_movement(
   p_item_id UUID,
@@ -146,11 +179,14 @@ CREATE OR REPLACE FUNCTION apply_inventory_movement(
   p_reference_type TEXT,
   p_reference_id TEXT,
   p_notes TEXT,
-  p_created_by UUID
+  p_created_by UUID,
+  p_purchase_date DATE DEFAULT NULL
 ) RETURNS void AS $$
 DECLARE
   v_qty NUMERIC;
   v_avg NUMERIC;
+  v_last_purchase_unit_cost NUMERIC;
+  v_last_purchase_date DATE;
   v_next_qty NUMERIC;
   v_next_avg NUMERIC;
 BEGIN
@@ -162,13 +198,16 @@ BEGIN
   IF p_unit_cost IS NOT NULL THEN
     p_unit_cost := ROUND(p_unit_cost::numeric, 2);
   END IF;
+  IF p_purchase_date IS NULL THEN
+    p_purchase_date := CURRENT_DATE;
+  END IF;
 
   IF p_quantity <= 0 THEN
     RETURN;
   END IF;
 
-  SELECT "quantityOnHand", "averageUnitCost"
-  INTO v_qty, v_avg
+  SELECT "quantityOnHand", "averageUnitCost", "lastPurchaseUnitCost", "lastPurchaseDate"
+  INTO v_qty, v_avg, v_last_purchase_unit_cost, v_last_purchase_date
   FROM "InventoryBalance"
   WHERE "itemId" = p_item_id AND "locationId" = p_location_id
   FOR UPDATE;
@@ -176,8 +215,10 @@ BEGIN
   IF v_qty IS NULL THEN
     v_qty := 0;
     v_avg := 0;
-    INSERT INTO "InventoryBalance" ("itemId", "locationId", "quantityOnHand", "averageUnitCost")
-    VALUES (p_item_id, p_location_id, 0, 0)
+    v_last_purchase_unit_cost := 0;
+    v_last_purchase_date := NULL;
+    INSERT INTO "InventoryBalance" ("itemId", "locationId", "quantityOnHand", "averageUnitCost", "lastPurchaseUnitCost", "lastPurchaseDate")
+    VALUES (p_item_id, p_location_id, 0, 0, 0, NULL)
     ON CONFLICT ("itemId", "locationId") DO NOTHING;
   END IF;
 
@@ -194,6 +235,10 @@ BEGIN
     ELSE
       v_next_avg := v_avg;
     END IF;
+    IF p_type = 'RECEIPT' THEN
+      v_last_purchase_unit_cost := COALESCE(p_unit_cost, v_last_purchase_unit_cost, 0);
+      v_last_purchase_date := COALESCE(p_purchase_date, v_last_purchase_date, CURRENT_DATE);
+    END IF;
   END IF;
 
   v_next_qty := ROUND(v_next_qty::numeric, 2);
@@ -202,6 +247,8 @@ BEGIN
   UPDATE "InventoryBalance"
   SET "quantityOnHand" = v_next_qty,
       "averageUnitCost" = v_next_avg,
+      "lastPurchaseUnitCost" = COALESCE(v_last_purchase_unit_cost, "lastPurchaseUnitCost", 0),
+      "lastPurchaseDate" = COALESCE(v_last_purchase_date, "lastPurchaseDate"),
       "updatedAt" = NOW()
   WHERE "itemId" = p_item_id AND "locationId" = p_location_id;
 
@@ -212,6 +259,7 @@ BEGIN
     "quantity",
     "direction",
     "unitCost",
+    "datePurchased",
     "referenceType",
     "referenceId",
     "notes",
@@ -223,6 +271,7 @@ BEGIN
     p_quantity,
     p_direction,
     p_unit_cost,
+    CASE WHEN p_type = 'RECEIPT' THEN p_purchase_date ELSE NULL END,
     p_reference_type,
     p_reference_id,
     p_notes,

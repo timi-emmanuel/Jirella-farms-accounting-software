@@ -18,7 +18,7 @@ import {
  CustomFilterModule,
  themeQuartz
 } from 'ag-grid-community';
-import { Loader2, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Ingredient } from '@/types';
 import { toast } from "@/lib/toast";
 import { Button } from '@/components/ui/button';
@@ -58,27 +58,59 @@ ModuleRegistry.registerModules([
 type StoreItem = Ingredient & {
  quantityOnHand: number;
  averageUnitCost: number;
+ lastPurchaseUnitCost?: number | null;
+ lastPurchaseDate?: string | null;
 };
 
 export function InventoryGrid() {
+ const todayDdMmYyyy = () => {
+  const d = new Date();
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${dd}-${mm}-${yyyy}`;
+ };
+
+ const ddMmYyyyToIso = (value: string) => {
+  const trimmed = value.trim();
+  const match = /^(\d{2})-(\d{2})-(\d{4})$/.exec(trimmed);
+  if (!match) return null;
+  const [, dd, mm, yyyy] = match;
+  const iso = `${yyyy}-${mm}-${dd}`;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return iso;
+ };
+
  const [rowData, setRowData] = useState<StoreItem[]>([]);
  const [loading, setLoading] = useState(true);
  const [submitting, setSubmitting] = useState(false);
  const [deletingId, setDeletingId] = useState<string | null>(null);
+ const [editingId, setEditingId] = useState<string | null>(null);
 
  const [showNewItem, setShowNewItem] = useState(false);
  const [showReceive, setShowReceive] = useState(false);
- const [showAdjust, setShowAdjust] = useState(false);
+ const [showEdit, setShowEdit] = useState(false);
 
  const [newItem, setNewItem] = useState({ name: '', unit: 'KG', description: '', trackInFeedMill: true });
  const [receiveForm, setReceiveForm] = useState({
   ingredientId: '',
   quantity: '',
   unitPrice: '',
+  purchaseDate: todayDdMmYyyy(),
   reference: 'DIRECT_STORE_ENTRY',
   notes: ''
  });
- const [adjustForm, setAdjustForm] = useState({ ingredientId: '', quantity: '', direction: 'OUT', reason: '' });
+ const [editForm, setEditForm] = useState({
+  id: '',
+  name: '',
+  unit: 'KG',
+  description: '',
+  trackInFeedMill: true,
+  adjustQuantity: '',
+  adjustDirection: 'OUT',
+  adjustReason: ''
+ });
  const unitOptions = ['KG', 'TON', 'LITER', 'BAG', 'CRATE', 'PCS'];
 
  const handleDelete = async (item: StoreItem) => {
@@ -101,6 +133,20 @@ export function InventoryGrid() {
    loadData();
   }
   setDeletingId(null);
+ };
+
+ const openEdit = (item: StoreItem) => {
+  setEditForm({
+   id: item.id,
+   name: item.name ?? '',
+   unit: item.unit ?? 'KG',
+   description: item.description ?? '',
+   trackInFeedMill: item.trackInFeedMill ?? true,
+   adjustQuantity: '',
+   adjustDirection: 'OUT',
+   adjustReason: ''
+  });
+  setShowEdit(true);
  };
 
  const colDefs = useMemo<ColDef<StoreItem>[]>(() => [
@@ -134,10 +180,11 @@ export function InventoryGrid() {
    }
   },
   {
-   field: "averageUnitCost",
-   headerName: "Avg. Unit Cost (₦)",
+   field: "lastPurchaseUnitCost",
+   headerName: "Unit Cost (N)",
    flex: 1,
    type: 'numericColumn',
+   valueGetter: (params: any) => Number(params.data?.lastPurchaseUnitCost ?? 0),
    valueFormatter: (params: any) => Number(params.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   },
   {
@@ -150,6 +197,17 @@ export function InventoryGrid() {
     return qty * avg;
    },
    valueFormatter: (params: any) => Number(params.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  },
+  {
+   field: "lastPurchaseDate",
+   headerName: "Date Purchased",
+   flex: 1,
+   valueFormatter: (params: any) => {
+    if (!params.value) return 'N/A';
+    const parsed = new Date(params.value);
+    if (Number.isNaN(parsed.getTime())) return 'N/A';
+    return parsed.toLocaleDateString('en-GB').replace(/\//g, '-');
+   }
   },
   {
    field: "updatedAt",
@@ -165,27 +223,39 @@ export function InventoryGrid() {
   },
   {
    headerName: "Actions",
-   width: 120,
+   width: 160,
    pinned: 'right',
    sortable: false,
    filter: false,
    cellRenderer: (params: any) => {
     const item = params.data as StoreItem;
     const isDeleting = deletingId === item.id;
+    const isEditing = editingId === item.id;
     return (
-     <Button
-      size="sm"
-      variant="ghost"
-      className="h-8 px-2 text-slate-500 hover:text-rose-600 hover:bg-transparent"
-      disabled={isDeleting}
-      onClick={() => handleDelete(item)}
-     >
-      {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-     </Button>
+     <div className="flex items-center justify-center h-full w-full gap-1">
+      <Button
+       size="sm"
+       variant="ghost"
+       className="h-8 px-2 text-slate-500 hover:text-blue-600 hover:bg-transparent"
+       disabled={isDeleting || isEditing}
+       onClick={() => openEdit(item)}
+      >
+       {isEditing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pencil className="w-4 h-4" />}
+      </Button>
+      <Button
+       size="sm"
+       variant="ghost"
+       className="h-8 px-2 text-slate-500 hover:text-rose-600 hover:bg-transparent"
+       disabled={isDeleting || isEditing}
+       onClick={() => handleDelete(item)}
+      >
+       {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+      </Button>
+     </div>
     );
    }
   }
-  ], [deletingId]);
+  ], [deletingId, editingId]);
 
  const loadData = async () => {
   setLoading(true);
@@ -238,49 +308,87 @@ export function InventoryGrid() {
   setSubmitting(false);
  };
 
- const handleAdjust = async (e: React.FormEvent) => {
+ const handleEdit = async (e: React.FormEvent) => {
   e.preventDefault();
- if (!adjustForm.ingredientId) {
-  toast({ title: "Error", description: "Select an item to adjust.", variant: "destructive" });
-  return;
- }
+  if (!editForm.id || !editForm.name || !editForm.unit) {
+   toast({ title: "Error", description: "Item name and unit are required.", variant: "destructive" });
+   return;
+  }
+
   setSubmitting(true);
-  const response = await fetch('/api/inventory/adjust', {
-   method: 'POST',
+  setEditingId(editForm.id);
+
+  const updateResponse = await fetch(`/api/inventory/items/${editForm.id}`, {
+   method: 'PATCH',
    headers: { 'Content-Type': 'application/json' },
    body: JSON.stringify({
-    ingredientId: adjustForm.ingredientId,
-    quantity: Number(adjustForm.quantity),
-    direction: adjustForm.direction,
-    reason: adjustForm.reason,
-    locationCode: 'STORE'
+    name: editForm.name,
+    unit: editForm.unit,
+    description: editForm.description || null,
+    trackInFeedMill: editForm.trackInFeedMill
    })
   });
 
-  if (!response.ok) {
-   const payload = await response.json().catch(() => ({}));
+  if (!updateResponse.ok) {
+   const payload = await updateResponse.json().catch(() => ({}));
    toast({
     title: "Error",
-    description: payload.error || 'Failed to adjust stock.',
+    description: payload.error || 'Failed to update item.',
     variant: "destructive"
    });
-  } else {
-   setShowAdjust(false);
-   setAdjustForm({ ingredientId: '', quantity: '', direction: 'OUT', reason: '' });
-   toast({
-    title: "Success",
-    description: "Stock adjustment recorded successfully.",
-    variant: "success"
-   });
-   loadData();
+   setSubmitting(false);
+   setEditingId(null);
+   return;
   }
+
+  const adjustQty = Number(editForm.adjustQuantity || 0);
+  if (adjustQty > 0) {
+   const adjustResponse = await fetch('/api/inventory/adjust', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+     ingredientId: editForm.id,
+     quantity: adjustQty,
+     direction: editForm.adjustDirection,
+     reason: editForm.adjustReason || 'Edited from inventory table',
+     locationCode: 'STORE'
+    })
+   });
+
+   if (!adjustResponse.ok) {
+    const payload = await adjustResponse.json().catch(() => ({}));
+    toast({
+     title: "Error",
+     description: payload.error || 'Item updated but stock adjustment failed.',
+     variant: "destructive"
+    });
+    setSubmitting(false);
+    setEditingId(null);
+    loadData();
+    return;
+   }
+  }
+
+  toast({
+   title: "Success",
+   description: "Inventory item updated successfully.",
+   variant: "success"
+  });
+  setShowEdit(false);
   setSubmitting(false);
+  setEditingId(null);
+  loadData();
  };
 
  const handleReceive = async (e: React.FormEvent) => {
   e.preventDefault();
   if (!receiveForm.ingredientId) {
    toast({ title: "Error", description: "Select an item to receive.", variant: "destructive" });
+   return;
+  }
+  const isoPurchaseDate = ddMmYyyyToIso(receiveForm.purchaseDate);
+  if (!isoPurchaseDate) {
+   toast({ title: "Error", description: "Use date format dd-mm-yyyy.", variant: "destructive" });
    return;
   }
   setSubmitting(true);
@@ -291,6 +399,7 @@ export function InventoryGrid() {
     ingredientId: receiveForm.ingredientId,
     quantity: Number(receiveForm.quantity),
     unitPrice: Number(receiveForm.unitPrice),
+    purchaseDate: isoPurchaseDate,
     reference: receiveForm.reference || null,
     notes: receiveForm.notes || null
    })
@@ -309,6 +418,7 @@ export function InventoryGrid() {
     ingredientId: '',
     quantity: '',
     unitPrice: '',
+    purchaseDate: todayDdMmYyyy(),
     reference: 'DIRECT_STORE_ENTRY',
     notes: ''
    });
@@ -453,14 +563,28 @@ export function InventoryGrid() {
           />
          </div>
         </div>
-        <div className="space-y-2">
-         <Label htmlFor="receiveReference">Reference</Label>
-         <Input
-          id="receiveReference"
-          value={receiveForm.reference}
-          onChange={(e) => setReceiveForm({ ...receiveForm, reference: e.target.value })}
-          placeholder="Invoice / source reference"
-         />
+        <div className="grid grid-cols-2 gap-4">
+         <div className="space-y-2">
+          <Label htmlFor="receivePurchaseDate">Date Purchased</Label>
+          <Input
+           id="receivePurchaseDate"
+           type="text"
+           value={receiveForm.purchaseDate}
+           onChange={(e) => setReceiveForm({ ...receiveForm, purchaseDate: e.target.value })}
+           placeholder="dd-mm-yyyy"
+           pattern="\d{2}-\d{2}-\d{4}"
+           required
+          />
+         </div>
+         <div className="space-y-2">
+          <Label htmlFor="receiveReference">Reference</Label>
+          <Input
+           id="receiveReference"
+           value={receiveForm.reference}
+           onChange={(e) => setReceiveForm({ ...receiveForm, reference: e.target.value })}
+           placeholder="Invoice / source reference"
+          />
+         </div>
         </div>
         <div className="space-y-2">
          <Label htmlFor="receiveNotes">Notes</Label>
@@ -481,76 +605,93 @@ export function InventoryGrid() {
       </DialogContent>
      </Dialog>
 
-     <Dialog open={showAdjust} onOpenChange={setShowAdjust}>
-      <DialogTrigger asChild>
-       <Button className="bg-slate-600 hover:bg-slate-700">
-        <SlidersHorizontal className="w-4 h-4 mr-2" />
-        Adjust
-       </Button>
-      </DialogTrigger>
+     <Dialog open={showEdit} onOpenChange={setShowEdit}>
       <DialogContent>
        <DialogHeader>
-        <DialogTitle>Adjust Stock</DialogTitle>
+        <DialogTitle>Edit Inventory Item</DialogTitle>
        </DialogHeader>
-       <form onSubmit={handleAdjust} className="space-y-4">
-        <div className="space-y-2">
-         <Label>Item</Label>
-         <Select
-          value={adjustForm.ingredientId}
-          onValueChange={(value) => setAdjustForm({ ...adjustForm, ingredientId: value })}
-         >
-          <SelectTrigger>
-           <SelectValue placeholder="Select item" />
-          </SelectTrigger>
-          <SelectContent>
-           {rowData.map(item => (
-            <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>
-           ))}
-          </SelectContent>
-         </Select>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
+       <form onSubmit={handleEdit} className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-4">
          <div className="space-y-2">
-          <Label htmlFor="adjustQty">Quantity</Label>
+          <Label htmlFor="editItemName">Item Name</Label>
           <Input
-           id="adjustQty"
-           type="number"
-           step="0.01"
-           value={adjustForm.quantity}
-           onChange={(e) => setAdjustForm({ ...adjustForm, quantity: e.target.value })}
+           id="editItemName"
+           value={editForm.name}
+           onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
            required
           />
          </div>
          <div className="space-y-2">
-          <Label>Direction</Label>
+          <Label htmlFor="editItemUnit">Unit</Label>
           <Select
-           value={adjustForm.direction}
-           onValueChange={(value) => setAdjustForm({ ...adjustForm, direction: value })}
+           value={editForm.unit}
+           onValueChange={(value) => setEditForm({ ...editForm, unit: value })}
           >
-           <SelectTrigger>
-            <SelectValue />
+           <SelectTrigger id="editItemUnit">
+            <SelectValue placeholder="Select unit" />
            </SelectTrigger>
            <SelectContent>
-            <SelectItem value="IN">Increase</SelectItem>
-            <SelectItem value="OUT">Decrease</SelectItem>
+            {unitOptions.map((unit) => (
+             <SelectItem key={unit} value={unit}>{unit}</SelectItem>
+            ))}
            </SelectContent>
           </Select>
          </div>
         </div>
-        <div className="space-y-2">
-         <Label htmlFor="adjustReason">Reason</Label>
-         <Textarea
-          id="adjustReason"
-          value={adjustForm.reason}
-          onChange={(e) => setAdjustForm({ ...adjustForm, reason: e.target.value })}
-          placeholder="Spillage, recount, correction..."
-          required
+        <div className="border-t pt-3 space-y-3">
+         <p className="text-sm font-medium">Optional stock adjustment</p>
+         <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+           <Label htmlFor="editAdjustQty">Quantity</Label>
+           <Input
+            id="editAdjustQty"
+            type="number"
+            step="0.01"
+            min="0"
+            value={editForm.adjustQuantity}
+            onChange={(e) => setEditForm({ ...editForm, adjustQuantity: e.target.value })}
+            placeholder="Leave 0 to skip"
+           />
+          </div>
+          <div className="space-y-2">
+           <Label>Direction</Label>
+           <Select
+            value={editForm.adjustDirection}
+            onValueChange={(value) => setEditForm({ ...editForm, adjustDirection: value })}
+           >
+            <SelectTrigger>
+             <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+             <SelectItem value="IN">Increase</SelectItem>
+             <SelectItem value="OUT">Decrease</SelectItem>
+            </SelectContent>
+           </Select>
+          </div>
+         </div>
+         <div className="space-y-2">
+          <Label htmlFor="editAdjustReason">Reason</Label>
+          <Textarea
+           id="editAdjustReason"
+           value={editForm.adjustReason}
+           onChange={(e) => setEditForm({ ...editForm, adjustReason: e.target.value })}
+           placeholder="Reason for this stock change"
          />
+         </div>
+        </div>
+        <div className="flex items-center gap-2">
+         <input
+          id="editTrackInFeedMill"
+          type="checkbox"
+          checked={editForm.trackInFeedMill}
+          onChange={(e) => setEditForm({ ...editForm, trackInFeedMill: e.target.checked })}
+         />
+         <Label htmlFor="editTrackInFeedMill">Show in Feed Mill inventory</Label>
         </div>
         <DialogFooter>
          <Button type="submit" disabled={submitting}>
           {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-          Confirm Adjustment
+          Save Changes
          </Button>
         </DialogFooter>
        </form>
