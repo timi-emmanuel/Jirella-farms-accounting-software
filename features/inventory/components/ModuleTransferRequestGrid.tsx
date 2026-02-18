@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useEffect, useMemo, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
@@ -17,11 +17,34 @@ import {
  CustomFilterModule,
  themeQuartz
 } from 'ag-grid-community';
-import { ClipboardList, Loader2 } from 'lucide-react';
+import { ClipboardList, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { toast } from '@/lib/toast';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+ Dialog,
+ DialogContent,
+ DialogFooter,
+ DialogHeader,
+ DialogTitle,
+} from '@/components/ui/dialog';
+import {
+ AlertDialog,
+ AlertDialogAction,
+ AlertDialogCancel,
+ AlertDialogContent,
+ AlertDialogDescription,
+ AlertDialogFooter,
+ AlertDialogHeader,
+ AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 type ModuleKey = 'FEED_MILL' | 'POULTRY' | 'BSF';
 
 type TransferLine = {
+ itemId?: string;
  item?: { name?: string; unit?: string };
  quantityRequested: number;
  quantityTransferred?: number | null;
@@ -36,11 +59,42 @@ type TransferRequestRow = {
  id: string;
  status: string;
  createdAt: string;
+ requestDate?: string | null;
  notes?: string | null;
  requestedBy?: string | null;
  requestedByProfile?: RequestedByProfile | null;
  lines?: TransferLine[];
  to?: { code?: string };
+};
+
+type EditForm = {
+ quantity: string;
+ requestDate: string;
+ notes: string;
+};
+
+const formatDateDMY = (date: Date) => {
+ const day = String(date.getDate()).padStart(2, '0');
+ const month = String(date.getMonth() + 1).padStart(2, '0');
+ const year = date.getFullYear();
+ return `${day}-${month}-${year}`;
+};
+
+const isoToDmy = (value?: string | null) => {
+ if (!value) return formatDateDMY(new Date());
+ const datePart = value.includes('T') ? value.split('T')[0] : value;
+ const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart);
+ if (!match) return formatDateDMY(new Date(value));
+ return `${match[3]}-${match[2]}-${match[1]}`;
+};
+
+const dmyToIso = (value: string) => {
+ const match = /^(\d{2})-(\d{2})-(\d{4})$/.exec((value || '').trim());
+ if (!match) return null;
+ const [, dd, mm, yyyy] = match;
+ const date = new Date(`${yyyy}-${mm}-${dd}T00:00:00`);
+ if (Number.isNaN(date.getTime())) return null;
+ return `${yyyy}-${mm}-${dd}`;
 };
 
 // Register modules
@@ -59,10 +113,101 @@ ModuleRegistry.registerModules([
 export function ModuleTransferRequestGrid({ moduleKey }: { moduleKey: ModuleKey }) {
  const [rowData, setRowData] = useState<TransferRequestRow[]>([]);
  const [loading, setLoading] = useState(true);
+ const [saving, setSaving] = useState(false);
+ const [deleting, setDeleting] = useState(false);
+ const [editOpen, setEditOpen] = useState(false);
+ const [deleteOpen, setDeleteOpen] = useState(false);
+ const [selectedRow, setSelectedRow] = useState<TransferRequestRow | null>(null);
+ const [editForm, setEditForm] = useState<EditForm>({
+  quantity: '',
+  requestDate: formatDateDMY(new Date()),
+  notes: ''
+ });
 
  const filteredData = useMemo(() => (
   rowData.filter(request => request.to?.code === moduleKey)
  ), [rowData, moduleKey]);
+
+ const loadRequests = async () => {
+  setLoading(true);
+  const response = await fetch('/api/transfers');
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+   console.error('Error loading transfer requests:', payload.error || response.statusText);
+  } else {
+   setRowData(payload.requests || []);
+  }
+  setLoading(false);
+ };
+
+ useEffect(() => {
+  loadRequests();
+ }, []);
+
+ const openEditDialog = (row: TransferRequestRow) => {
+  const qty = row.lines?.[0]?.quantityRequested ?? 0;
+  setSelectedRow(row);
+  setEditForm({
+   quantity: String(qty || ''),
+   requestDate: isoToDmy(row.requestDate || row.createdAt),
+   notes: row.notes || ''
+  });
+  setEditOpen(true);
+ };
+
+ const handleSaveEdit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!selectedRow) return;
+  const quantityNum = Number(editForm.quantity);
+  if (quantityNum <= 0) {
+   toast({ title: 'Error', description: 'Quantity must be greater than zero.', variant: 'destructive' });
+   return;
+  }
+  const requestDateIso = dmyToIso(editForm.requestDate);
+  if (!requestDateIso) {
+   toast({ title: 'Error', description: 'Date requested must be in DD-MM-YYYY format.', variant: 'destructive' });
+   return;
+  }
+
+  setSaving(true);
+  const response = await fetch(`/api/transfers/${selectedRow.id}`, {
+   method: 'PATCH',
+   headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({
+    quantity: quantityNum,
+    requestDate: requestDateIso,
+    notes: editForm.notes
+   })
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+   toast({ title: 'Error', description: payload.error || 'Failed to update request.', variant: 'destructive' });
+  } else {
+   toast({ title: 'Success', description: 'Request updated successfully.', variant: 'success' });
+   setEditOpen(false);
+   setSelectedRow(null);
+   await loadRequests();
+  }
+  setSaving(false);
+ };
+
+ const handleDelete = async () => {
+  if (!selectedRow) return;
+  setDeleting(true);
+  const response = await fetch(`/api/transfers/${selectedRow.id}`, {
+   method: 'DELETE'
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+   toast({ title: 'Error', description: payload.error || 'Failed to delete request.', variant: 'destructive' });
+  } else {
+   toast({ title: 'Success', description: 'Request deleted.', variant: 'success' });
+   setDeleteOpen(false);
+   setSelectedRow(null);
+   await loadRequests();
+  }
+  setDeleting(false);
+ };
 
  const colDefs = useMemo<ColDef<TransferRequestRow>[]>(() => [
   {
@@ -82,6 +227,13 @@ export function ModuleTransferRequestGrid({ moduleKey }: { moduleKey: ModuleKey 
    headerName: "Unit",
    width: 90,
    valueGetter: (p: any) => p.data.lines?.[0]?.item?.unit || ''
+  },
+  {
+   field: "requestDate",
+   headerName: "Date Requested",
+   width: 140,
+   valueGetter: (p: any) => p.data.requestDate || p.data.createdAt,
+   valueFormatter: (p: any) => isoToDmy(p.value)
   },
   {
    field: "status",
@@ -116,7 +268,7 @@ export function ModuleTransferRequestGrid({ moduleKey }: { moduleKey: ModuleKey 
   },
   {
    field: "createdAt",
-   headerName: "Requested At",
+   headerName: "Created At",
    flex: 1,
    minWidth: 160,
    valueFormatter: (p: any) => {
@@ -130,23 +282,41 @@ export function ModuleTransferRequestGrid({ moduleKey }: { moduleKey: ModuleKey 
    headerName: "Notes",
    flex: 1.5,
    minWidth: 200
+  },
+  {
+   headerName: "Actions",
+   width: 110,
+   sortable: false,
+   filter: false,
+   cellRenderer: (params: any) => {
+    const row = params.data as TransferRequestRow;
+    const canEdit = row.status === 'PENDING';
+    return (
+     <div className="flex items-center justify-center h-full gap-2">
+      <button
+       disabled={!canEdit}
+       onClick={() => openEditDialog(row)}
+       className="text-slate-500 hover:text-emerald-700 disabled:opacity-30 disabled:cursor-not-allowed"
+       title={canEdit ? "Edit request" : "Only pending requests can be edited"}
+      >
+       <Pencil className="w-4 h-4" />
+      </button>
+      <button
+       disabled={!canEdit}
+       onClick={() => {
+        setSelectedRow(row);
+        setDeleteOpen(true);
+       }}
+       className="text-slate-500 hover:text-rose-700 disabled:opacity-30 disabled:cursor-not-allowed"
+       title={canEdit ? "Delete request" : "Only pending requests can be deleted"}
+      >
+       <Trash2 className="w-4 h-4" />
+      </button>
+     </div>
+    );
+   }
   }
  ], []);
-
- useEffect(() => {
-  const loadRequests = async () => {
-   setLoading(true);
-   const response = await fetch('/api/transfers');
-   const payload = await response.json().catch(() => ({}));
-   if (!response.ok) {
-    console.error('Error loading transfer requests:', payload.error || response.statusText);
-   } else {
-    setRowData(payload.requests || []);
-   }
-   setLoading(false);
-  };
-  loadRequests();
- }, []);
 
  if (loading) return (
   <div className="flex items-center justify-center h-full">
@@ -176,6 +346,77 @@ export function ModuleTransferRequestGrid({ moduleKey }: { moduleKey: ModuleKey 
      />
     )}
    </div>
+
+   <Dialog open={editOpen} onOpenChange={setEditOpen}>
+    <DialogContent>
+     <DialogHeader>
+      <DialogTitle>Edit Request</DialogTitle>
+     </DialogHeader>
+     <form onSubmit={handleSaveEdit} className="space-y-4">
+      <div className="space-y-2">
+       <Label htmlFor="editQty">Quantity</Label>
+       <Input
+        id="editQty"
+        type="number"
+        step="0.01"
+        value={editForm.quantity}
+        onChange={(e) => setEditForm(prev => ({ ...prev, quantity: e.target.value }))}
+        required
+       />
+      </div>
+      <div className="space-y-2">
+       <Label htmlFor="editDate">Date Requested</Label>
+       <Input
+        id="editDate"
+        type="text"
+        placeholder="DD-MM-YYYY"
+        value={editForm.requestDate}
+        onChange={(e) => setEditForm(prev => ({ ...prev, requestDate: e.target.value }))}
+        required
+       />
+      </div>
+      <div className="space-y-2">
+       <Label htmlFor="editNotes">Notes</Label>
+       <Textarea
+        id="editNotes"
+        value={editForm.notes}
+        onChange={(e) => setEditForm(prev => ({ ...prev, notes: e.target.value }))}
+       />
+      </div>
+      <DialogFooter>
+       <Button type="submit" disabled={saving}>
+        {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+        Save Changes
+       </Button>
+      </DialogFooter>
+     </form>
+    </DialogContent>
+   </Dialog>
+
+   <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+    <AlertDialogContent>
+     <AlertDialogHeader>
+      <AlertDialogTitle>Delete Request?</AlertDialogTitle>
+      <AlertDialogDescription>
+       This will permanently remove the selected pending request.
+      </AlertDialogDescription>
+     </AlertDialogHeader>
+     <AlertDialogFooter>
+      <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+      <AlertDialogAction
+       disabled={deleting}
+       onClick={(e) => {
+        e.preventDefault();
+        handleDelete();
+       }}
+       className="bg-rose-600 hover:bg-rose-700 text-white"
+      >
+       {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+       Delete
+      </AlertDialogAction>
+     </AlertDialogFooter>
+    </AlertDialogContent>
+   </AlertDialog>
   </div>
  );
 }

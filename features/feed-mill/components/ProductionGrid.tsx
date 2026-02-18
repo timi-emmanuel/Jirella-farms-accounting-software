@@ -78,6 +78,43 @@ export function ProductionGrid() {
   const [quantity, setQuantity] = useState<string>("");
   const [bagSizeKg, setBagSizeKg] = useState<string>("");
   const [bagsProduced, setBagsProduced] = useState<string>("");
+  const isoToday = new Date().toISOString().split('T')[0];
+  const [producedAtISO, setProducedAtISO] = useState<string>(isoToday);
+  const [producedAtDisplay, setProducedAtDisplay] = useState<string>(() => {
+    const d = new Date().toISOString().split('T')[0];
+    const [y, m, day] = d.split('-');
+    return `${day}-${m}-${y}`;
+  });
+
+  // Helpers: format ISO (YYYY-MM-DD or full ISO) to DD-MM-YYYY and parse back
+  const formatToDisplay = (isoOrAny: string | undefined | null) => {
+    if (!isoOrAny) return '';
+    const raw = String(isoOrAny);
+    // Accept YYYY-MM-DD or full ISO
+    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return `${match[3]}-${match[2]}-${match[1]}`;
+    }
+    try {
+      const parsed = new Date(raw);
+      if (isNaN(parsed.getTime())) return '';
+      const dd = String(parsed.getDate()).padStart(2, '0');
+      const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+      const yy = parsed.getFullYear();
+      return `${dd}-${mm}-${yy}`;
+    } catch {
+      return '';
+    }
+  };
+
+  const parseDisplayToISO = (display: string) => {
+    const m = String(display || '').trim().match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+    if (!m) return '';
+    const dd = m[1].padStart(2, '0');
+    const mm = m[2].padStart(2, '0');
+    const yyyy = m[3];
+    return `${yyyy}-${mm}-${dd}`; // ISO (YYYY-MM-DD)
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -189,7 +226,7 @@ export function ProductionGrid() {
 
   const handleProduce = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedRecipeId || !quantityKg || Number(quantityKg) <= 0 || !calculations) return;
+    if (!selectedRecipeId || !quantityKg || Number(quantityKg) <= 0 || !calculations || !producedAtISO) return;
     setSubmitting(true);
 
     const response = await fetch('/api/production/feed-mill', {
@@ -199,7 +236,7 @@ export function ProductionGrid() {
         recipeId: selectedRecipeId,
         quantityProduced: Number(quantityKg),
         costPerKg: calculations.costPerKg,
-        producedAt: new Date().toISOString().split('T')[0],
+        producedAt: producedAtISO,
         bagSizeKg: bagSizeKg ? Number(bagSizeKg) : null,
         bagsProduced: bagsProduced ? Number(bagsProduced) : null
       })
@@ -217,6 +254,9 @@ export function ProductionGrid() {
       setQuantity("");
       setBagSizeKg("");
       setBagsProduced("");
+      const newIso = new Date().toISOString().split('T')[0];
+      setProducedAtISO(newIso);
+      setProducedAtDisplay(formatToDisplay(newIso));
       setSelectedRecipeId("");
       loadData();
     }
@@ -226,10 +266,14 @@ export function ProductionGrid() {
   const colDefs: ColDef<ProductionLog>[] = [
     {
       field: "date" as const,
-      headerName: "Date",
+      headerName: "Date Produced",
       flex: 1,
       minWidth: 120,
-      filter: true
+      filter: true,
+      valueFormatter: (p: any) => {
+        if (!p.value) return '';
+        return formatToDisplay(p.value);
+      }
     },
     {
       field: "recipeId" as const,
@@ -295,12 +339,29 @@ export function ProductionGrid() {
               New Production Run
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto modal-scrollbar">
+          <DialogContent className="sm:max-w-150 max-h-[90vh] overflow-y-auto modal-scrollbar">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold tracking-tight">Log Production</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleProduce} className="space-y-6 py-4">
               <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="producedAt">Date Produced</Label>
+                              <Input
+                                id="producedAt"
+                                type="text"
+                                value={producedAtDisplay}
+                                placeholder="dd-mm-yyyy"
+                                className="bg-slate-50/50 border-slate-200"
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  setProducedAtDisplay(v);
+                                  const iso = parseDisplayToISO(v);
+                                  if (iso) setProducedAtISO(iso);
+                                }}
+                                required
+                              />
+                            </div>
                 <div className="space-y-2">
                   <Label htmlFor="recipe">Select Recipe</Label>
                   <Select value={selectedRecipeId} onValueChange={setSelectedRecipeId}>

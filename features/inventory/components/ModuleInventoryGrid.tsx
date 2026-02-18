@@ -39,7 +39,24 @@ type ModuleKey = 'FEED_MILL' | 'POULTRY' | 'BSF';
 type RequestForm = {
  ingredientId: string;
  quantity: string;
+ requestDate: string;
  notes: string;
+};
+
+const formatDateDMY = (date: Date) => {
+ const day = String(date.getDate()).padStart(2, '0');
+ const month = String(date.getMonth() + 1).padStart(2, '0');
+ const year = date.getFullYear();
+ return `${day}-${month}-${year}`;
+};
+
+const dmyToIso = (value: string) => {
+ const match = /^(\d{2})-(\d{2})-(\d{4})$/.exec((value || '').trim());
+ if (!match) return null;
+ const [, dd, mm, yyyy] = match;
+ const date = new Date(`${yyyy}-${mm}-${dd}T00:00:00`);
+ if (Number.isNaN(date.getTime())) return null;
+ return `${yyyy}-${mm}-${dd}`;
 };
 
 // Register modules
@@ -66,7 +83,12 @@ export function ModuleInventoryGrid({ moduleKey }: { moduleKey: ModuleKey }) {
  const [loading, setLoading] = useState(true);
  const [requesting, setRequesting] = useState(false);
  const [dialogOpen, setDialogOpen] = useState(false);
- const [requestForm, setRequestForm] = useState<RequestForm>({ ingredientId: '', quantity: '', notes: '' });
+ const [requestForm, setRequestForm] = useState<RequestForm>({
+  ingredientId: '',
+  quantity: '',
+  requestDate: formatDateDMY(new Date()),
+  notes: ''
+ });
 
  const colDefs = useMemo<ColDef<ModuleItem>[]>(() => [
   {
@@ -110,7 +132,12 @@ export function ModuleInventoryGrid({ moduleKey }: { moduleKey: ModuleKey }) {
      variant="outline"
      className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
      onClick={() => {
-      setRequestForm({ ingredientId: params.data.id, quantity: '', notes: '' });
+      setRequestForm({
+       ingredientId: params.data.id,
+       quantity: '',
+       requestDate: formatDateDMY(new Date()),
+       notes: ''
+      });
       setDialogOpen(true);
      }}
     >
@@ -139,10 +166,15 @@ export function ModuleInventoryGrid({ moduleKey }: { moduleKey: ModuleKey }) {
 
  const handleRequest = async (e: React.FormEvent) => {
   e.preventDefault();
-  if (!requestForm.ingredientId || !requestForm.quantity || Number(requestForm.quantity) <= 0) {
-   toast({ title: "Error", description: "Enter a valid quantity.", variant: "destructive" });
-   return;
-  }
+ if (!requestForm.ingredientId || !requestForm.quantity || Number(requestForm.quantity) <= 0) {
+  toast({ title: "Error", description: "Enter a valid quantity.", variant: "destructive" });
+  return;
+ }
+ const isoRequestDate = dmyToIso(requestForm.requestDate);
+ if (!isoRequestDate) {
+  toast({ title: "Error", description: "Date requested must be in DD-MM-YYYY format.", variant: "destructive" });
+  return;
+ }
 
   setRequesting(true);
   const response = await fetch('/api/transfers', {
@@ -152,6 +184,7 @@ export function ModuleInventoryGrid({ moduleKey }: { moduleKey: ModuleKey }) {
    body: JSON.stringify({
     itemId: requestForm.ingredientId,
     quantity: Number(requestForm.quantity),
+    requestDate: isoRequestDate,
     notes: requestForm.notes,
     toLocationCode: moduleKey
    })
@@ -166,7 +199,7 @@ export function ModuleInventoryGrid({ moduleKey }: { moduleKey: ModuleKey }) {
    });
   } else {
    setDialogOpen(false);
-   setRequestForm({ ingredientId: '', quantity: '', notes: '' });
+   setRequestForm({ ingredientId: '', quantity: '', requestDate: formatDateDMY(new Date()), notes: '' });
    toast({ title: "Success", description: "Request made successfully.", variant: "success" });
   }
   setRequesting(false);
@@ -213,6 +246,17 @@ export function ModuleInventoryGrid({ moduleKey }: { moduleKey: ModuleKey }) {
         step="0.01"
         value={requestForm.quantity}
         onChange={(e) => setRequestForm({ ...requestForm, quantity: e.target.value })}
+        required
+       />
+      </div>
+      <div className="space-y-2">
+       <Label htmlFor="requestDate">Date Requested</Label>
+       <Input
+        id="requestDate"
+        type="text"
+        placeholder="DD-MM-YYYY"
+        value={requestForm.requestDate}
+        onChange={(e) => setRequestForm({ ...requestForm, requestDate: e.target.value })}
         required
        />
       </div>

@@ -14,7 +14,7 @@ export function Toaster() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed right-6 top-6 z-[100] flex w-[360px] flex-col gap-3">
+    <div className="fixed right-6 top-6 z-100 flex w-90 flex-col gap-3">
       {toasts.map((item) => (
         <div
           key={item.id}

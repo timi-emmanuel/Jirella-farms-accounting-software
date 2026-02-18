@@ -99,7 +99,9 @@ export function RecipeGrid() {
                 field: "name",
                 headerName: "Product Name",
                 flex: 1,
-                minWidth: 200
+                minWidth: 200,
+                editable: isAdmin,
+                cellEditor: 'agTextCellEditor'
             }
         ];
 
@@ -148,6 +150,44 @@ export function RecipeGrid() {
 
     const [rowData, setRowData] = useState<RecipeRow[]>([]);
     const [loading, setLoading] = useState(true);
+
+    const handleCellValueChanged = async (event: any) => {
+        if (!isAdmin || event.colDef.field !== 'name') return;
+        const previousName = String(event.oldValue || '').trim();
+        const nextName = String(event.newValue || '').trim();
+        if (!nextName || previousName === nextName) {
+            event.node.setDataValue('name', previousName || event.data.name);
+            return;
+        }
+
+        const supabase = createClient();
+        const { error } = await supabase
+            .from('Recipe')
+            .update({
+                name: nextName,
+                updatedAt: new Date().toISOString()
+            })
+            .eq('id', event.data.id);
+
+        if (error) {
+            event.node.setDataValue('name', previousName);
+            toast({
+                title: "Error",
+                description: "Failed to rename recipe: " + error.message,
+                variant: "destructive"
+            });
+            return;
+        }
+
+        await logActivity(
+            'RECIPE_UPDATED',
+            'Recipe',
+            event.data.id,
+            `Renamed recipe from ${previousName} to ${nextName}`,
+            { previousName, nextName },
+            undefined
+        );
+    };
 
     const defaultColDef = useMemo(() => {
         return {
@@ -306,6 +346,7 @@ export function RecipeGrid() {
                     rowSelection="single"
                     pagination={true}
                     rowStyle={{ cursor: 'pointer' }}
+                    onCellValueChanged={handleCellValueChanged}
                     theme={themeQuartz} // Explicitly set theme to suppress warning, or use "legacy" string if preferred
                 />
             </div>

@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS "TransferRequest" (
   "requestedBy" UUID REFERENCES auth.users(id),
   "approvedBy" UUID REFERENCES auth.users(id),
   "completedBy" UUID REFERENCES auth.users(id),
+  "requestDate" DATE DEFAULT CURRENT_DATE,
   "notes" TEXT,
   "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -138,6 +139,9 @@ ALTER TABLE "StoreRequest"
   ADD COLUMN IF NOT EXISTS "unitCost" NUMERIC,
   ADD COLUMN IF NOT EXISTS "totalCost" NUMERIC;
 
+ALTER TABLE "TransferRequest"
+  ADD COLUMN IF NOT EXISTS "requestDate" DATE DEFAULT CURRENT_DATE;
+
 ALTER TABLE "InventoryLedger"
   ADD COLUMN IF NOT EXISTS "datePurchased" DATE;
 
@@ -167,6 +171,10 @@ SET
 FROM latest_receipt
 WHERE ib."itemId" = latest_receipt."itemId"
   AND ib."locationId" = latest_receipt."locationId";
+
+UPDATE "TransferRequest"
+SET "requestDate" = ("createdAt" AT TIME ZONE 'UTC')::date
+WHERE "requestDate" IS NULL;
 
 -- Apply inventory movement with balance update
 DROP FUNCTION IF EXISTS apply_inventory_movement(
@@ -580,6 +588,8 @@ CREATE INDEX IF NOT EXISTS "InventoryBalance_location_idx"
   ON "InventoryBalance" ("locationId");
 CREATE INDEX IF NOT EXISTS "TransferRequest_status_idx"
   ON "TransferRequest" ("status");
+CREATE INDEX IF NOT EXISTS "TransferRequest_requestDate_idx"
+  ON "TransferRequest" ("requestDate");
 CREATE INDEX IF NOT EXISTS "TransferRequestLine_request_idx"
   ON "TransferRequestLine" ("transferRequestId");
 CREATE INDEX IF NOT EXISTS "ProcurementRequest_status_idx"

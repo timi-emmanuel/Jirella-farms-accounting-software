@@ -204,9 +204,9 @@ export function RecipeIngredientsEditor({ recipeId }: EditorProps) {
                 <Table>
                     <TableHeader className="bg-slate-50">
                         <TableRow>
-                            <TableHead className="w-[300px] ">Ingredient</TableHead>
+                            <TableHead className="w-75 ">Ingredient</TableHead>
                             <TableHead className="text-right ">Inclusion %</TableHead>
-                            <TableHead className="w-[50px]"></TableHead>
+                            <TableHead className="w-12.5"></TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -264,7 +264,7 @@ export function RecipeIngredientsEditor({ recipeId }: EditorProps) {
                                                 <Plus className="w-4 h-4 mr-2" /> New Ingredient
                                             </Button>
                                         </DialogTrigger>
-                                        <DialogContent className="sm:max-w-[480px]">
+                                        <DialogContent className="sm:max-w-120">
                                             <DialogHeader>
                                                 <DialogTitle className="text-xl font-bold tracking-tight">Create Ingredient</DialogTitle>
                                             </DialogHeader>
