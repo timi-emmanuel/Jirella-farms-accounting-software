@@ -82,6 +82,16 @@ export function InventoryGrid() {
   return iso;
  };
 
+ const isoToDdMmYyyy = (value?: string | null) => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  const dd = String(parsed.getDate()).padStart(2, '0');
+  const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+  const yyyy = parsed.getFullYear();
+  return `${dd}-${mm}-${yyyy}`;
+ };
+
  const [rowData, setRowData] = useState<StoreItem[]>([]);
  const [loading, setLoading] = useState(true);
  const [submitting, setSubmitting] = useState(false);
@@ -106,6 +116,7 @@ export function InventoryGrid() {
   name: '',
   unit: 'KG',
   description: '',
+  purchaseDate: '',
   trackInFeedMill: true,
   adjustQuantity: '',
   adjustDirection: 'OUT',
@@ -141,6 +152,7 @@ export function InventoryGrid() {
    name: item.name ?? '',
    unit: item.unit ?? 'KG',
    description: item.description ?? '',
+   purchaseDate: isoToDdMmYyyy(item.lastPurchaseDate),
    trackInFeedMill: item.trackInFeedMill ?? true,
    adjustQuantity: '',
    adjustDirection: 'OUT',
@@ -259,20 +271,37 @@ export function InventoryGrid() {
 
  const loadData = async () => {
   setLoading(true);
-  const response = await fetch('/api/inventory/location?code=STORE');
-  const payload = await response.json().catch(() => ({}));
- if (!response.ok) {
-   const message = payload.error || response.statusText;
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const tryLoad = async (attempt: number): Promise<any> => {
+   const response = await fetch('/api/inventory/location?code=STORE');
+   const payload = await response.json().catch(() => ({}));
+   if (response.ok) return payload;
+
+   const message = payload.error || response.statusText || 'Unknown error';
+   const isTransient = String(message).toLowerCase().includes('fetch failed');
+   if (isTransient && attempt < 3) {
+    await sleep(400 * attempt);
+    return tryLoad(attempt + 1);
+   }
+
+   throw new Error(message);
+  };
+
+  try {
+   const payload = await tryLoad(1);
+   setRowData(payload.items || []);
+  } catch (error: any) {
+   const message = error?.message || 'Unable to load inventory';
    console.error('Error loading inventory:', message);
    toast({
     title: "Error",
     description: `Failed to load store inventory: ${message}`,
     variant: "destructive"
    });
-  } else {
-   setRowData(payload.items || []);
+  } finally {
+   setLoading(false);
   }
-  setLoading(false);
  };
 
  useEffect(() => {
@@ -310,8 +339,13 @@ export function InventoryGrid() {
 
  const handleEdit = async (e: React.FormEvent) => {
   e.preventDefault();
-  if (!editForm.id || !editForm.name || !editForm.unit) {
-   toast({ title: "Error", description: "Item name and unit are required.", variant: "destructive" });
+ if (!editForm.id || !editForm.name || !editForm.unit) {
+  toast({ title: "Error", description: "Item name and unit are required.", variant: "destructive" });
+  return;
+ }
+  const isoPurchaseDate = editForm.purchaseDate ? ddMmYyyyToIso(editForm.purchaseDate) : null;
+  if (editForm.purchaseDate && !isoPurchaseDate) {
+   toast({ title: "Error", description: "Use date format dd-mm-yyyy.", variant: "destructive" });
    return;
   }
 
@@ -325,6 +359,7 @@ export function InventoryGrid() {
     name: editForm.name,
     unit: editForm.unit,
     description: editForm.description || null,
+    lastPurchaseDate: isoPurchaseDate,
     trackInFeedMill: editForm.trackInFeedMill
    })
   });
@@ -637,6 +672,17 @@ export function InventoryGrid() {
            </SelectContent>
           </Select>
          </div>
+        </div>
+        <div className="space-y-2">
+         <Label htmlFor="editPurchaseDate">Date Purchased</Label>
+         <Input
+          id="editPurchaseDate"
+          type="text"
+          value={editForm.purchaseDate}
+          onChange={(e) => setEditForm({ ...editForm, purchaseDate: e.target.value })}
+          placeholder="dd-mm-yyyy"
+          pattern="\d{2}-\d{2}-\d{4}"
+         />
         </div>
         <div className="border-t pt-3 space-y-3">
          <p className="text-sm font-medium">Optional stock adjustment</p>

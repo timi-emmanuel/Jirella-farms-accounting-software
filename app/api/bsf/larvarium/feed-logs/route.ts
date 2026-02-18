@@ -128,7 +128,8 @@ export async function POST(request: NextRequest) {
         p_reference_type: 'BSF_FEED_LOG',
         p_reference_id: batch.id,
         p_notes: logRow.notes,
-        p_created_by: auth.userId
+        p_created_by: auth.userId,
+        p_purchase_date: null
       });
 
       if (error) {

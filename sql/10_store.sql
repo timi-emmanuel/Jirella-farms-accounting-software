@@ -169,6 +169,10 @@ WHERE ib."itemId" = latest_receipt."itemId"
   AND ib."locationId" = latest_receipt."locationId";
 
 -- Apply inventory movement with balance update
+DROP FUNCTION IF EXISTS apply_inventory_movement(
+  UUID, UUID, TEXT, TEXT, NUMERIC, NUMERIC, TEXT, TEXT, TEXT, UUID
+);
+
 CREATE OR REPLACE FUNCTION apply_inventory_movement(
   p_item_id UUID,
   p_location_id UUID,

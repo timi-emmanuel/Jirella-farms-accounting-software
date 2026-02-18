@@ -51,7 +51,8 @@ export async function POST(request: NextRequest) {
    p_reference_type: reference ?? null,
    p_reference_id: null,
    p_notes: notes ?? null,
-   p_created_by: auth.userId
+   p_created_by: auth.userId,
+   p_purchase_date: null
   });
 
   if (movementError) {

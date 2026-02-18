@@ -12,7 +12,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const { name, description, unit, trackInFeedMill } = await request.json();
+  const { name, description, unit, trackInFeedMill, lastPurchaseDate } = await request.json();
 
   if (!id) {
    return NextResponse.json({ error: 'Missing item id' }, { status: 400 });
@@ -45,7 +45,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
    entityType: 'Ingredient',
    entityId: id,
    description: `Updated inventory item ${data?.name ?? id}`,
-   metadata: updatePayload,
+   metadata: { ...updatePayload, lastPurchaseDate: lastPurchaseDate ?? null },
    userId: auth.userId,
    userRole: auth.role,
    ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip')
@@ -59,6 +59,37 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
    .single();
 
   if (storeLocation?.id) {
+   if (lastPurchaseDate !== undefined) {
+    const { data: existingBalance } = await admin
+      .from('InventoryBalance')
+      .select('itemId, locationId, quantityOnHand, averageUnitCost, lastPurchaseUnitCost')
+      .eq('itemId', id)
+      .eq('locationId', storeLocation.id)
+      .single();
+
+    if (existingBalance) {
+      await admin
+        .from('InventoryBalance')
+        .update({
+          lastPurchaseDate: lastPurchaseDate || null,
+          updatedAt: new Date().toISOString()
+        })
+        .eq('itemId', id)
+        .eq('locationId', storeLocation.id);
+    } else {
+      await admin
+        .from('InventoryBalance')
+        .insert({
+          itemId: id,
+          locationId: storeLocation.id,
+          quantityOnHand: 0,
+          averageUnitCost: 0,
+          lastPurchaseUnitCost: 0,
+          lastPurchaseDate: lastPurchaseDate || null
+        });
+    }
+   }
+
    await admin
     .from('InventoryLedger')
     .insert({
@@ -68,6 +99,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
      quantity: 0,
      direction: 'IN',
      unitCost: null,
+     datePurchased: lastPurchaseDate || null,
      referenceType: 'ITEM_EDIT',
      referenceId: id,
      notes: 'Inventory item details updated',

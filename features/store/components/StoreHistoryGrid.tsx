@@ -147,14 +147,31 @@ export function StoreHistoryGrid() {
  useEffect(() => {
   const loadHistory = async () => {
    setLoading(true);
-   const response = await fetch('/api/store/history');
-   const payload = await response.json().catch(() => ({}));
-   if (!response.ok) {
-    console.error('Error loading store history:', payload.error || response.statusText);
-   } else {
+   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+   const tryLoad = async (attempt: number): Promise<any> => {
+    const response = await fetch('/api/store/history');
+    const payload = await response.json().catch(() => ({}));
+    if (response.ok) return payload;
+
+    const message = payload.error || response.statusText || 'Unknown error';
+    const isTransient = String(message).toLowerCase().includes('fetch failed');
+    if (isTransient && attempt < 3) {
+      await sleep(400 * attempt);
+      return tryLoad(attempt + 1);
+    }
+
+    throw new Error(message);
+   };
+
+   try {
+    const payload = await tryLoad(1);
     setRowData(payload.history || []);
+   } catch (error: any) {
+    console.error('Error loading store history:', error?.message || 'Unable to load history');
+   } finally {
+    setLoading(false);
    }
-   setLoading(false);
   };
   loadHistory();
  }, []);
