@@ -263,6 +263,10 @@ export interface ProductionLog {
  costPerKg: number; // Historical cost audit
  cost15kg?: number;
  cost25kg?: number;
+ isUndone?: boolean;
+ undoneAt?: string | null;
+ undoneBy?: string | null;
+ undoReason?: string | null;
  createdAt: string;
  updatedAt: string;
  // Relations

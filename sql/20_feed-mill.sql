@@ -27,9 +27,20 @@ CREATE TABLE IF NOT EXISTS "ProductionLog" (
   "costPerKg" FLOAT NOT NULL DEFAULT 0,
   "cost15kg" FLOAT8,
   "cost25kg" FLOAT8,
+  "isUndone" BOOLEAN NOT NULL DEFAULT FALSE,
+  "undoneAt" TIMESTAMPTZ,
+  "undoneBy" UUID REFERENCES auth.users(id),
+  "undoReason" TEXT,
   "createdAt" TIMESTAMPTZ DEFAULT NOW(),
   "updatedAt" TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Additive column safety for undo workflow
+ALTER TABLE "ProductionLog"
+  ADD COLUMN IF NOT EXISTS "isUndone" BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS "undoneAt" TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS "undoneBy" UUID REFERENCES auth.users(id),
+  ADD COLUMN IF NOT EXISTS "undoReason" TEXT;
 
 CREATE TABLE IF NOT EXISTS "FinishedGoodsTransferRequest" (
   "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -125,10 +136,11 @@ CREATE OR REPLACE FUNCTION handle_production_location(
 ) RETURNS void AS $$
 DECLARE
   item RECORD;
-  required_qty FLOAT8;
+  required_qty NUMERIC;
   v_location_id UUID;
   v_cost15kg FLOAT8;
   v_cost25kg FLOAT8;
+  v_log_id UUID;
 BEGIN
   SELECT id INTO v_location_id FROM "InventoryLocation" WHERE "code" = p_location_code;
   IF v_location_id IS NULL THEN
@@ -137,34 +149,6 @@ BEGIN
 
   v_cost15kg := p_cost_per_kg * 15;
   v_cost25kg := p_cost_per_kg * 25;
-
-  FOR item IN
-    SELECT
-      ri.percentage,
-      i.id AS ingredient_id,
-      i.name
-    FROM "RecipeItem" ri
-    JOIN "Ingredient" i ON ri."ingredientId" = i.id
-    WHERE ri."recipeId" = p_recipe_id
-  LOOP
-    required_qty := (item.percentage / 100.0) * p_quantity_produced;
-    IF required_qty <= 0 THEN
-      CONTINUE;
-    END IF;
-
-    PERFORM apply_inventory_movement(
-      item.ingredient_id,
-      v_location_id,
-      'USAGE',
-      'OUT',
-      required_qty::numeric,
-      NULL::numeric,
-      'PRODUCTION_USAGE',
-      p_recipe_id::text,
-      NULL,
-      p_created_by
-    );
-  END LOOP;
 
   INSERT INTO "ProductionLog" (
     "recipeId",
@@ -180,7 +164,138 @@ BEGIN
     v_cost15kg,
     v_cost25kg,
     p_date
-  );
+  )
+  RETURNING "id" INTO v_log_id;
+
+  FOR item IN
+    SELECT
+      ri.percentage,
+      i.id AS ingredient_id,
+      i.name
+    FROM "RecipeItem" ri
+    JOIN "Ingredient" i ON ri."ingredientId" = i.id
+    WHERE ri."recipeId" = p_recipe_id
+  LOOP
+    required_qty := ROUND(((item.percentage / 100.0) * p_quantity_produced)::numeric, 2);
+    IF required_qty <= 0 THEN
+      CONTINUE;
+    END IF;
+
+    PERFORM apply_inventory_movement(
+      item.ingredient_id,
+      v_location_id,
+      'USAGE',
+      'OUT',
+      required_qty,
+      NULL::numeric,
+      'PRODUCTION_LOG',
+      v_log_id::text,
+      NULL,
+      p_created_by
+    );
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Undo production run and replenish used ingredients
+CREATE OR REPLACE FUNCTION undo_production_run(
+  p_production_log_id UUID,
+  p_user_id UUID,
+  p_reason TEXT DEFAULT NULL
+) RETURNS void AS $$
+DECLARE
+  v_log RECORD;
+  v_location_id UUID;
+  v_count INT;
+  v_line RECORD;
+  v_note TEXT;
+BEGIN
+  SELECT id INTO v_location_id
+  FROM "InventoryLocation"
+  WHERE "code" = 'FEED_MILL';
+
+  IF v_location_id IS NULL THEN
+    RAISE EXCEPTION 'FEED_MILL location not found';
+  END IF;
+
+  SELECT *
+  INTO v_log
+  FROM "ProductionLog"
+  WHERE id = p_production_log_id
+  FOR UPDATE;
+
+  IF v_log.id IS NULL THEN
+    RAISE EXCEPTION 'Production log not found';
+  END IF;
+
+  IF COALESCE(v_log."isUndone", FALSE) THEN
+    RAISE EXCEPTION 'Production log already undone';
+  END IF;
+
+  v_note := COALESCE(p_reason, 'Production undo');
+
+  SELECT COUNT(*)
+  INTO v_count
+  FROM "InventoryLedger"
+  WHERE "referenceType" = 'PRODUCTION_LOG'
+    AND "referenceId" = p_production_log_id::text
+    AND "type" = 'USAGE'
+    AND "direction" = 'OUT';
+
+  IF v_count > 0 THEN
+    FOR v_line IN
+      SELECT "itemId", "quantity"
+      FROM "InventoryLedger"
+      WHERE "referenceType" = 'PRODUCTION_LOG'
+        AND "referenceId" = p_production_log_id::text
+        AND "type" = 'USAGE'
+        AND "direction" = 'OUT'
+    LOOP
+      PERFORM apply_inventory_movement(
+        v_line."itemId",
+        v_location_id,
+        'ADJUSTMENT',
+        'IN',
+        v_line."quantity",
+        NULL::numeric,
+        'PRODUCTION_UNDO',
+        p_production_log_id::text,
+        v_note,
+        p_user_id
+      );
+    END LOOP;
+  ELSE
+    FOR v_line IN
+      SELECT
+        ri."ingredientId" AS "itemId",
+        ROUND(((ri.percentage / 100.0) * v_log."quantityProduced")::numeric, 2) AS "quantity"
+      FROM "RecipeItem" ri
+      WHERE ri."recipeId" = v_log."recipeId"
+    LOOP
+      IF v_line."quantity" > 0 THEN
+        PERFORM apply_inventory_movement(
+          v_line."itemId",
+          v_location_id,
+          'ADJUSTMENT',
+          'IN',
+          v_line."quantity",
+          NULL::numeric,
+          'PRODUCTION_UNDO_FALLBACK',
+          p_production_log_id::text,
+          v_note,
+          p_user_id
+        );
+      END IF;
+    END LOOP;
+  END IF;
+
+  UPDATE "ProductionLog"
+  SET "isUndone" = TRUE,
+      "undoneAt" = NOW(),
+      "undoneBy" = p_user_id,
+      "undoReason" = v_note,
+      "updatedAt" = NOW()
+  WHERE id = p_production_log_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

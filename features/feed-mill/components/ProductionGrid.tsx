@@ -5,6 +5,7 @@ import { AgGridReact } from 'ag-grid-react';
 import "ag-grid-community/styles/ag-theme-quartz.css";
 import {
   ColDef,
+  type ICellRendererParams,
   ModuleRegistry,
   ClientSideRowModelModule,
   ValidationModule,
@@ -22,8 +23,8 @@ import {
 } from 'ag-grid-community';
 import { toast } from "@/lib/toast";
 import { createClient } from '@/lib/supabase/client';
-import { Loader2, Plus, Factory, Info, Wallet } from 'lucide-react';
-import { Recipe, Ingredient, ProductionLog } from '@/types';
+import { Loader2, Plus, Factory, Info, Wallet, RotateCcw } from 'lucide-react';
+import { Recipe, ProductionLog } from '@/types';
 import {
   calculateProductionBatch,
   calculateBagCost,
@@ -71,6 +72,7 @@ export function ProductionGrid() {
   const [loading, setLoading] = useState(true);
   const [showAddLog, setShowAddLog] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [undoingId, setUndoingId] = useState<string | null>(null);
   const [balanceMap, setBalanceMap] = useState<Record<string, { qty: number; avgCost: number }>>({});
 
   // Form state
@@ -263,6 +265,36 @@ export function ProductionGrid() {
     setSubmitting(false);
   };
 
+  const handleUndo = async (row: ProductionLog) => {
+    if (row.isUndone) return;
+    const shouldContinue = window.confirm("Undo this production run? This will replenish used ingredients.");
+    if (!shouldContinue) return;
+
+    setUndoingId(row.id);
+    const response = await fetch(`/api/production/feed-mill/${row.id}/undo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'Manual undo from production log actions' })
+    });
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      toast({
+        title: "Error",
+        description: payload.error || "Failed to undo production run.",
+        variant: "destructive"
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: "Production run undone and ingredients replenished.",
+        variant: "success"
+      });
+      loadData();
+    }
+    setUndoingId(null);
+  };
+
   const colDefs: ColDef<ProductionLog>[] = [
     {
       field: "date" as const,
@@ -318,6 +350,41 @@ export function ProductionGrid() {
       flex: 1,
       valueGetter: (p: any) => p.data.cost25kg || calculateBagCost(Number(p.data.costPerKg), 25),
       cellRenderer: (p: any) => `${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    },
+    {
+      headerName: "Action",
+      width: 130,
+      sortable: false,
+      filter: false,
+      cellRenderer: (params: ICellRendererParams<ProductionLog>) => {
+        const row = params.data;
+        if (!row) return null;
+        const isUndone = Boolean(row.isUndone);
+        const isLoading = undoingId === row.id;
+
+        return (
+          <div className="flex items-center justify-center h-full">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={isUndone || isLoading}
+              onClick={() => handleUndo(row)}
+              className="h-7 px-2 text-xs"
+              title={isUndone ? "Already undone" : "Undo production run"}
+            >
+              {isLoading ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <>
+                  <RotateCcw className="w-3 h-3 mr-1" />
+                  {isUndone ? 'Undone' : 'Undo'}
+                </>
+              )}
+            </Button>
+          </div>
+        );
+      }
     }
   ];
 
