@@ -1,7 +1,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { RecipeIngredientsEditor } from "@/features/feed-mill/components/RecipeIngredientsEditor";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 interface PageProps {
  params: Promise<{ id: string }>;
@@ -15,7 +15,7 @@ export default async function RecipeDetailPage({ params }: PageProps) {
  const { data: { user } } = await supabase.auth.getUser();
 
  if (!user) {
-  notFound();
+  redirect("/login");
  }
 
  // 2. Get Profile to check role

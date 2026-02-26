@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { RecipeGrid } from "@/features/feed-mill/components/RecipeGrid";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { Info } from "lucide-react";
 
 export default async function RecipeMasterPage() {
@@ -10,7 +10,7 @@ export default async function RecipeMasterPage() {
  const { data: { user } } = await supabase.auth.getUser();
 
  if (!user) {
-  notFound();
+  redirect("/login");
  }
 
  // 2. Get Profile to check role

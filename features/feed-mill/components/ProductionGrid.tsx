@@ -23,7 +23,7 @@ import {
 } from 'ag-grid-community';
 import { toast } from "@/lib/toast";
 import { createClient } from '@/lib/supabase/client';
-import { Loader2, Plus, Factory, Info, Wallet, RotateCcw } from 'lucide-react';
+import { Loader2, Plus, Factory, Info, Wallet, RotateCcw, List } from 'lucide-react';
 import { Recipe, ProductionLog } from '@/types';
 import {
   calculateProductionBatch,
@@ -49,6 +49,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useUserRole } from '@/hooks/useUserRole';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([
@@ -67,12 +68,17 @@ ModuleRegistry.registerModules([
 ]);
 
 export function ProductionGrid() {
+  const { isAdmin } = useUserRole();
   const [rowData, setRowData] = useState<ProductionLog[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddLog, setShowAddLog] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [undoingId, setUndoingId] = useState<string | null>(null);
+  const [usageLoadingId, setUsageLoadingId] = useState<string | null>(null);
+  const [showUsageModal, setShowUsageModal] = useState(false);
+  const [usageRows, setUsageRows] = useState<Array<{ ingredientName: string; unit: string; quantityUsed: number }>>([]);
+  const [usageForLog, setUsageForLog] = useState<ProductionLog | null>(null);
   const [balanceMap, setBalanceMap] = useState<Record<string, { qty: number; avgCost: number }>>({});
 
   // Form state
@@ -295,6 +301,24 @@ export function ProductionGrid() {
     setUndoingId(null);
   };
 
+  const handleViewUsage = async (row: ProductionLog) => {
+    setUsageLoadingId(row.id);
+    const response = await fetch(`/api/production/feed-mill/${row.id}/usage`);
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      toast({
+        title: "Error",
+        description: payload.error || "Failed to load ingredient usage.",
+        variant: "destructive"
+      });
+    } else {
+      setUsageRows(payload.items || []);
+      setUsageForLog(row);
+      setShowUsageModal(true);
+    }
+    setUsageLoadingId(null);
+  };
+
   const colDefs: ColDef<ProductionLog>[] = [
     {
       field: "date" as const,
@@ -313,7 +337,9 @@ export function ProductionGrid() {
       flex: 1.5,
       minWidth: 180,
       filter: true,
-      valueFormatter: (p: any) => p.data.recipe?.name || 'Unknown',
+      valueGetter: (p: any) => p.data?.recipe?.name || 'Unknown',
+      filterValueGetter: (p: any) => p.data?.recipe?.name || '',
+      valueFormatter: (p: any) => p.value || 'Unknown',
       cellStyle: { fontWeight: '600', color: '#0f172a' }
     },
     {
@@ -351,29 +377,46 @@ export function ProductionGrid() {
       valueGetter: (p: any) => p.data.cost25kg || calculateBagCost(Number(p.data.costPerKg), 25),
       cellRenderer: (p: any) => `${Number(p.value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     },
-    {
+  ];
+
+  if (isAdmin) {
+    colDefs.push({
       headerName: "Action",
-      width: 130,
+      width: 220,
       sortable: false,
       filter: false,
       cellRenderer: (params: ICellRendererParams<ProductionLog>) => {
         const row = params.data;
         if (!row) return null;
         const isUndone = Boolean(row.isUndone);
-        const isLoading = undoingId === row.id;
+        const undoLoading = undoingId === row.id;
+        const usageLoading = usageLoadingId === row.id;
 
         return (
-          <div className="flex items-center justify-center h-full">
+          <div className="flex items-center justify-center h-full gap-2">
             <Button
               type="button"
               size="sm"
               variant="outline"
-              disabled={isUndone || isLoading}
+              disabled={usageLoading}
+              onClick={() => handleViewUsage(row)}
+              className="h-7 px-2 text-xs"
+              title="View ingredients used"
+            >
+              {usageLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <List className="w-3 h-3 mr-1" />}
+              Usage
+            </Button>
+
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={isUndone || undoLoading}
               onClick={() => handleUndo(row)}
               className="h-7 px-2 text-xs"
               title={isUndone ? "Already undone" : "Undo production run"}
             >
-              {isLoading ? (
+              {undoLoading ? (
                 <Loader2 className="w-3 h-3 animate-spin" />
               ) : (
                 <>
@@ -385,8 +428,8 @@ export function ProductionGrid() {
           </div>
         );
       }
-    }
-  ];
+    });
+  }
 
   if (loading && rowData.length === 0) {
     return (
@@ -612,6 +655,58 @@ export function ProductionGrid() {
           pagination={true}
         />
       </div>
+
+      <Dialog open={showUsageModal} onOpenChange={setShowUsageModal}>
+        <DialogContent className="sm:max-w-160">
+          <DialogHeader>
+            <DialogTitle>
+              Ingredients Used
+              {usageForLog ? (
+                <span className="ml-2 text-sm font-normal text-slate-500">
+                  ({usageForLog.recipe?.name || 'Recipe'} - {usageForLog.quantityProduced} kg)
+                </span>
+              ) : null}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="max-h-[55vh] overflow-y-auto border rounded-lg">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 sticky top-0">
+                <tr>
+                  <th className="text-left px-3 py-2 font-semibold text-slate-700">Ingredient</th>
+                  <th className="text-left px-3 py-2 font-semibold text-slate-700">Unit</th>
+                  <th className="text-right px-3 py-2 font-semibold text-slate-700">Qty Used</th>
+                </tr>
+              </thead>
+              <tbody>
+                {usageRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="px-3 py-6 text-center text-slate-500">
+                      No usage rows found for this production run.
+                    </td>
+                  </tr>
+                ) : (
+                  usageRows.map((row, idx) => (
+                    <tr key={`${row.ingredientName}-${idx}`} className="border-t">
+                      <td className="px-3 py-2">{row.ingredientName}</td>
+                      <td className="px-3 py-2">{row.unit || 'KG'}</td>
+                      <td className="px-3 py-2 text-right font-semibold">
+                        {Number(row.quantityUsed || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setShowUsageModal(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

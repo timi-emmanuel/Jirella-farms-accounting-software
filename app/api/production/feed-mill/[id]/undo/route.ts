@@ -7,7 +7,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   try {
     const auth = await getAuthContext();
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (!isRoleAllowed(auth.role, ['ADMIN', 'MANAGER', 'FEED_MILL_STAFF'])) {
+    if (!isRoleAllowed(auth.role, ['ADMIN'])) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
