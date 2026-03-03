@@ -67,33 +67,56 @@ export function CatfishSalesGrid({
   productionType = 'Fingerlings',
   stageLabel = 'Fingerlings'
 }: Props) {
-  const [rowData, setRowData] = useState<CatfishSale[]>([]);
+  const [rowData, setRowData] = useState<any[]>([]);
   const [batches, setBatches] = useState<CatfishBatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const [form, setForm] = useState({
+    channel: 'EXTERNAL',
     batchId: batchId || '',
     saleDate: new Date().toISOString().split('T')[0],
     saleType: 'Partial Offload',
     quantitySold: '',
     unitPrice: '',
-    buyerDetails: ''
+    buyerDetails: '',
+    destinationBatchName: '',
+    notes: ''
   });
 
   const loadData = async () => {
     setLoading(true);
     const query = batchId ? `?batchId=${batchId}` : '';
-    const [salesRes, batchesRes] = await Promise.all([
+    const [salesRes, internalRes, batchesRes] = await Promise.all([
       fetch(`/api/catfish/sales${query}`),
+      fetch(`/api/catfish/internal-sales${query}`),
       fetch(`/api/catfish/batches?productionType=${productionType}`)
     ]);
 
     const salesPayload = await salesRes.json().catch(() => ({}));
+    const internalPayload = await internalRes.json().catch(() => ({}));
     const batchesPayload = await batchesRes.json().catch(() => ({}));
 
-    if (salesRes.ok) setRowData(salesPayload.sales || []);
+    if (salesRes.ok || internalRes.ok) {
+      const externalRows = salesRes.ok ? (salesPayload.sales || []) : [];
+      const internalRows = internalRes.ok
+        ? (internalPayload.transfers || []).map((row: any) => ({
+          id: `internal-${row.id}`,
+          saleDate: row.transferDate,
+          saleType: `Internal -> ${row.toStage}`,
+          quantitySold: Number(row.quantity || 0),
+          unitPrice: Number(row.costPerFishAtTransfer || 0),
+          totalSaleValue: Number(row.transferCostBasis || 0),
+          buyerDetails: row.notes || row.toBatch?.batchName || '-',
+          batch: row.fromBatch ? { batchName: row.fromBatch.batchName } : null
+        }))
+        : [];
+      const merged = [...externalRows, ...internalRows].sort((a: any, b: any) =>
+        String(b.saleDate || '').localeCompare(String(a.saleDate || ''))
+      );
+      setRowData(merged);
+    }
     if (batchesRes.ok) setBatches((batchesPayload.batches || []).filter((batch: any) => batch.status === 'Active'));
 
     setLoading(false);
@@ -108,35 +131,51 @@ export function CatfishSalesGrid({
     if (!form.batchId || Number(form.quantitySold) <= 0) return;
 
     setSubmitting(true);
-    const response = await fetch('/api/catfish/sales', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        batchId: form.batchId,
-        saleDate: form.saleDate,
-        saleType: form.saleType,
-        quantitySold: Number(form.quantitySold),
-        unitPrice: Number(form.unitPrice),
-        buyerDetails: form.buyerDetails || null
+    const response = form.channel === 'INTERNAL'
+      ? await fetch('/api/catfish/internal-sales', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fromBatchId: form.batchId,
+          targetStage: productionType === 'Juvenile' ? 'Melange' : 'Juvenile',
+          transferDate: form.saleDate,
+          quantity: Number(form.quantitySold),
+          destinationBatchName: form.destinationBatchName || null,
+          notes: form.notes || null
+        })
       })
-    });
+      : await fetch('/api/catfish/sales', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          batchId: form.batchId,
+          saleDate: form.saleDate,
+          saleType: form.saleType,
+          quantitySold: Number(form.quantitySold),
+          unitPrice: Number(form.unitPrice),
+          buyerDetails: form.buyerDetails || null
+        })
+      });
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
       toast({
         title: "Error",
-        description: payload.error || 'Failed to log catfish sale.',
+        description: payload.error || 'Failed to record sale.',
         variant: "destructive"
       });
     } else {
       setDialogOpen(false);
       setForm({
+        channel: 'EXTERNAL',
         batchId: batchId || '',
         saleDate: new Date().toISOString().split('T')[0],
         saleType: 'Partial Offload',
         quantitySold: '',
         unitPrice: '',
-        buyerDetails: ''
+        buyerDetails: '',
+        destinationBatchName: '',
+        notes: ''
       });
       loadData();
     }
@@ -159,14 +198,14 @@ export function CatfishSalesGrid({
       { field: 'quantitySold', headerName: 'Qty Sold', type: 'numericColumn', minWidth: 110 },
       {
         field: 'unitPrice',
-        headerName: 'Unit Price (₦)',
+        headerName: 'Unit Price (N)',
         type: 'numericColumn',
         minWidth: 130,
         valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
       },
       {
         field: 'totalSaleValue',
-        headerName: 'Total Value (₦)',
+        headerName: 'Total Value (N)',
         type: 'numericColumn',
         minWidth: 140,
         valueFormatter: (p: any) => Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
@@ -191,7 +230,7 @@ export function CatfishSalesGrid({
           <DialogTrigger asChild>
             <Button className="bg-emerald-700 hover:bg-emerald-800 shadow-lg shadow-emerald-700/20 transition-all hover:scale-105 active:scale-95 px-6">
               <Plus className="w-4 h-4" />
-              Log Sale
+              Log Sale / Internal Sale
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto modal-scrollbar">
@@ -199,6 +238,21 @@ export function CatfishSalesGrid({
               <DialogTitle className="text-xl font-bold tracking-tight">Log {stageLabel} Sale</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleAdd} className="space-y-4">
+              <div className="space-y-2">
+                <Label>Channel</Label>
+                <Select value={form.channel} onValueChange={(value) => setForm({ ...form, channel: value })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="EXTERNAL">Public Sale</SelectItem>
+                    {(productionType === 'Fingerlings' || productionType === 'Juvenile') && (
+                      <SelectItem value="INTERNAL">Internal Sale to {productionType === 'Juvenile' ? 'Melange' : 'Juvenile'}</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {!batchId && (
                 <div className="space-y-2">
                   <Label>Batch</Label>
@@ -216,40 +270,65 @@ export function CatfishSalesGrid({
                   </Select>
                 </div>
               )}
+
               <div className="space-y-2">
                 <Label>Date</Label>
                 <Input type="date" value={form.saleDate} onChange={(e) => setForm({ ...form, saleDate: e.target.value })} />
               </div>
-              <div className="space-y-2">
-                <Label>Sale Type</Label>
-                <Select value={form.saleType} onValueChange={(value) => setForm({ ...form, saleType: value })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Partial Offload">Partial Offload</SelectItem>
-                    <SelectItem value="Final Clear-Out">Final Clear-Out</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+
+              {form.channel === 'EXTERNAL' ? (
+                <div className="space-y-2">
+                  <Label>Sale Type</Label>
+                  <Select value={form.saleType} onValueChange={(value) => setForm({ ...form, saleType: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Partial Offload">Partial Offload</SelectItem>
+                      <SelectItem value="Final Clear-Out">Final Clear-Out</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="rounded-lg border bg-slate-50 p-3 text-sm text-slate-700">
+                  Destination stage: <span className="font-semibold">{productionType === 'Juvenile' ? 'Melange' : 'Juvenile'}</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label>Quantity Sold</Label>
+                  <Label>{form.channel === 'INTERNAL' ? 'Quantity to Move' : 'Quantity Sold'}</Label>
                   <Input type="number" min="1" step="1" value={form.quantitySold} onChange={(e) => setForm({ ...form, quantitySold: e.target.value })} />
                 </div>
+                {form.channel === 'EXTERNAL' ? (
+                  <div className="space-y-2">
+                    <Label>Unit Price (N)</Label>
+                    <Input type="number" min="0" step="0.01" value={form.unitPrice} onChange={(e) => setForm({ ...form, unitPrice: e.target.value })} />
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Destination Batch Name (optional)</Label>
+                    <Input value={form.destinationBatchName} onChange={(e) => setForm({ ...form, destinationBatchName: e.target.value })} />
+                  </div>
+                )}
+              </div>
+
+              {form.channel === 'EXTERNAL' ? (
                 <div className="space-y-2">
-                  <Label>Unit Price (₦)</Label>
-                  <Input type="number" min="0" step="0.01" value={form.unitPrice} onChange={(e) => setForm({ ...form, unitPrice: e.target.value })} />
+                  <Label>Buyer Details</Label>
+                  <Textarea value={form.buyerDetails} onChange={(e) => setForm({ ...form, buyerDetails: e.target.value })} />
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Buyer Details</Label>
-                <Textarea value={form.buyerDetails} onChange={(e) => setForm({ ...form, buyerDetails: e.target.value })} />
-              </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label>Notes</Label>
+                  <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+                </div>
+              )}
+
               <DialogFooter>
                 <Button type="submit" disabled={submitting} className="w-full">
                   {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                  Log Sale
+                  {form.channel === 'INTERNAL' ? 'Record Internal Sale' : 'Log Sale'}
                 </Button>
               </DialogFooter>
             </form>

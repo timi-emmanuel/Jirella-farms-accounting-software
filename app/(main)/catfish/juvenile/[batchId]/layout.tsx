@@ -4,7 +4,6 @@ const juvenileTabs = [
   { label: "Overview", suffix: "" },
   { label: "Logs", suffix: "/logs" },
   { label: "Finance", suffix: "/finance" },
-  { label: "Transfer", suffix: "/transfer" },
   { label: "Sales", suffix: "/sales" },
 ];
 

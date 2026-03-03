@@ -52,6 +52,10 @@ export async function GET(request: NextRequest) {
       admin.from('CatfishDailyLog').select('batchId, mortalityCount').in('batchId', batchIds),
       admin.from('CatfishSale').select('batchId, quantitySold').in('batchId', batchIds)
     ]);
+    const { data: transfers } = await admin
+      .from('CatfishTransfer')
+      .select('fromBatchId, toBatchId, quantity, status')
+      .or(`fromBatchId.in.(${batchIds.join(',')}),toBatchId.in.(${batchIds.join(',')})`);
 
     const mortalityByBatch = new Map<string, number>();
     (logs || []).forEach((row: any) => {
@@ -69,15 +73,38 @@ export async function GET(request: NextRequest) {
       );
     });
 
+    const transferOutByBatch = new Map<string, number>();
+    const transferInByBatch = new Map<string, number>();
+    (transfers || []).forEach((row: any) => {
+      if (row.status !== 'COMPLETED') return;
+      const qty = Number(row.quantity || 0);
+      if (row.fromBatchId) {
+        transferOutByBatch.set(
+          row.fromBatchId,
+          (transferOutByBatch.get(row.fromBatchId) || 0) + qty
+        );
+      }
+      if (row.toBatchId) {
+        transferInByBatch.set(
+          row.toBatchId,
+          (transferInByBatch.get(row.toBatchId) || 0) + qty
+        );
+      }
+    });
+
     const enriched = batches.map((batch: any) => {
       const initialStock = Number(batch.initialStock || 0);
       const mortalityTotal = Number(mortalityByBatch.get(batch.id) || 0);
       const totalSold = Number(soldByBatch.get(batch.id) || 0);
-      const currentPopulation = Math.max(0, initialStock - mortalityTotal - totalSold);
+      const totalTransferredOut = Number(transferOutByBatch.get(batch.id) || 0);
+      const totalTransferredIn = Number(transferInByBatch.get(batch.id) || 0);
+      const currentPopulation = Math.max(0, initialStock - mortalityTotal - totalSold - totalTransferredOut + totalTransferredIn);
       return {
         ...batch,
         mortalityTotal,
         totalSold,
+        totalTransferredOut,
+        totalTransferredIn,
         currentPopulation,
       };
     });
