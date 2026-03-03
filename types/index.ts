@@ -43,7 +43,7 @@ export interface ActivityLog {
  entityType: string;
  entityId?: string;
  description?: string; // Human readable summary
- metadata?: any; // JSON for before/after values
+ metadata?: unknown; // JSON for before/after values
  ipAddress?: string;
  timestamp: string;
  // Relation
@@ -204,13 +204,19 @@ export type CatfishBatchStatus = 'GROWING' | 'HARVESTING' | 'CLOSED';
 
 export interface CatfishBatch {
  id: string;
- batchCode: string;
- pondId: string;
+ productionType?: 'Fingerlings' | 'Juvenile' | 'Melange';
+ batchName?: string;
  startDate: string;
- initialFingerlingsCount: number;
- fingerlingUnitCost: number;
- totalFingerlingCost: number;
- status: CatfishBatchStatus;
+ expectedHarvestDate?: string | null;
+ initialStock?: number;
+ initialSeedCost?: number;
+ status: CatfishBatchStatus | 'Active' | 'Completed';
+ // legacy fields kept during migration
+ batchCode?: string;
+ pondId?: string;
+ initialFingerlingsCount?: number;
+ fingerlingUnitCost?: number;
+ totalFingerlingCost?: number;
  notes?: string | null;
  createdAt: string;
  updatedAt: string;
@@ -218,19 +224,46 @@ export interface CatfishBatch {
  mortalityTotal?: number;
  harvestedCount?: number;
  fishesLeft?: number;
+ totalSold?: number;
+ currentPopulation?: number;
+ parentBatchId?: string | null;
+ transferCostBasis?: number | null;
 }
 
 export interface CatfishFeedLog {
  id: string;
  batchId: string;
- date: string;
- feedProductId: string;
- quantityKg: number;
- unitCostAtTime: number;
- totalCost: number;
+ logDate?: string;
+ feedBrand?: string;
+ feedAmountKg?: number;
+ feedUnitPrice?: number;
+ dailyFeedCost?: number;
+ mortalityCount?: number;
+ abwGrams?: number | null;
+ averageLengthCm?: number | null;
+ notes?: string | null;
+ feedProductId?: string | null;
+ // legacy fields
+ date?: string;
+ quantityKg?: number;
+ unitCostAtTime?: number;
+ totalCost?: number;
  createdAt: string;
  batch?: CatfishBatch;
  feedProduct?: Product;
+}
+
+export interface CatfishSale {
+ id: string;
+ batchId: string;
+ saleDate: string;
+ saleType: 'Partial Offload' | 'Final Clear-Out';
+ quantitySold: number;
+ unitPrice: number;
+ totalSaleValue: number;
+ buyerDetails?: string | null;
+ createdAt: string;
+ batch?: CatfishBatch;
 }
 
 export interface CatfishMortalityLog {

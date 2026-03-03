@@ -141,7 +141,10 @@ export function ProductionGrid() {
       .eq('isActive', true)
       .order('name');
 
-    if (logData) setRowData(logData as any);
+    if (logData) {
+      const activeLogs = (logData as any[]).filter((log) => !log.isUndone);
+      setRowData(activeLogs as any);
+    }
     if (recipeData) setRecipes(recipeData as any);
 
     const { data: location } = await supabase
@@ -691,7 +694,7 @@ export function ProductionGrid() {
                       <td className="px-3 py-2">{row.ingredientName}</td>
                       <td className="px-3 py-2">{row.unit || 'KG'}</td>
                       <td className="px-3 py-2 text-right font-semibold">
-                        {Number(row.quantityUsed || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {Number(row.quantityUsed || 0).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
                       </td>
                     </tr>
                   ))

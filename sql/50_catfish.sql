@@ -1,61 +1,22 @@
 -- sql/50_catfish.sql
 -- Catfish module (idempotent). Depends on sql/00_core.sql and sql/10_store.sql
+-- Lifecycle rollout: supports Fingerlings, Juvenile, Melange stages
 
 -- Ensure CATFISH role exists
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'UserRole') THEN
     IF NOT EXISTS (
-      SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
-      WHERE t.typname = 'UserRole' AND e.enumlabel = 'CATFISH_STAFF'
+      SELECT 1
+      FROM pg_enum e
+      JOIN pg_type t ON t.oid = e.enumtypid
+      WHERE t.typname = 'UserRole'
+        AND e.enumlabel = 'CATFISH_STAFF'
     ) THEN
       ALTER TYPE "UserRole" ADD VALUE 'CATFISH_STAFF';
     END IF;
   END IF;
 END$$;
-
--- Ensure Product/Sale module checks include CATFISH
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'Product_module_check'
-  ) THEN
-    ALTER TABLE "Product" DROP CONSTRAINT "Product_module_check";
-  END IF;
-END$$;
-
-ALTER TABLE "Product"
-  ADD CONSTRAINT "Product_module_check"
-  CHECK ("module" IN ('FEED_MILL', 'POULTRY', 'BSF', 'CATFISH'));
-
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'Sale_module_check'
-  ) THEN
-    ALTER TABLE "Sale" DROP CONSTRAINT "Sale_module_check";
-  END IF;
-END$$;
-
-ALTER TABLE "Sale"
-  ADD CONSTRAINT "Sale_module_check"
-  CHECK ("module" IN ('FEED_MILL', 'POULTRY', 'BSF', 'CATFISH'));
-
--- Allow Sale.batchId to reference any module batch (remove BSF-only FK)
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'Sale_batchId_fkey'
-  ) THEN
-    ALTER TABLE "Sale" DROP CONSTRAINT "Sale_batchId_fkey";
-  END IF;
-END$$;
-
-ALTER TABLE "Sale"
-  ADD COLUMN IF NOT EXISTS "batchId" UUID;
 
 -- Ensure CATFISH location exists
 INSERT INTO "InventoryLocation" ("code", "name")
@@ -70,79 +31,447 @@ VALUES
   ('Live Catfish', 'CATFISH', 'KG', TRUE)
 ON CONFLICT ("name") DO NOTHING;
 
-CREATE TABLE IF NOT EXISTS "CatfishPond" (
+-- Fingerlings-first unified batch table
+CREATE TABLE IF NOT EXISTS "CatfishBatch" (
   "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  "name" TEXT NOT NULL UNIQUE,
-  "capacityFish" INTEGER NOT NULL DEFAULT 0,
-  "waterType" TEXT NOT NULL DEFAULT 'EARTHEN' CHECK ("waterType" IN ('EARTHEN', 'CONCRETE', 'TANK')),
-  "status" TEXT NOT NULL DEFAULT 'ACTIVE' CHECK ("status" IN ('ACTIVE', 'MAINTENANCE')),
+  "productionType" TEXT NOT NULL DEFAULT 'Fingerlings',
+  "batchName" TEXT NOT NULL,
+  "startDate" DATE NOT NULL DEFAULT CURRENT_DATE,
+  "expectedHarvestDate" DATE,
+  "initialStock" INTEGER NOT NULL DEFAULT 0,
+  "initialSeedCost" NUMERIC NOT NULL DEFAULT 0,
+  "status" TEXT NOT NULL DEFAULT 'Active',
   "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS "CatfishBatch" (
+ALTER TABLE "CatfishBatch"
+  ADD COLUMN IF NOT EXISTS "productionType" TEXT;
+ALTER TABLE "CatfishBatch"
+  ADD COLUMN IF NOT EXISTS "batchName" TEXT;
+ALTER TABLE "CatfishBatch"
+  ADD COLUMN IF NOT EXISTS "expectedHarvestDate" DATE;
+ALTER TABLE "CatfishBatch"
+  ADD COLUMN IF NOT EXISTS "initialStock" INTEGER;
+ALTER TABLE "CatfishBatch"
+  ADD COLUMN IF NOT EXISTS "initialSeedCost" NUMERIC;
+ALTER TABLE "CatfishBatch"
+  ADD COLUMN IF NOT EXISTS "parentBatchId" UUID REFERENCES "CatfishBatch"("id") ON DELETE SET NULL;
+ALTER TABLE "CatfishBatch"
+  ADD COLUMN IF NOT EXISTS "transferCostBasis" NUMERIC;
+
+-- Legacy compatibility: old schema may still enforce batchCode NOT NULL.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'CatfishBatch'
+      AND column_name = 'batchCode'
+      AND is_nullable = 'NO'
+  ) THEN
+    ALTER TABLE "CatfishBatch"
+      ALTER COLUMN "batchCode" DROP NOT NULL;
+  END IF;
+END$$;
+
+UPDATE "CatfishBatch"
+SET "productionType" = COALESCE("productionType", 'Fingerlings');
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'CatfishBatch'
+      AND column_name = 'batchCode'
+  ) THEN
+    EXECUTE '
+      UPDATE "CatfishBatch"
+      SET "batchName" = COALESCE("batchName", "batchCode", ''Batch-'' || SUBSTRING("id"::text, 1, 8))
+      WHERE "batchName" IS NULL
+    ';
+  ELSE
+    EXECUTE '
+      UPDATE "CatfishBatch"
+      SET "batchName" = COALESCE("batchName", ''Batch-'' || SUBSTRING("id"::text, 1, 8))
+      WHERE "batchName" IS NULL
+    ';
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'CatfishBatch'
+      AND column_name = 'initialFingerlingsCount'
+  ) THEN
+    EXECUTE '
+      UPDATE "CatfishBatch"
+      SET "initialStock" = COALESCE("initialStock", "initialFingerlingsCount", 0)
+      WHERE "initialStock" IS NULL
+    ';
+  ELSE
+    EXECUTE '
+      UPDATE "CatfishBatch"
+      SET "initialStock" = COALESCE("initialStock", 0)
+      WHERE "initialStock" IS NULL
+    ';
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'CatfishBatch'
+      AND column_name = 'totalFingerlingCost'
+  ) AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'CatfishBatch'
+      AND column_name = 'fingerlingUnitCost'
+  ) AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'CatfishBatch'
+      AND column_name = 'initialFingerlingsCount'
+  ) THEN
+    EXECUTE '
+      UPDATE "CatfishBatch"
+      SET "initialSeedCost" = COALESCE(
+        "initialSeedCost",
+        "totalFingerlingCost",
+        COALESCE("initialFingerlingsCount", 0) * COALESCE("fingerlingUnitCost", 0),
+        0
+      )
+      WHERE "initialSeedCost" IS NULL
+    ';
+  ELSE
+    EXECUTE '
+      UPDATE "CatfishBatch"
+      SET "initialSeedCost" = COALESCE("initialSeedCost", 0)
+      WHERE "initialSeedCost" IS NULL
+    ';
+  END IF;
+END$$;
+
+UPDATE "CatfishBatch"
+SET "status" = CASE
+  WHEN "status" IN ('GROWING', 'HARVESTING') THEN 'Active'
+  WHEN "status" = 'CLOSED' THEN 'Completed'
+  ELSE COALESCE("status", 'Active')
+END;
+
+ALTER TABLE "CatfishBatch"
+  ALTER COLUMN "productionType" SET DEFAULT 'Fingerlings';
+ALTER TABLE "CatfishBatch"
+  ALTER COLUMN "productionType" SET NOT NULL;
+ALTER TABLE "CatfishBatch"
+  ALTER COLUMN "batchName" SET NOT NULL;
+ALTER TABLE "CatfishBatch"
+  ALTER COLUMN "initialStock" SET DEFAULT 0;
+ALTER TABLE "CatfishBatch"
+  ALTER COLUMN "initialStock" SET NOT NULL;
+ALTER TABLE "CatfishBatch"
+  ALTER COLUMN "initialSeedCost" SET DEFAULT 0;
+ALTER TABLE "CatfishBatch"
+  ALTER COLUMN "initialSeedCost" SET NOT NULL;
+ALTER TABLE "CatfishBatch"
+  ALTER COLUMN "status" SET DEFAULT 'Active';
+ALTER TABLE "CatfishBatch"
+  ALTER COLUMN "status" SET NOT NULL;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'CatfishBatch_productionType_check'
+  ) THEN
+    ALTER TABLE "CatfishBatch" DROP CONSTRAINT "CatfishBatch_productionType_check";
+  END IF;
+END$$;
+
+ALTER TABLE "CatfishBatch"
+  ADD CONSTRAINT "CatfishBatch_productionType_check"
+  CHECK ("productionType" IN ('Fingerlings', 'Juvenile', 'Melange'));
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'CatfishBatch_status_check'
+  ) THEN
+    ALTER TABLE "CatfishBatch" DROP CONSTRAINT "CatfishBatch_status_check";
+  END IF;
+END$$;
+
+ALTER TABLE "CatfishBatch"
+  ADD CONSTRAINT "CatfishBatch_status_check"
+  CHECK ("status" IN ('Active', 'Completed'));
+
+-- Unified daily log table
+CREATE TABLE IF NOT EXISTS "CatfishDailyLog" (
   "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  "batchCode" TEXT NOT NULL UNIQUE,
-  "pondId" UUID NOT NULL REFERENCES "CatfishPond"("id") ON DELETE RESTRICT,
-  "startDate" DATE NOT NULL DEFAULT CURRENT_DATE,
-  "initialFingerlingsCount" INTEGER NOT NULL DEFAULT 0,
-  "fingerlingUnitCost" NUMERIC NOT NULL DEFAULT 0,
-  "totalFingerlingCost" NUMERIC NOT NULL DEFAULT 0,
-  "status" TEXT NOT NULL DEFAULT 'GROWING' CHECK ("status" IN ('GROWING', 'HARVESTING', 'CLOSED')),
+  "batchId" UUID NOT NULL REFERENCES "CatfishBatch"("id") ON DELETE CASCADE,
+  "logDate" DATE NOT NULL DEFAULT CURRENT_DATE,
+  "feedBrand" TEXT NOT NULL,
+  "feedAmountKg" NUMERIC NOT NULL DEFAULT 0,
+  "feedUnitPrice" NUMERIC NOT NULL DEFAULT 0,
+  "dailyFeedCost" NUMERIC GENERATED ALWAYS AS ("feedAmountKg" * "feedUnitPrice") STORED,
+  "mortalityCount" INTEGER NOT NULL DEFAULT 0,
+  "abwGrams" NUMERIC,
+  "averageLengthCm" NUMERIC,
   "notes" TEXT,
-  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE "CatfishDailyLog"
+  ADD COLUMN IF NOT EXISTS "feedBrand" TEXT;
+ALTER TABLE "CatfishDailyLog"
+  ADD COLUMN IF NOT EXISTS "feedAmountKg" NUMERIC;
+ALTER TABLE "CatfishDailyLog"
+  ADD COLUMN IF NOT EXISTS "feedUnitPrice" NUMERIC;
+ALTER TABLE "CatfishDailyLog"
+  ADD COLUMN IF NOT EXISTS "mortalityCount" INTEGER;
+ALTER TABLE "CatfishDailyLog"
+  ADD COLUMN IF NOT EXISTS "abwGrams" NUMERIC;
+ALTER TABLE "CatfishDailyLog"
+  ADD COLUMN IF NOT EXISTS "averageLengthCm" NUMERIC;
+ALTER TABLE "CatfishDailyLog"
+  ADD COLUMN IF NOT EXISTS "notes" TEXT;
+
+UPDATE "CatfishDailyLog"
+SET "feedBrand" = COALESCE("feedBrand", 'Unknown')
+WHERE "feedBrand" IS NULL;
+
+UPDATE "CatfishDailyLog"
+SET "feedAmountKg" = COALESCE("feedAmountKg", 0)
+WHERE "feedAmountKg" IS NULL;
+
+UPDATE "CatfishDailyLog"
+SET "feedUnitPrice" = COALESCE("feedUnitPrice", 0)
+WHERE "feedUnitPrice" IS NULL;
+
+UPDATE "CatfishDailyLog"
+SET "mortalityCount" = COALESCE("mortalityCount", 0)
+WHERE "mortalityCount" IS NULL;
+
+ALTER TABLE "CatfishDailyLog"
+  ALTER COLUMN "feedBrand" SET NOT NULL;
+ALTER TABLE "CatfishDailyLog"
+  ALTER COLUMN "feedAmountKg" SET DEFAULT 0;
+ALTER TABLE "CatfishDailyLog"
+  ALTER COLUMN "feedAmountKg" SET NOT NULL;
+ALTER TABLE "CatfishDailyLog"
+  ALTER COLUMN "feedUnitPrice" SET DEFAULT 0;
+ALTER TABLE "CatfishDailyLog"
+  ALTER COLUMN "feedUnitPrice" SET NOT NULL;
+ALTER TABLE "CatfishDailyLog"
+  ALTER COLUMN "mortalityCount" SET DEFAULT 0;
+ALTER TABLE "CatfishDailyLog"
+  ALTER COLUMN "mortalityCount" SET NOT NULL;
+
+-- Optional link to feed product for inventory accounting
+ALTER TABLE "CatfishDailyLog"
+  ADD COLUMN IF NOT EXISTS "feedProductId" UUID REFERENCES "Product"("id") ON DELETE SET NULL;
+
+-- Unified catfish sales table (separate from global "Sale")
+CREATE TABLE IF NOT EXISTS "CatfishSale" (
+  "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  "batchId" UUID NOT NULL REFERENCES "CatfishBatch"("id") ON DELETE CASCADE,
+  "saleDate" DATE NOT NULL DEFAULT CURRENT_DATE,
+  "saleType" TEXT NOT NULL,
+  "quantitySold" INTEGER NOT NULL DEFAULT 0,
+  "unitPrice" NUMERIC NOT NULL DEFAULT 0,
+  "totalSaleValue" NUMERIC GENERATED ALWAYS AS ("quantitySold" * "unitPrice") STORED,
+  "buyerDetails" TEXT,
+  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS "CatfishTransfer" (
+  "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  "fromBatchId" UUID NOT NULL REFERENCES "CatfishBatch"("id") ON DELETE CASCADE,
+  "toBatchId" UUID REFERENCES "CatfishBatch"("id") ON DELETE SET NULL,
+  "fromStage" TEXT NOT NULL,
+  "toStage" TEXT NOT NULL,
+  "transferDate" DATE NOT NULL DEFAULT CURRENT_DATE,
+  "quantity" INTEGER NOT NULL DEFAULT 0,
+  "costPerFishAtTransfer" NUMERIC NOT NULL DEFAULT 0,
+  "transferCostBasis" NUMERIC NOT NULL DEFAULT 0,
+  "notes" TEXT,
+  "status" TEXT NOT NULL DEFAULT 'COMPLETED',
+  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 DO $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM pg_constraint
-    WHERE conname = 'CatfishBatch_ageCategory_check'
+    WHERE conname = 'CatfishTransfer_fromStage_check'
   ) THEN
-    ALTER TABLE "CatfishBatch" DROP CONSTRAINT "CatfishBatch_ageCategory_check";
+    ALTER TABLE "CatfishTransfer" DROP CONSTRAINT "CatfishTransfer_fromStage_check";
   END IF;
 END$$;
 
-ALTER TABLE "CatfishBatch"
-  DROP COLUMN IF EXISTS "ageCategory";
+ALTER TABLE "CatfishTransfer"
+  ADD CONSTRAINT "CatfishTransfer_fromStage_check"
+  CHECK ("fromStage" IN ('Fingerlings', 'Juvenile', 'Melange'));
 
-CREATE TABLE IF NOT EXISTS "CatfishFeedLog" (
-  "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  "batchId" UUID NOT NULL REFERENCES "CatfishBatch"("id") ON DELETE CASCADE,
-  "date" DATE NOT NULL DEFAULT CURRENT_DATE,
-  "feedProductId" UUID NOT NULL REFERENCES "Product"("id") ON DELETE RESTRICT,
-  "quantityKg" NUMERIC NOT NULL DEFAULT 0,
-  "unitCostAtTime" NUMERIC NOT NULL DEFAULT 0,
-  "totalCost" NUMERIC NOT NULL DEFAULT 0,
-  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'CatfishTransfer_toStage_check'
+  ) THEN
+    ALTER TABLE "CatfishTransfer" DROP CONSTRAINT "CatfishTransfer_toStage_check";
+  END IF;
+END$$;
 
-CREATE TABLE IF NOT EXISTS "CatfishMortalityLog" (
-  "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  "batchId" UUID NOT NULL REFERENCES "CatfishBatch"("id") ON DELETE CASCADE,
-  "date" DATE NOT NULL DEFAULT CURRENT_DATE,
-  "deadCount" INTEGER NOT NULL DEFAULT 0,
-  "cause" TEXT,
-  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+ALTER TABLE "CatfishTransfer"
+  ADD CONSTRAINT "CatfishTransfer_toStage_check"
+  CHECK ("toStage" IN ('Fingerlings', 'Juvenile', 'Melange'));
 
-ALTER TABLE "CatfishMortalityLog"
-  DROP COLUMN IF EXISTS "notes";
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'CatfishTransfer_status_check'
+  ) THEN
+    ALTER TABLE "CatfishTransfer" DROP CONSTRAINT "CatfishTransfer_status_check";
+  END IF;
+END$$;
 
-CREATE TABLE IF NOT EXISTS "CatfishHarvest" (
-  "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  "batchId" UUID NOT NULL REFERENCES "CatfishBatch"("id") ON DELETE CASCADE,
-  "date" DATE NOT NULL DEFAULT CURRENT_DATE,
-  "quantityKg" NUMERIC NOT NULL DEFAULT 0,
-  "fishCountHarvested" INTEGER,
-  "averageFishWeightKg" NUMERIC NOT NULL DEFAULT 0,
-  "notes" TEXT,
-  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+ALTER TABLE "CatfishTransfer"
+  ADD CONSTRAINT "CatfishTransfer_status_check"
+  CHECK ("status" IN ('PENDING', 'COMPLETED', 'CANCELLED'));
 
-ALTER TABLE "CatfishHarvest"
-  ADD COLUMN IF NOT EXISTS "fishCountHarvested" INTEGER;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'CatfishSale_saleType_check'
+  ) THEN
+    ALTER TABLE "CatfishSale" DROP CONSTRAINT "CatfishSale_saleType_check";
+  END IF;
+END$$;
+
+ALTER TABLE "CatfishSale"
+  ADD CONSTRAINT "CatfishSale_saleType_check"
+  CHECK ("saleType" IN ('Partial Offload', 'Final Clear-Out'));
+
+-- Guardrails: cannot sell more than available population
+CREATE OR REPLACE FUNCTION catfish_validate_sale_population()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_initial_stock INTEGER;
+  v_total_mortality INTEGER;
+  v_total_sold_before INTEGER;
+  v_available INTEGER;
+BEGIN
+  SELECT "initialStock"
+  INTO v_initial_stock
+  FROM "CatfishBatch"
+  WHERE "id" = NEW."batchId";
+
+  IF v_initial_stock IS NULL THEN
+    RAISE EXCEPTION 'Catfish batch not found';
+  END IF;
+
+  SELECT COALESCE(SUM("mortalityCount"), 0)
+  INTO v_total_mortality
+  FROM "CatfishDailyLog"
+  WHERE "batchId" = NEW."batchId";
+
+  SELECT COALESCE(SUM("quantitySold"), 0)
+  INTO v_total_sold_before
+  FROM "CatfishSale"
+  WHERE "batchId" = NEW."batchId"
+    AND (TG_OP = 'INSERT' OR "id" <> NEW."id");
+
+  v_available := GREATEST(v_initial_stock - v_total_mortality - v_total_sold_before, 0);
+
+  IF COALESCE(NEW."quantitySold", 0) > v_available THEN
+    RAISE EXCEPTION 'Cannot sell % fish. Available stock is %.',
+      NEW."quantitySold",
+      v_available;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS "CatfishSale_validate_population_trg" ON "CatfishSale";
+CREATE TRIGGER "CatfishSale_validate_population_trg"
+BEFORE INSERT OR UPDATE ON "CatfishSale"
+FOR EACH ROW
+EXECUTE FUNCTION catfish_validate_sale_population();
+
+-- Final Clear-Out marks batch as completed
+CREATE OR REPLACE FUNCTION catfish_finalize_batch_on_clearout()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW."saleType" = 'Final Clear-Out' THEN
+    UPDATE "CatfishBatch"
+    SET "status" = 'Completed',
+        "updatedAt" = NOW()
+    WHERE "id" = NEW."batchId";
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS "CatfishSale_finalize_batch_trg" ON "CatfishSale";
+CREATE TRIGGER "CatfishSale_finalize_batch_trg"
+AFTER INSERT OR UPDATE ON "CatfishSale"
+FOR EACH ROW
+EXECUTE FUNCTION catfish_finalize_batch_on_clearout();
+
+-- Dashboard view with database-level aggregations
+CREATE OR REPLACE VIEW "CatfishLiveDashboard" AS
+SELECT
+  b."id" AS "batchId",
+  b."productionType",
+  b."batchName",
+  b."status",
+  b."initialStock",
+  b."initialSeedCost",
+  (
+    b."initialStock"
+    - COALESCE((SELECT SUM(dl."mortalityCount") FROM "CatfishDailyLog" dl WHERE dl."batchId" = b."id"), 0)
+    - COALESCE((SELECT SUM(cs."quantitySold") FROM "CatfishSale" cs WHERE cs."batchId" = b."id"), 0)
+    - COALESCE((SELECT SUM(ct."quantity") FROM "CatfishTransfer" ct WHERE ct."fromBatchId" = b."id" AND ct."status" = 'COMPLETED'), 0)
+    + COALESCE((SELECT SUM(ct."quantity") FROM "CatfishTransfer" ct WHERE ct."toBatchId" = b."id" AND ct."status" = 'COMPLETED'), 0)
+  ) AS "currentPopulation",
+  COALESCE((SELECT SUM(dl."dailyFeedCost") FROM "CatfishDailyLog" dl WHERE dl."batchId" = b."id"), 0)
+    AS "totalFeedCostToDate",
+  COALESCE((SELECT SUM(dl."feedAmountKg") FROM "CatfishDailyLog" dl WHERE dl."batchId" = b."id"), 0)
+    AS "totalFeedGivenKg",
+  (
+    SELECT dl."abwGrams"
+    FROM "CatfishDailyLog" dl
+    WHERE dl."batchId" = b."id"
+      AND dl."abwGrams" IS NOT NULL
+    ORDER BY dl."logDate" DESC, dl."createdAt" DESC
+    LIMIT 1
+  ) AS "latestAbwGrams",
+  (
+    SELECT dl."averageLengthCm"
+    FROM "CatfishDailyLog" dl
+    WHERE dl."batchId" = b."id"
+      AND dl."averageLengthCm" IS NOT NULL
+    ORDER BY dl."logDate" DESC, dl."createdAt" DESC
+    LIMIT 1
+  ) AS "latestAverageLengthCm"
+FROM "CatfishBatch" b;
+
+-- Keep global sale table flexible for module-specific batch linkage
+ALTER TABLE "Sale"
+  ADD COLUMN IF NOT EXISTS "batchId" UUID;
 
 -- Internal purchase handler (Feed Mill -> Catfish)
 CREATE OR REPLACE FUNCTION handle_internal_feed_purchase_catfish(
@@ -288,24 +617,10 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- RLS
-ALTER TABLE "CatfishPond" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "CatfishBatch" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "CatfishFeedLog" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "CatfishMortalityLog" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "CatfishHarvest" ENABLE ROW LEVEL SECURITY;
-
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'CatfishPond'
-      AND policyname = 'Allow all for authenticated users'
-  ) THEN
-    CREATE POLICY "Allow all for authenticated users"
-    ON "CatfishPond"
-    FOR ALL TO authenticated USING (true) WITH CHECK (true);
-  END IF;
-END$$;
+ALTER TABLE "CatfishDailyLog" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "CatfishSale" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "CatfishTransfer" ENABLE ROW LEVEL SECURITY;
 
 DO $$
 BEGIN
@@ -324,11 +639,11 @@ DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'CatfishFeedLog'
+    WHERE schemaname = 'public' AND tablename = 'CatfishTransfer'
       AND policyname = 'Allow all for authenticated users'
   ) THEN
     CREATE POLICY "Allow all for authenticated users"
-    ON "CatfishFeedLog"
+    ON "CatfishTransfer"
     FOR ALL TO authenticated USING (true) WITH CHECK (true);
   END IF;
 END$$;
@@ -337,11 +652,11 @@ DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'CatfishMortalityLog'
+    WHERE schemaname = 'public' AND tablename = 'CatfishDailyLog'
       AND policyname = 'Allow all for authenticated users'
   ) THEN
     CREATE POLICY "Allow all for authenticated users"
-    ON "CatfishMortalityLog"
+    ON "CatfishDailyLog"
     FOR ALL TO authenticated USING (true) WITH CHECK (true);
   END IF;
 END$$;
@@ -350,25 +665,25 @@ DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'CatfishHarvest'
+    WHERE schemaname = 'public' AND tablename = 'CatfishSale'
       AND policyname = 'Allow all for authenticated users'
   ) THEN
     CREATE POLICY "Allow all for authenticated users"
-    ON "CatfishHarvest"
+    ON "CatfishSale"
     FOR ALL TO authenticated USING (true) WITH CHECK (true);
   END IF;
 END$$;
 
 -- Indexes
-CREATE INDEX IF NOT EXISTS "CatfishBatch_pond_idx"
-  ON "CatfishBatch" ("pondId");
-CREATE INDEX IF NOT EXISTS "CatfishFeedLog_batch_idx"
-  ON "CatfishFeedLog" ("batchId");
-CREATE INDEX IF NOT EXISTS "CatfishFeedLog_date_idx"
-  ON "CatfishFeedLog" ("date");
-CREATE INDEX IF NOT EXISTS "CatfishMortality_batch_idx"
-  ON "CatfishMortalityLog" ("batchId");
-CREATE INDEX IF NOT EXISTS "CatfishHarvest_batch_idx"
-  ON "CatfishHarvest" ("batchId");
-CREATE INDEX IF NOT EXISTS "CatfishHarvest_date_idx"
-  ON "CatfishHarvest" ("date");
+CREATE INDEX IF NOT EXISTS "CatfishBatch_production_status_idx"
+  ON "CatfishBatch" ("productionType", "status");
+CREATE INDEX IF NOT EXISTS "CatfishBatch_startDate_idx"
+  ON "CatfishBatch" ("startDate");
+CREATE INDEX IF NOT EXISTS "CatfishDailyLog_batch_logDate_idx"
+  ON "CatfishDailyLog" ("batchId", "logDate");
+CREATE INDEX IF NOT EXISTS "CatfishSale_batch_saleDate_idx"
+  ON "CatfishSale" ("batchId", "saleDate");
+CREATE INDEX IF NOT EXISTS "CatfishTransfer_from_batch_idx"
+  ON "CatfishTransfer" ("fromBatchId", "transferDate");
+CREATE INDEX IF NOT EXISTS "CatfishTransfer_to_batch_idx"
+  ON "CatfishTransfer" ("toBatchId", "transferDate");

@@ -4,7 +4,7 @@ import { getAuthContext, isRoleAllowed } from '@/lib/server/auth';
 import { logActivityServer } from '@/lib/server/activity-log';
 import { roundTo2 } from '@/lib/utils';
 
-const VIEW_ROLES = ['ADMIN', 'MANAGER', 'ACCOUNTANT', 'POULTRY_STAFF', 'FEED_MILL_STAFF'];
+const VIEW_ROLES = ['ADMIN', 'MANAGER', 'ACCOUNTANT', 'POULTRY_STAFF', 'FEED_MILL_STAFF', 'CATFISH_STAFF'];
 const EDIT_ROLES = ['ADMIN', 'MANAGER', 'ACCOUNTANT'];
 
 export async function GET(request: NextRequest) {

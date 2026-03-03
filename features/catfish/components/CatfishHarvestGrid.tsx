@@ -186,7 +186,7 @@ export function CatfishHarvestGrid({ batchId, hideBatchColumn }: Props) {
               Log Harvest
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto modal-scrollbar">
+          <DialogContent className="sm:max-w-140 max-h-[90vh] overflow-y-auto modal-scrollbar">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold tracking-tight">Log Harvest</DialogTitle>
             </DialogHeader>
@@ -259,7 +259,7 @@ export function CatfishHarvestGrid({ batchId, hideBatchColumn }: Props) {
         </Dialog>
       </div>
 
-      <div className="h-[320px] border rounded-2xl overflow-hidden bg-white shadow-xl shadow-slate-200/50">
+      <div className="h-80 border rounded-2xl overflow-hidden bg-white shadow-xl shadow-slate-200/50">
         <AgGridReact
           theme={themeQuartz}
           rowData={rowData}

@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
@@ -31,6 +33,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -54,9 +57,18 @@ ModuleRegistry.registerModules([
 type Props = {
   batchId?: string;
   hideBatchColumn?: boolean;
+  mode?: 'all' | 'mortality' | 'feed';
+  productionType?: 'Fingerlings' | 'Juvenile' | 'Melange';
+  stageLabel?: string;
 };
 
-export function CatfishFeedLogGrid({ batchId, hideBatchColumn }: Props) {
+export function CatfishFeedLogGrid({
+  batchId,
+  hideBatchColumn,
+  mode = 'all',
+  productionType = 'Fingerlings',
+  stageLabel = 'Fingerlings'
+}: Props) {
   const [rowData, setRowData] = useState<CatfishFeedLog[]>([]);
   const [batches, setBatches] = useState<CatfishBatch[]>([]);
   const [products, setProducts] = useState<(Product & { quantityOnHand?: number })[]>([]);
@@ -65,9 +77,14 @@ export function CatfishFeedLogGrid({ batchId, hideBatchColumn }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     batchId: batchId || '',
-    date: new Date().toISOString().split('T')[0],
-    feedProductId: '',
-    quantityKg: ''
+    logDate: new Date().toISOString().split('T')[0],
+    feedProductId: 'NONE',
+    feedAmountKg: '',
+    feedUnitPrice: '',
+    mortalityCount: '',
+    abwGrams: '',
+    averageLengthCm: '',
+    notes: ''
   });
 
   const loadData = async () => {
@@ -75,7 +92,7 @@ export function CatfishFeedLogGrid({ batchId, hideBatchColumn }: Props) {
     const query = batchId ? `?batchId=${batchId}` : '';
     const [logRes, batchRes, productRes] = await Promise.all([
       fetch(`/api/catfish/feed-logs${query}`),
-      fetch('/api/catfish/batches'),
+      fetch(`/api/catfish/batches?productionType=${productionType}`),
       fetch('/api/finished-goods/location?code=CATFISH&module=FEED_MILL')
     ]);
 
@@ -86,8 +103,8 @@ export function CatfishFeedLogGrid({ batchId, hideBatchColumn }: Props) {
     if (logRes.ok) setRowData(logPayload.feedLogs || []);
     if (batchRes.ok) setBatches(batchPayload.batches || []);
     if (productRes.ok) {
-      const items = (productPayload.items || []).filter((item: any) => Number(item.quantityOnHand || 0) > 0);
-      setProducts(items);
+      const available = (productPayload.items || []).filter((item: any) => Number(item.quantityOnHand || 0) > 0);
+      setProducts(available);
     }
 
     setLoading(false);
@@ -95,25 +112,12 @@ export function CatfishFeedLogGrid({ batchId, hideBatchColumn }: Props) {
 
   useEffect(() => {
     loadData();
-  }, [batchId]);
+  }, [batchId, productionType]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.batchId || !form.feedProductId) {
-      toast({
-        title: "Missing fields",
-        description: "Please select a batch and feed product.",
-        variant: "destructive"
-      });
-      return;
-    }
-    const qty = Number(form.quantityKg || 0);
-    if (qty < 0) {
-      toast({
-        title: "Invalid feed",
-        description: "Feed quantity cannot be negative.",
-        variant: "destructive"
-      });
+    if (!form.batchId) {
+      toast({ title: "Missing fields", description: "Please select a batch.", variant: "destructive" });
       return;
     }
 
@@ -123,9 +127,14 @@ export function CatfishFeedLogGrid({ batchId, hideBatchColumn }: Props) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         batchId: form.batchId,
-        date: form.date,
-        feedProductId: form.feedProductId,
-        quantityKg: Number(form.quantityKg || 0)
+        logDate: form.logDate,
+        feedProductId: form.feedProductId === 'NONE' ? null : form.feedProductId,
+        feedAmountKg: Number(form.feedAmountKg || 0),
+        feedUnitPrice: Number(form.feedUnitPrice || 0),
+        mortalityCount: Number(form.mortalityCount || 0),
+        abwGrams: form.abwGrams ? Number(form.abwGrams) : null,
+        averageLengthCm: form.averageLengthCm ? Number(form.averageLengthCm) : null,
+        notes: form.notes || null
       })
     });
 
@@ -133,16 +142,21 @@ export function CatfishFeedLogGrid({ batchId, hideBatchColumn }: Props) {
       const payload = await response.json().catch(() => ({}));
       toast({
         title: "Error",
-        description: payload.error || 'Failed to log feed usage.',
+        description: payload.error || 'Failed to create daily log.',
         variant: "destructive"
       });
     } else {
       setDialogOpen(false);
       setForm({
         batchId: batchId || '',
-        date: new Date().toISOString().split('T')[0],
-        feedProductId: '',
-        quantityKg: ''
+        logDate: new Date().toISOString().split('T')[0],
+        feedProductId: 'NONE',
+        feedAmountKg: '',
+        feedUnitPrice: '',
+        mortalityCount: '',
+        abwGrams: '',
+        averageLengthCm: '',
+        notes: ''
       });
       loadData();
     }
@@ -150,37 +164,68 @@ export function CatfishFeedLogGrid({ batchId, hideBatchColumn }: Props) {
   };
 
   const colDefs = useMemo<ColDef<CatfishFeedLog>[]>(() => {
+    if (mode === 'mortality') {
+      const cols: ColDef<CatfishFeedLog>[] = [
+        { field: 'logDate', headerName: 'Date', minWidth: 120, valueFormatter: (p: any) => new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-') }
+      ];
+      if (!hideBatchColumn) {
+        cols.push({
+          headerName: 'Batch',
+          minWidth: 160,
+          valueGetter: (p: any) => p.data.batch?.batchName || 'Unknown'
+        });
+      }
+      cols.push(
+        { field: 'mortalityCount', headerName: 'Mortality', type: 'numericColumn', minWidth: 120 },
+        { field: 'notes', headerName: 'Notes', minWidth: 200, flex: 1 }
+      );
+      return cols;
+    }
+
     const cols: ColDef<CatfishFeedLog>[] = [
-      { field: 'date', headerName: 'Date', minWidth: 120, valueFormatter: (p: any) => new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-') }
+      { field: 'logDate', headerName: 'Date', minWidth: 120, valueFormatter: (p: any) => new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-') }
     ];
     if (!hideBatchColumn) {
       cols.push({
         headerName: 'Batch',
-        minWidth: 140,
-        valueGetter: (p: any) => p.data.batch?.batchCode || 'Unknown'
+        minWidth: 160,
+        valueGetter: (p: any) => p.data.batch?.batchName || 'Unknown'
       });
     }
     cols.push(
-      { headerName: 'Feed', minWidth: 160, valueGetter: (p: any) => p.data.feedProduct?.name || 'Unknown' },
-      { field: 'quantityKg', headerName: 'Quantity (kg)', type: 'numericColumn', minWidth: 140 },
+      { headerName: 'Feed Product', minWidth: 160, valueGetter: (p: any) => p.data.feedProduct?.name || '-' },
+      { field: 'feedAmountKg', headerName: 'Feed (kg)', type: 'numericColumn', minWidth: 120 },
       {
-        field: 'unitCostAtTime',
-        headerName: 'Unit Cost (₦)',
+        field: 'feedUnitPrice',
+        headerName: 'Unit Price (₦)',
         type: 'numericColumn',
         minWidth: 130,
         valueFormatter: (p: any) => `${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
       },
       {
-        field: 'totalCost',
-        headerName: 'Total Cost (₦)',
+        field: 'dailyFeedCost',
+        headerName: 'Feed Cost (₦)',
         type: 'numericColumn',
-        minWidth: 140,
-        valueFormatter: (p: any) => ` ${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-      }
+        minWidth: 130,
+        valueFormatter: (p: any) => `${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      },
+      { field: 'mortalityCount', headerName: 'Mortality', type: 'numericColumn', minWidth: 110 },
+      { field: 'abwGrams', headerName: 'ABW (g)', type: 'numericColumn', minWidth: 100, valueFormatter: (p: any) => p.value ? Number(p.value).toLocaleString() : '-' },
+      { field: 'averageLengthCm', headerName: 'Length (cm)', type: 'numericColumn', minWidth: 110, valueFormatter: (p: any) => p.value ? Number(p.value).toLocaleString() : '-' },
+      { field: 'notes', headerName: 'Notes', minWidth: 180, flex: 1 }
     );
-
     return cols;
-  }, [hideBatchColumn]);
+  }, [hideBatchColumn, mode]);
+
+  const displayedRows = useMemo(() => {
+    if (mode === 'mortality') {
+      return rowData.filter((row) => Number(row.mortalityCount || 0) > 0);
+    }
+    if (mode === 'feed') {
+      return rowData.filter((row) => Number(row.feedAmountKg || 0) > 0);
+    }
+    return rowData;
+  }, [rowData, mode]);
 
   if (loading && rowData.length === 0) {
     return (
@@ -197,12 +242,12 @@ export function CatfishFeedLogGrid({ batchId, hideBatchColumn }: Props) {
           <DialogTrigger asChild>
             <Button className="bg-emerald-700 hover:bg-emerald-800 shadow-lg shadow-emerald-700/20 transition-all hover:scale-105 active:scale-95 px-6">
               <Plus className="w-4 h-4" />
-              Log Feeding
+              New Daily Log
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-140 max-h-[90vh] overflow-y-auto modal-scrollbar">
+          <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto modal-scrollbar">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold tracking-tight">Log Feed Usage</DialogTitle>
+              <DialogTitle className="text-xl font-bold tracking-tight">Create {stageLabel} Daily Log</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               {!batchId && (
@@ -215,7 +260,7 @@ export function CatfishFeedLogGrid({ batchId, hideBatchColumn }: Props) {
                     <SelectContent>
                       {batches.map((batch) => (
                         <SelectItem key={batch.id} value={batch.id}>
-                          {batch.batchCode}
+                          {batch.batchName}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -224,26 +269,49 @@ export function CatfishFeedLogGrid({ batchId, hideBatchColumn }: Props) {
               )}
               <div className="space-y-2">
                 <Label>Date</Label>
-                <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+                <Input type="date" value={form.logDate} onChange={(e) => setForm({ ...form, logDate: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <Label>Feed Product</Label>
+                <Label>Feed Product (optional)</Label>
                 <Select value={form.feedProductId} onValueChange={(value) => setForm({ ...form, feedProductId: value })}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select feed" />
+                    <SelectValue placeholder="Select feed product" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="NONE">None</SelectItem>
                     {products.map((product) => (
                       <SelectItem key={product.id} value={product.id}>
-                        {product.name}
+                        {product.name} ({Number(product.quantityOnHand || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {product.unit || ''})
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Quantity (kg)</Label>
-                <Input type="number" step="0.01" min="0" value={form.quantityKg} onChange={(e) => setForm({ ...form, quantityKg: e.target.value })} />
+                <Label>Feed Amount (kg)</Label>
+                <Input type="number" min="0" step="0.01" value={form.feedAmountKg} onChange={(e) => setForm({ ...form, feedAmountKg: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Feed Unit Price (₦)</Label>
+                  <Input type="number" min="0" step="0.01" value={form.feedUnitPrice} onChange={(e) => setForm({ ...form, feedUnitPrice: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Mortality</Label>
+                  <Input type="number" min="0" step="1" value={form.mortalityCount} onChange={(e) => setForm({ ...form, mortalityCount: e.target.value })} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>ABW (grams)</Label>
+                <Input type="number" min="0" step="0.01" value={form.abwGrams} onChange={(e) => setForm({ ...form, abwGrams: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Average Length (cm)</Label>
+                <Input type="number" min="0" step="0.01" value={form.averageLengthCm} onChange={(e) => setForm({ ...form, averageLengthCm: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Notes</Label>
+                <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
               </div>
               <DialogFooter>
                 <Button type="submit" disabled={submitting} className="w-full">
@@ -259,7 +327,7 @@ export function CatfishFeedLogGrid({ batchId, hideBatchColumn }: Props) {
       <div className="h-80 border rounded-2xl overflow-hidden bg-white shadow-xl shadow-slate-200/50">
         <AgGridReact
           theme={themeQuartz}
-          rowData={rowData}
+          rowData={displayedRows}
           columnDefs={colDefs}
           defaultColDef={{
             sortable: true,
@@ -275,6 +343,3 @@ export function CatfishFeedLogGrid({ batchId, hideBatchColumn }: Props) {
     </div>
   );
 }
-
-
-

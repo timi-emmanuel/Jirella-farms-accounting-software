@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthContext, isRoleAllowed } from '@/lib/server/auth';
@@ -22,87 +23,75 @@ export async function GET(request: NextRequest) {
 
     const admin = createAdminClient();
 
-    const { data: feedLogs } = await admin
-      .from('CatfishFeedLog')
-      .select('date, quantityKg')
-      .gte('date', from)
-      .lte('date', to);
+    const { data: dailyLogs } = await admin
+      .from('CatfishDailyLog')
+      .select('batchId, logDate, feedAmountKg, dailyFeedCost, mortalityCount, abwGrams')
+      .gte('logDate', from)
+      .lte('logDate', to);
 
-    const totalFeedKg = roundTo2((feedLogs || []).reduce((sum: number, row: any) => sum + Number(row.quantityKg || 0), 0));
+    const totalFeedKg = roundTo2((dailyLogs || []).reduce((sum: number, row: any) => sum + Number(row.feedAmountKg || 0), 0));
+    const totalFeedCost = roundTo2((dailyLogs || []).reduce((sum: number, row: any) => sum + Number(row.dailyFeedCost || 0), 0));
+    const totalMortality = Math.round((dailyLogs || []).reduce((sum: number, row: any) => sum + Number(row.mortalityCount || 0), 0));
 
-    const { data: harvests } = await admin
-      .from('CatfishHarvest')
-      .select('quantityKg, averageFishWeightKg, date, batch:CatfishBatch(batchCode)')
-      .gte('date', from)
-      .lte('date', to);
-
-    const totalHarvestKg = roundTo2((harvests || []).reduce((sum: number, row: any) => sum + Number(row.quantityKg || 0), 0));
-
-    const avgWeightValues = (harvests || []).map((row: any) => Number(row.averageFishWeightKg || 0)).filter((v: number) => v > 0);
-    const averageHarvestWeightKg = avgWeightValues.length > 0
-      ? roundTo2(avgWeightValues.reduce((sum: number, v: number) => sum + v, 0) / avgWeightValues.length)
+    const abwValues = (dailyLogs || [])
+      .map((row: any) => Number(row.abwGrams || 0))
+      .filter((v: number) => v > 0);
+    const averageAbwGrams = abwValues.length > 0
+      ? roundTo2(abwValues.reduce((sum: number, value: number) => sum + value, 0) / abwValues.length)
       : 0;
 
-    const harvestedCount = (harvests || []).reduce((sum: number, row: any) => {
-      const avg = Number(row.averageFishWeightKg || 0);
-      if (avg <= 0) return sum;
-      return sum + (Number(row.quantityKg || 0) / avg);
-    }, 0);
+    const { data: sales } = await admin
+      .from('CatfishSale')
+      .select('batchId, saleDate, quantitySold, totalSaleValue')
+      .gte('saleDate', from)
+      .lte('saleDate', to);
 
-    const { data: mortality } = await admin
-      .from('CatfishMortalityLog')
-      .select('deadCount, date')
-      .gte('date', from)
-      .lte('date', to);
-
-    const totalMortality = Math.round((mortality || []).reduce((sum: number, row: any) => sum + Number(row.deadCount || 0), 0));
+    const totalSold = Math.round((sales || []).reduce((sum: number, row: any) => sum + Number(row.quantitySold || 0), 0));
+    const totalRevenue = roundTo2((sales || []).reduce((sum: number, row: any) => sum + Number(row.totalSaleValue || 0), 0));
 
     const { data: batches } = await admin
       .from('CatfishBatch')
-      .select('id, startDate, initialFingerlingsCount, status');
+      .select('id, batchName, startDate, initialStock, initialSeedCost, status')
+      .eq('productionType', 'Fingerlings');
 
-    const fingerlingsInRange = (batches || []).filter((row: any) => row.startDate >= from && row.startDate <= to)
-      .reduce((sum: number, row: any) => sum + Number(row.initialFingerlingsCount || 0), 0);
+    const activeBatches = (batches || []).filter((row: any) => row.status === 'Active').length;
+    const stockedInRange = (batches || [])
+      .filter((row: any) => row.startDate >= from && row.startDate <= to)
+      .reduce((sum: number, row: any) => sum + Number(row.initialStock || 0), 0);
 
-    const survivalRate = fingerlingsInRange > 0
-      ? roundTo2((harvestedCount / fingerlingsInRange) * 100)
+    const survivalRate = stockedInRange > 0
+      ? roundTo2(((stockedInRange - totalMortality) / stockedInRange) * 100)
       : 0;
 
-    const activeBatches = (batches || []).filter((row: any) => ['GROWING', 'HARVESTING'].includes(row.status)).length;
-
-    const { data: sales } = await admin
-      .from('Sale')
-      .select('quantitySold, unitSellingPrice, soldAt')
-      .eq('module', 'CATFISH')
-      .gte('soldAt', from)
-      .lte('soldAt', to);
-
-    const totalRevenue = roundTo2((sales || []).reduce((sum: number, row: any) => {
-      return sum + (Number(row.quantitySold || 0) * Number(row.unitSellingPrice || 0));
-    }, 0));
-
-    const yieldByBatch = (harvests || [])
+    const salesByBatch = (sales || [])
       .reduce((map: Map<string, number>, row: any) => {
-        const key = row.batch?.batchCode ?? 'Unknown';
-        map.set(key, (map.get(key) || 0) + Number(row.quantityKg || 0));
+        const key = String(row.batchId || 'Unknown');
+        map.set(key, (map.get(key) || 0) + Number(row.quantitySold || 0));
         return map;
-      }, new Map())
-      .entries();
+      }, new Map<string, number>());
 
-    const yieldRows = Array.from(yieldByBatch)
-      .map(([batchCode, quantityKg]) => ({ batchCode, quantityKg: roundTo2(quantityKg) }))
+    const batchNameMap = new Map<string, string>();
+    (batches || []).forEach((batch: any) => batchNameMap.set(batch.id, batch.batchName || 'Unknown'));
+
+    const yieldByBatch = Array.from(salesByBatch.entries())
+      .map(([batchId, quantity]) => ({
+        batchCode: batchNameMap.get(batchId) || 'Unknown',
+        quantityKg: roundTo2(quantity)
+      }))
       .slice(0, 10);
 
     return NextResponse.json({
       metrics: {
         totalFeedKg,
-        totalHarvestKg,
+        totalFeedCost,
+        totalSold,
+        totalHarvestKg: totalSold,
         totalMortality,
         survivalRate,
-        averageHarvestWeightKg,
+        averageAbwGrams,
         totalRevenue,
         activeBatches,
-        yieldByBatch: yieldRows
+        yieldByBatch
       }
     });
   } catch (error: any) {

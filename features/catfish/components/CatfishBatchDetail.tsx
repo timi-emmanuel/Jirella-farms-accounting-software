@@ -1,22 +1,29 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { CatfishBatch } from '@/types';
 import { CatfishFeedLogGrid } from './CatfishFeedLogGrid';
-import { CatfishMortalityGrid } from './CatfishMortalityGrid';
-import { CatfishHarvestGrid } from './CatfishHarvestGrid';
-import { formatCatfishStage, getCatfishAgeWeeks, getCatfishStage } from '@/lib/catfish';
+import { CatfishSalesGrid } from './CatfishSalesGrid';
 
-export function CatfishBatchDetail() {
+type Props = {
+  productionType?: 'Fingerlings' | 'Juvenile' | 'Melange';
+  stageLabel?: string;
+};
+
+export function CatfishBatchDetail({
+  productionType = 'Fingerlings',
+  stageLabel = 'Fingerlings'
+}: Props) {
   const params = useParams();
-  const batchId = params?.id as string;
+  const batchId = (params?.batchId as string) || (params?.id as string);
   const [batch, setBatch] = useState<CatfishBatch | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadBatch = async () => {
     setLoading(true);
-    const response = await fetch(`/api/catfish/batches?batchId=${batchId}`);
+    const response = await fetch(`/api/catfish/batches?batchId=${batchId}&productionType=${productionType}`);
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       console.error('Catfish batch fetch error:', payload.error || response.statusText);
@@ -29,27 +36,22 @@ export function CatfishBatchDetail() {
 
   useEffect(() => {
     if (batchId) loadBatch();
-  }, [batchId]);
+  }, [batchId, productionType]);
 
   const stats = useMemo(() => {
     if (!batch) return [];
-    const mortalityTotal = Number((batch as any).mortalityTotal || 0);
-    const harvestedCount = Number((batch as any).harvestedCount || 0);
-    const fishesLeft = batch.status === 'CLOSED'
-      ? 0
-      : Math.max(
-          0,
-          Number(batch.initialFingerlingsCount || 0) - mortalityTotal - harvestedCount
-        );
+    const mortalityTotal = Number(batch.mortalityTotal || 0);
+    const totalSold = Number(batch.totalSold || 0);
+    const currentPopulation = Number(batch.currentPopulation || 0);
     return [
-      { label: 'Pond', value: batch.pond?.name || 'Unknown' },
+      { label: 'Type', value: batch.productionType || 'Fingerlings' },
       { label: 'Start Date', value: batch.startDate ? new Date(batch.startDate).toLocaleDateString('en-GB').replace(/\//g, '-') : '' },
-      { label: 'Age (wks)', value: getCatfishAgeWeeks(batch.startDate).toString() },
-      { label: 'Stage', value: formatCatfishStage(getCatfishStage(batch.startDate)) },
-      { label: 'Fishes', value: batch.initialFingerlingsCount.toLocaleString() },
-      { label: 'Fishes Left', value: fishesLeft.toLocaleString() },
+      { label: 'Expected Harvest', value: batch.expectedHarvestDate ? new Date(batch.expectedHarvestDate).toLocaleDateString('en-GB').replace(/\//g, '-') : '-' },
+      { label: 'Initial Stock', value: Number(batch.initialStock || 0).toLocaleString() },
+      { label: 'Current Population', value: currentPopulation.toLocaleString() },
       { label: 'Total Mortality', value: mortalityTotal.toLocaleString() },
-      { label: 'Harvested (count)', value: harvestedCount.toLocaleString() },
+      { label: 'Total Sold', value: totalSold.toLocaleString() },
+      { label: 'Initial Seed Cost', value: `₦ ${Number(batch.initialSeedCost || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
       { label: 'Status', value: batch.status }
     ];
   }, [batch]);
@@ -66,9 +68,9 @@ export function CatfishBatchDetail() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col">
         <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
-          Catfish Batch <span className="text-emerald-600">{batch.batchCode}</span>
+          {stageLabel} Batch <span className="text-emerald-600">{batch.batchName}</span>
         </h1>
-        <p className="text-slate-500 text-sm font-medium">Track feeding, mortality, and harvest progress.</p>
+        <p className="text-slate-500 text-sm font-medium">Track daily logs and {stageLabel.toLowerCase()} sales progress.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -81,18 +83,13 @@ export function CatfishBatchDetail() {
       </div>
 
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold text-slate-900">Feed Logs</h2>
-        <CatfishFeedLogGrid batchId={batchId} hideBatchColumn={true} />
+        <h2 className="text-xl font-semibold text-slate-900">Daily Logs</h2>
+        <CatfishFeedLogGrid batchId={batchId} hideBatchColumn={true} productionType={productionType} />
       </div>
 
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold text-slate-900">Mortality</h2>
-        <CatfishMortalityGrid batchId={batchId} hideBatchColumn={true} />
-      </div>
-
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold text-slate-900">Harvests</h2>
-        <CatfishHarvestGrid batchId={batchId} hideBatchColumn={true} />
+        <h2 className="text-xl font-semibold text-slate-900">Sales</h2>
+        <CatfishSalesGrid batchId={batchId} hideBatchColumn={true} productionType={productionType} stageLabel={stageLabel} />
       </div>
     </div>
   );

@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
@@ -6,13 +7,25 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 type YieldRow = { batchCode: string; quantityKg: number };
+type BatchStatRow = {
+  status?: string;
+  mortalityTotal?: number;
+  currentPopulation?: number;
+};
+type BatchAnalytics = {
+  total: number;
+  active: number;
+  avgMortality: number;
+  avgCurrentStock: number;
+};
 
 type Metrics = {
   totalFeedKg: number;
-  totalHarvestKg: number;
+  totalFeedCost?: number;
+  totalSold?: number;
   totalMortality: number;
   survivalRate: number;
-  averageHarvestWeightKg: number;
+  averageAbwGrams: number;
   totalRevenue: number;
   activeBatches: number;
   yieldByBatch: YieldRow[];
@@ -20,10 +33,11 @@ type Metrics = {
 
 const emptyMetrics: Metrics = {
   totalFeedKg: 0,
-  totalHarvestKg: 0,
+  totalFeedCost: 0,
+  totalSold: 0,
   totalMortality: 0,
   survivalRate: 0,
-  averageHarvestWeightKg: 0,
+  averageAbwGrams: 0,
   totalRevenue: 0,
   activeBatches: 0,
   yieldByBatch: []
@@ -31,6 +45,18 @@ const emptyMetrics: Metrics = {
 
 export function CatfishDashboard() {
   const [metrics, setMetrics] = useState<Metrics>(emptyMetrics);
+  const [fingerlingsAnalytics, setFingerlingsAnalytics] = useState<BatchAnalytics>({
+    total: 0,
+    active: 0,
+    avgMortality: 0,
+    avgCurrentStock: 0
+  });
+  const [juvenileAnalytics, setJuvenileAnalytics] = useState<BatchAnalytics>({
+    total: 0,
+    active: 0,
+    avgMortality: 0,
+    avgCurrentStock: 0
+  });
   const [loading, setLoading] = useState(true);
   const [from, setFrom] = useState(() => {
     const date = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -40,13 +66,40 @@ export function CatfishDashboard() {
 
   const loadMetrics = async () => {
     setLoading(true);
-    const response = await fetch(`/api/catfish/dashboard?from=${from}&to=${to}`);
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      console.error('Catfish dashboard load error:', payload.error || response.statusText);
+    const [metricsRes, fingerlingsRes, juvenileRes] = await Promise.all([
+      fetch(`/api/catfish/dashboard?from=${from}&to=${to}`),
+      fetch('/api/catfish/batches?productionType=Fingerlings'),
+      fetch('/api/catfish/batches?productionType=Juvenile')
+    ]);
+
+    const metricsPayload = await metricsRes.json().catch(() => ({}));
+    if (!metricsRes.ok) {
+      console.error('Catfish dashboard load error:', metricsPayload.error || metricsRes.statusText);
       setMetrics(emptyMetrics);
     } else {
-      setMetrics(payload.metrics || emptyMetrics);
+      setMetrics(metricsPayload.metrics || emptyMetrics);
+    }
+
+    const calc = (rows: BatchStatRow[]): BatchAnalytics => {
+      const total = rows.length;
+      const active = rows.filter((b) => b.status === 'Active').length;
+      const avgMortality = total > 0
+        ? rows.reduce((sum: number, b) => sum + Number(b.mortalityTotal || 0), 0) / total
+        : 0;
+      const avgCurrentStock = total > 0
+        ? rows.reduce((sum: number, b) => sum + Number(b.currentPopulation || 0), 0) / total
+        : 0;
+      return { total, active, avgMortality, avgCurrentStock };
+    };
+
+    const fingerlingsPayload = await fingerlingsRes.json().catch(() => ({}));
+    if (fingerlingsRes.ok) {
+      setFingerlingsAnalytics(calc(fingerlingsPayload.batches || []));
+    }
+
+    const juvenilePayload = await juvenileRes.json().catch(() => ({}));
+    if (juvenileRes.ok) {
+      setJuvenileAnalytics(calc(juvenilePayload.batches || []));
     }
     setLoading(false);
   };
@@ -64,9 +117,9 @@ export function CatfishDashboard() {
       accent: 'text-emerald-600'
     },
     {
-      label: 'Harvested (kg)',
-      value: metrics.totalHarvestKg.toLocaleString(undefined, { maximumFractionDigits: 2 }),
-      hint: 'Total harvest',
+      label: 'Feed Cost',
+      value: `₦ ${Number(metrics.totalFeedCost || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+      hint: 'Daily log feed cost',
       icon: Fish,
       accent: 'text-blue-600'
     },
@@ -135,9 +188,9 @@ export function CatfishDashboard() {
             <div className="border rounded-xl p-4 bg-slate-50">
               <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Avg Harvest Weight</p>
               <p className="text-2xl font-bold text-slate-900 mt-2">
-                {metrics.averageHarvestWeightKg.toLocaleString(undefined, { maximumFractionDigits: 2 })} kg
+                {metrics.averageAbwGrams.toLocaleString(undefined, { maximumFractionDigits: 2 })} g
               </p>
-              <p className="text-xs text-slate-500 mt-1">Per fish (reported)</p>
+              <p className="text-xs text-slate-500 mt-1">Average body weight</p>
             </div>
           </div>
         </div>
@@ -161,10 +214,56 @@ export function CatfishDashboard() {
               metrics.yieldByBatch.map((row) => (
                 <div key={row.batchCode} className="flex justify-between">
                   <span>{row.batchCode}</span>
-                  <span>{row.quantityKg.toLocaleString(undefined, { maximumFractionDigits: 2 })} kg</span>
+                  <span>{row.quantityKg.toLocaleString(undefined, { maximumFractionDigits: 0 })} sold</span>
                 </div>
               ))
             )}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="bg-white border rounded-2xl p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-slate-900">Fingerlings Analytics</h2>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="border rounded-xl p-4 bg-slate-50">
+              <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Total Batches</p>
+              <p className="text-2xl font-bold text-slate-900 mt-2">{fingerlingsAnalytics.total.toLocaleString()}</p>
+            </div>
+            <div className="border rounded-xl p-4 bg-slate-50">
+              <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Active Batches</p>
+              <p className="text-2xl font-bold text-slate-900 mt-2">{fingerlingsAnalytics.active.toLocaleString()}</p>
+            </div>
+            <div className="border rounded-xl p-4 bg-slate-50">
+              <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Avg Mortality / Batch</p>
+              <p className="text-2xl font-bold text-slate-900 mt-2">{fingerlingsAnalytics.avgMortality.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+            </div>
+            <div className="border rounded-xl p-4 bg-slate-50">
+              <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Avg Current Stock</p>
+              <p className="text-2xl font-bold text-slate-900 mt-2">{fingerlingsAnalytics.avgCurrentStock.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white border rounded-2xl p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-slate-900">Juvenile Analytics</h2>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="border rounded-xl p-4 bg-slate-50">
+              <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Total Batches</p>
+              <p className="text-2xl font-bold text-slate-900 mt-2">{juvenileAnalytics.total.toLocaleString()}</p>
+            </div>
+            <div className="border rounded-xl p-4 bg-slate-50">
+              <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Active Batches</p>
+              <p className="text-2xl font-bold text-slate-900 mt-2">{juvenileAnalytics.active.toLocaleString()}</p>
+            </div>
+            <div className="border rounded-xl p-4 bg-slate-50">
+              <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Avg Mortality / Batch</p>
+              <p className="text-2xl font-bold text-slate-900 mt-2">{juvenileAnalytics.avgMortality.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+            </div>
+            <div className="border rounded-xl p-4 bg-slate-50">
+              <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Avg Current Stock</p>
+              <p className="text-2xl font-bold text-slate-900 mt-2">{juvenileAnalytics.avgCurrentStock.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+            </div>
           </div>
         </div>
       </div>

@@ -1,9 +1,10 @@
-import { CatfishBatchDetail } from "@/features/catfish/components/CatfishBatchDetail";
+import { redirect } from "next/navigation";
 
-export default function CatfishBatchDetailPage() {
-  return (
-    <div className="h-full flex flex-col space-y-6 overflow-y-auto modal-scrollbar  pr-2">
-      <CatfishBatchDetail />
-    </div>
-  );
+export default async function CatfishBatchDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  redirect(`/catfish/fingerlings/${id}`);
 }

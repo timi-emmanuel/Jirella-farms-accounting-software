@@ -1,10 +1,11 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client"
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import {
-  Home,
   Calculator,
   Users,
   ChevronDown,
@@ -92,11 +93,10 @@ const navigation: NavigationItem[] = [
     icon: Fish,
     subItems: [
       { name: 'Dashboard', href: '/catfish/dashboard', icon: LayoutDashboard },
-      { name: 'Ponds', href: '/catfish/ponds', icon: Activity },
-      { name: 'Batches', href: '/catfish/batches', icon: ClipboardList },
+      { name: 'Fingerlings', href: '/catfish/fingerlings', icon: Fish },
+      { name: 'Juvenile', href: '/catfish/juvenile', icon: Fish },
       { name: 'Inventory', href: '/catfish/inventory', icon: Package },
-      { name: 'Harvest', href: '/catfish/harvest', icon: Package },
-      { name: 'Sales', href: '/catfish/sales', icon: ShoppingCart },
+      { name: 'Expenses', href: '/catfish/expenses', icon: Wallet },
       { name: 'P&L Report', href: '/catfish/reports/pnl', icon: Calculator }
     ]
   },
