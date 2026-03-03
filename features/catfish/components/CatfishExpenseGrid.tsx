@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { AgGridReact } from "ag-grid-react";
@@ -225,7 +225,8 @@ theme={themeQuartz}
             sortable: true,
             filter: true,
             wrapHeaderText: true,
-            autoHeaderHeight: true
+            autoHeaderHeight: true,
+            minWidth: 140,
           }}
           pagination={true}
           paginationPageSize={20}

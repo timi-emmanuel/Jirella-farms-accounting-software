@@ -19,21 +19,21 @@ export default function StorePage() {
    </div>
 
    <Tabs defaultValue="inventory" className="flex-1 flex flex-col overflow-hidden">
-   <div className="flex items-center justify-between mb-4">
-     <TabsList className="grid w-[52rem] grid-cols-4">
-      <TabsTrigger value="inventory">
+   <div className="mb-4">
+     <TabsList className="grid w-full grid-cols-2 md:w-208 md:grid-cols-4">
+      <TabsTrigger value="inventory" className="justify-start md:justify-center">
        <Warehouse className="w-4 h-4 mr-2" />
        Inventory
       </TabsTrigger>
-      <TabsTrigger value="history">
+      <TabsTrigger value="history" className="justify-start md:justify-center">
        <History className="w-4 h-4 mr-2" />
        History
       </TabsTrigger>
-      <TabsTrigger value="requests">
+      <TabsTrigger value="requests" className="justify-start md:justify-center">
        <ClipboardList className="w-4 h-4 mr-2" />
        Procurement
       </TabsTrigger>
-      <TabsTrigger value="issue-requests">
+      <TabsTrigger value="issue-requests" className="justify-start md:justify-center">
        <PackageCheck className="w-4 h-4 mr-2" />
        Transfer Requests
       </TabsTrigger>

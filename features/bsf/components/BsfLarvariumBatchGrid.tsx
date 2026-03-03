@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -471,7 +471,8 @@ theme={themeQuartz}
             filter: true,
             wrapHeaderText: true,
             autoHeaderHeight: true,
-          }}
+            minWidth: 140,
+            }}
           pagination={true}
           paginationPageSize={20}
         />

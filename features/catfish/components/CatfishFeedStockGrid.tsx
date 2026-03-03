@@ -119,7 +119,8 @@ rowData={rowData}
           defaultColDef={{
             sortable: true,
             resizable: true,
-          }}
+            minWidth: 140,
+            }}
           overlayNoRowsTemplate="<span class='text-slate-500'>No records found</span>"
           pagination={true}
           paginationPageSize={20}

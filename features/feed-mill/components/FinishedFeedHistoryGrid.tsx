@@ -197,7 +197,8 @@ rowData={history}
               defaultColDef={{
                 sortable: true,
                 resizable: true,
-              }}
+                minWidth: 140,
+                }}
               pagination={true}
               paginationPageSize={15}
               paginationPageSizeSelector={[15, 30, 50]}

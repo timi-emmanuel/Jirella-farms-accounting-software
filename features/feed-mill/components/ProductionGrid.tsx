@@ -655,7 +655,8 @@ theme={themeQuartz}
             filter: false,
             wrapHeaderText: true,
             autoHeaderHeight: true,
-          }}
+            minWidth: 140,
+            }}
           pagination={true}
         />
       </div>

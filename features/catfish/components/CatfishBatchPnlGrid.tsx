@@ -125,7 +125,8 @@ theme={themeQuartz}
             filter: true,
             wrapHeaderText: true,
             autoHeaderHeight: true,
-          }}
+            minWidth: 140,
+            }}
           overlayNoRowsTemplate="<span class='text-slate-500'>No records found</span>"
           pagination={true}
           paginationPageSize={20}

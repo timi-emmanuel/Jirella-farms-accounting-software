@@ -202,7 +202,8 @@ rowData={rowData}
           defaultColDef={{
             sortable: true,
             resizable: true,
-          }}
+            minWidth: 140,
+            }}
           pagination={true}
           paginationPageSize={20}
           theme={themeQuartz}

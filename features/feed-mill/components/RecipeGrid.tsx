@@ -23,7 +23,7 @@ import {
     themeQuartz
 } from 'ag-grid-community';
 import { createClient } from '@/lib/supabase/client';
-import { Loader2, Trash2, AlertTriangle, Plus, ArrowUpRight } from 'lucide-react';
+import { Loader2, Trash2, AlertTriangle, Plus, ArrowUpRight, ArrowBigLeft, ArrowRight } from 'lucide-react';
 import { useUserRole } from '@/hooks/useUserRole';
 import { logActivity } from '@/lib/logger';
 import { Button } from "@/components/ui/button";
@@ -115,7 +115,8 @@ export function RecipeGrid() {
                             href={`/feed-mill/recipe-master/${params.data.id}`}
                             className="text-blue-600 hover:underline text-sm font-medium"
                         >
-                            Edit Ingredients â†’
+                            Edit Ingredients
+                            <ArrowRight className="inline w-3 h-3 ml-1" />
                         </a>
                     );
                 },

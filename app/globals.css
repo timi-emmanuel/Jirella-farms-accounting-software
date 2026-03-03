@@ -83,6 +83,12 @@ button{
     display: none !important;
   }
 
+  /* Keep grid layout intact; only allow page-level scrolling on mobile */
+  .dashboard-main {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .ag-paging-panel {
     display: flex;
     flex-wrap: wrap;

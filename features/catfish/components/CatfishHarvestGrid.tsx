@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
@@ -270,7 +270,8 @@ theme={themeQuartz}
             filter: true,
             wrapHeaderText: true,
             autoHeaderHeight: true,
-          }}
+            minWidth: 140,
+            }}
           overlayNoRowsTemplate="<span class='text-slate-500'>No records found</span>"
           pagination={true}
           paginationPageSize={20}

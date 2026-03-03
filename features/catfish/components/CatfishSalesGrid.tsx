@@ -1,4 +1,4 @@
-﻿/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
@@ -347,7 +347,8 @@ theme={themeQuartz}
             filter: true,
             wrapHeaderText: true,
             autoHeaderHeight: true,
-          }}
+            minWidth: 140,
+            }}
           overlayNoRowsTemplate="<span class='text-slate-500'>No sales found</span>"
           pagination={true}
           paginationPageSize={20}

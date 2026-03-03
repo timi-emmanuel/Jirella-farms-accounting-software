@@ -414,7 +414,8 @@ theme={themeQuartz}
             filter: true,
             wrapHeaderText: true,
             autoHeaderHeight: true,
-          }}
+            minWidth: 140,
+            }}
           pagination={true}
           paginationPageSize={20}
         />

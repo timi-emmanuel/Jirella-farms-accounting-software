@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -357,7 +357,13 @@ export function BsfLarvariumBatchDetail({ batchId }: { batchId?: string }) {
 theme={themeQuartz}
             rowData={feedLogs}
             columnDefs={feedCols}
-            defaultColDef={{ sortable: true, filter: true, wrapHeaderText: true, autoHeaderHeight: true }}
+            defaultColDef={{
+              sortable: true,
+              filter: true,
+              wrapHeaderText: true,
+              autoHeaderHeight: true,
+              minWidth: 140,
+            }}
             pagination={true}
             paginationPageSize={10}
             domLayout="autoHeight"
@@ -487,7 +493,13 @@ theme={themeQuartz}
 theme={themeQuartz}
           rowData={processingRuns}
           columnDefs={processingCols}
-          defaultColDef={{ sortable: true, filter: true, wrapHeaderText: true, autoHeaderHeight: true }}
+          defaultColDef={{
+            sortable: true,
+            filter: true,
+            wrapHeaderText: true,
+            autoHeaderHeight: true,
+            minWidth: 140,
+          }}
           pagination={true}
           paginationPageSize={10}
           domLayout="autoHeight"
