@@ -191,7 +191,8 @@ export function FinishedFeedHistoryGrid() {
         ) : (
           <div className="h-105 ag-theme-quartz">
             <AgGridReact
-              rowData={history}
+          suppressMovableColumns={typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches}
+rowData={history}
               columnDefs={historyDefs}
               defaultColDef={{
                 sortable: true,
@@ -208,4 +209,5 @@ export function FinishedFeedHistoryGrid() {
     </div>
   );
 }
+
 

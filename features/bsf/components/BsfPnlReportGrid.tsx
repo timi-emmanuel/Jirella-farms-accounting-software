@@ -110,7 +110,8 @@ export function BsfPnlReportGrid() {
   return (
     <div className="flex-1 border rounded-2xl overflow-hidden bg-white shadow-xl shadow-slate-200/50">
       <AgGridReact
-        theme={themeQuartz}
+          suppressMovableColumns={typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches}
+theme={themeQuartz}
         rowData={rowData}
         columnDefs={colDefs}
         defaultColDef={{
@@ -125,4 +126,5 @@ export function BsfPnlReportGrid() {
     </div>
   );
 }
+
 

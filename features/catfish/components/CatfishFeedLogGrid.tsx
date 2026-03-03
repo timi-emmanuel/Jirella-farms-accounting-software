@@ -326,7 +326,8 @@ export function CatfishFeedLogGrid({
 
       <div className="h-80 border rounded-2xl overflow-hidden bg-white shadow-xl shadow-slate-200/50">
         <AgGridReact
-          theme={themeQuartz}
+          suppressMovableColumns={typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches}
+theme={themeQuartz}
           rowData={displayedRows}
           columnDefs={colDefs}
           defaultColDef={{
@@ -343,3 +344,4 @@ export function CatfishFeedLogGrid({
     </div>
   );
 }
+

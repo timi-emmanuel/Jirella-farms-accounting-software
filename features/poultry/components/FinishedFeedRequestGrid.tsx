@@ -169,7 +169,8 @@ export function FinishedFeedRequestGrid() {
           </div>
         ) : (
           <AgGridReact
-            rowData={filteredData}
+          suppressMovableColumns={typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches}
+rowData={filteredData}
             columnDefs={colDefs}
             defaultColDef={{
               sortable: true,
@@ -184,3 +185,4 @@ export function FinishedFeedRequestGrid() {
     </div>
   );
 }
+

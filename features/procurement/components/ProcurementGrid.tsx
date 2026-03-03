@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useState, useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
@@ -229,7 +229,8 @@ export function ProcurementGrid() {
      </div>
     ) : (
      <AgGridReact
-      rowData={rowData}
+          suppressMovableColumns={typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches}
+rowData={rowData}
       columnDefs={colDefs}
       defaultColDef={{
        sortable: true,
@@ -244,5 +245,6 @@ export function ProcurementGrid() {
   </div>
  );
 }
+
 
 

@@ -322,7 +322,57 @@ export function ProductionGrid() {
     setUsageLoadingId(null);
   };
 
-  const colDefs: ColDef<ProductionLog>[] = [
+  const actionCol: ColDef<ProductionLog> = {
+    headerName: "Action",
+    width: 220,
+    sortable: false,
+    filter: false,
+    cellRenderer: (params: ICellRendererParams<ProductionLog>) => {
+      const row = params.data;
+      if (!row) return null;
+      const isUndone = Boolean(row.isUndone);
+      const undoLoading = undoingId === row.id;
+      const usageLoading = usageLoadingId === row.id;
+
+      return (
+        <div className="flex items-center justify-center h-full gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={usageLoading}
+            onClick={() => handleViewUsage(row)}
+            className="h-7 px-2 text-xs"
+            title="View ingredients used"
+          >
+            {usageLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <List className="w-3 h-3 mr-1" />}
+            Usage
+          </Button>
+
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={isUndone || undoLoading}
+            onClick={() => handleUndo(row)}
+            className="h-7 px-2 text-xs"
+            title={isUndone ? "Already undone" : "Undo production run"}
+          >
+            {undoLoading ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <>
+                <RotateCcw className="w-3 h-3 mr-1" />
+                {isUndone ? 'Undone' : 'Undo'}
+              </>
+            )}
+          </Button>
+        </div>
+      );
+    }
+  };
+
+  const baseColDefs: ColDef<ProductionLog>[] = [
     {
       field: "date" as const,
       headerName: "Date Produced",
@@ -382,57 +432,7 @@ export function ProductionGrid() {
     },
   ];
 
-  if (isAdmin) {
-    colDefs.push({
-      headerName: "Action",
-      width: 220,
-      sortable: false,
-      filter: false,
-      cellRenderer: (params: ICellRendererParams<ProductionLog>) => {
-        const row = params.data;
-        if (!row) return null;
-        const isUndone = Boolean(row.isUndone);
-        const undoLoading = undoingId === row.id;
-        const usageLoading = usageLoadingId === row.id;
-
-        return (
-          <div className="flex items-center justify-center h-full gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={usageLoading}
-              onClick={() => handleViewUsage(row)}
-              className="h-7 px-2 text-xs"
-              title="View ingredients used"
-            >
-              {usageLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <List className="w-3 h-3 mr-1" />}
-              Usage
-            </Button>
-
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={isUndone || undoLoading}
-              onClick={() => handleUndo(row)}
-              className="h-7 px-2 text-xs"
-              title={isUndone ? "Already undone" : "Undo production run"}
-            >
-              {undoLoading ? (
-                <Loader2 className="w-3 h-3 animate-spin" />
-              ) : (
-                <>
-                  <RotateCcw className="w-3 h-3 mr-1" />
-                  {isUndone ? 'Undone' : 'Undo'}
-                </>
-              )}
-            </Button>
-          </div>
-        );
-      }
-    });
-  }
+  const colDefs: ColDef<ProductionLog>[] = isAdmin ? [...baseColDefs, actionCol] : baseColDefs;
 
   if (loading && rowData.length === 0) {
     return (
@@ -646,7 +646,8 @@ export function ProductionGrid() {
 
       <div className="flex-1 border rounded-2xl overflow-hidden bg-white shadow-xl shadow-slate-200/50">
         <AgGridReact
-          theme={themeQuartz}
+          suppressMovableColumns={typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches}
+theme={themeQuartz}
           rowData={rowData}
           columnDefs={colDefs}
           defaultColDef={{
@@ -713,6 +714,7 @@ export function ProductionGrid() {
     </div>
   );
 }
+
 
 
 

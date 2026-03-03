@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -353,7 +353,8 @@ export function BsfLarvariumBatchDetail({ batchId }: { batchId?: string }) {
             </Dialog>
           </div>
           <AgGridReact
-            theme={themeQuartz}
+          suppressMovableColumns={typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches}
+theme={themeQuartz}
             rowData={feedLogs}
             columnDefs={feedCols}
             defaultColDef={{ sortable: true, filter: true, wrapHeaderText: true, autoHeaderHeight: true }}
@@ -482,7 +483,8 @@ export function BsfLarvariumBatchDetail({ batchId }: { batchId?: string }) {
           </Dialog>
         </div>
         <AgGridReact
-          theme={themeQuartz}
+          suppressMovableColumns={typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches}
+theme={themeQuartz}
           rowData={processingRuns}
           columnDefs={processingCols}
           defaultColDef={{ sortable: true, filter: true, wrapHeaderText: true, autoHeaderHeight: true }}
@@ -494,4 +496,5 @@ export function BsfLarvariumBatchDetail({ batchId }: { batchId?: string }) {
     </div>
   );
 }
+
 

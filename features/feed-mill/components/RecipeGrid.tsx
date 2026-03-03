@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useState, useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
@@ -115,7 +115,7 @@ export function RecipeGrid() {
                             href={`/feed-mill/recipe-master/${params.data.id}`}
                             className="text-blue-600 hover:underline text-sm font-medium"
                         >
-                            Edit Ingredients →
+                            Edit Ingredients â†’
                         </a>
                     );
                 },
@@ -340,7 +340,8 @@ export function RecipeGrid() {
             </div>
             <div className="ag-theme-quartz flex-1">
                 <AgGridReact
-                    rowData={rowData}
+          suppressMovableColumns={typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches}
+rowData={rowData}
                     columnDefs={colDefs}
                     defaultColDef={defaultColDef}
                     rowSelection="single"
@@ -382,6 +383,7 @@ export function RecipeGrid() {
         </div>
     );
 }
+
 
 
 

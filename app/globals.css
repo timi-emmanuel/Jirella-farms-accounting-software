@@ -77,6 +77,31 @@ button{
   justify-content: center;
 }
 
+@media (max-width: 768px) {
+  /* Hide page-size selector on mobile only */
+  .ag-paging-page-size {
+    display: none !important;
+  }
+
+  .ag-paging-panel {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    min-height: auto !important;
+    padding: 8px 10px !important;
+  }
+
+  .ag-paging-panel > * {
+    margin: 0 !important;
+  }
+
+  .ag-paging-page-size,
+  .ag-paging-row-summary-panel,
+  .ag-paging-page-summary-panel {
+    font-size: 12px;
+  }
+}
+
 :root {
   --radius: 0.625rem;
   --background: oklch(1 0 0);

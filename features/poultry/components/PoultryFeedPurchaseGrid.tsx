@@ -108,7 +108,8 @@ export function PoultryFeedPurchaseGrid() {
     <div className="flex flex-col h-full space-y-4">
       <div className="flex-1 bg-white border rounded-lg overflow-hidden shadow-sm ag-theme-quartz">
         <AgGridReact
-          rowData={rowData}
+          suppressMovableColumns={typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches}
+rowData={rowData}
           columnDefs={colDefs}
           defaultColDef={{
             sortable: true,
@@ -122,4 +123,5 @@ export function PoultryFeedPurchaseGrid() {
     </div>
   );
 }
+
 

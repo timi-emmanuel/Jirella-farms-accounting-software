@@ -126,6 +126,16 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Production function using location-based inventory
+-- Return type changed from void -> UUID; drop old signature first for idempotent reruns.
+DROP FUNCTION IF EXISTS handle_production_location(
+  UUID,
+  DOUBLE PRECISION,
+  DOUBLE PRECISION,
+  DATE,
+  TEXT,
+  UUID
+);
+
 CREATE OR REPLACE FUNCTION handle_production_location(
   p_recipe_id UUID,
   p_quantity_produced FLOAT8,
@@ -133,7 +143,7 @@ CREATE OR REPLACE FUNCTION handle_production_location(
   p_date DATE,
   p_location_code TEXT,
   p_created_by UUID
-) RETURNS void AS $$
+) RETURNS UUID AS $$
 DECLARE
   item RECORD;
   required_qty NUMERIC;
@@ -194,6 +204,7 @@ BEGIN
       p_created_by
     );
   END LOOP;
+  RETURN v_log_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -208,6 +219,9 @@ DECLARE
   v_location_id UUID;
   v_count INT;
   v_line RECORD;
+  v_fg_line RECORD;
+  v_current_fg_qty NUMERIC;
+  v_next_fg_qty NUMERIC;
   v_note TEXT;
 BEGIN
   SELECT id INTO v_location_id
@@ -288,6 +302,58 @@ BEGIN
       END IF;
     END LOOP;
   END IF;
+
+  -- Reverse finished goods produced by this run.
+  FOR v_fg_line IN
+    SELECT
+      fgl."productId",
+      fgl."locationId",
+      fgl."quantity",
+      COALESCE(fgl."unitCostAtTime", 0) AS "unitCostAtTime"
+    FROM "FinishedGoodsLedger" fgl
+    WHERE fgl."referenceType" = 'PRODUCTION_LOG'
+      AND fgl."referenceId" = p_production_log_id::text
+      AND fgl."type" = 'PRODUCTION_IN'
+  LOOP
+    SELECT "quantityOnHand"
+    INTO v_current_fg_qty
+    FROM "FinishedGoodsInventory"
+    WHERE "productId" = v_fg_line."productId"
+      AND "locationId" = v_fg_line."locationId"
+    FOR UPDATE;
+
+    IF COALESCE(v_current_fg_qty, 0) < COALESCE(v_fg_line."quantity", 0) THEN
+      RAISE EXCEPTION 'Cannot undo production: finished goods stock is lower than produced quantity';
+    END IF;
+
+    v_next_fg_qty := COALESCE(v_current_fg_qty, 0) - COALESCE(v_fg_line."quantity", 0);
+
+    UPDATE "FinishedGoodsInventory"
+    SET "quantityOnHand" = v_next_fg_qty,
+        "updatedAt" = NOW()
+    WHERE "productId" = v_fg_line."productId"
+      AND "locationId" = v_fg_line."locationId";
+
+    INSERT INTO "FinishedGoodsLedger" (
+      "productId",
+      "locationId",
+      "type",
+      "quantity",
+      "unitCostAtTime",
+      "referenceType",
+      "referenceId",
+      "createdBy"
+    ) VALUES (
+      v_fg_line."productId",
+      v_fg_line."locationId",
+      'ADJUSTMENT',
+      v_fg_line."quantity",
+      v_fg_line."unitCostAtTime",
+      'PRODUCTION_UNDO',
+      p_production_log_id::text,
+      p_user_id
+    );
+  END LOOP;
 
   UPDATE "ProductionLog"
   SET "isUndone" = TRUE,

@@ -14,9 +14,9 @@ export default function FeedMillStockPage() {
           View finished feed balances and movement history.
         </p>
       </div>
-      <Tabs defaultValue="inventory" className="flex-1 flex flex-col overflow-hidden">
+      <Tabs defaultValue="inventory" className="flex-1 flex flex-col min-h-0">
         <div className="flex items-center justify-between mb-4">
-          <TabsList className="grid w-[360px] grid-cols-2">
+          <TabsList className="grid w-full max-w-[360px] grid-cols-2">
             <TabsTrigger value="inventory">
               <Warehouse className="w-4 h-4 mr-2" />
               Available Goods
@@ -28,11 +28,11 @@ export default function FeedMillStockPage() {
           </TabsList>
         </div>
 
-        <TabsContent value="inventory" className="flex-1 overflow-hidden mt-0 border-0 p-0 data-[state=inactive]:hidden h-full">
+        <TabsContent value="inventory" className="mt-0 h-full flex-1 overflow-y-auto border-0 p-0 data-[state=inactive]:hidden md:overflow-hidden">
           <FinishedFeedStockGrid />
         </TabsContent>
 
-        <TabsContent value="history" className="flex-1 overflow-hidden mt-0 border-0 p-0 data-[state=inactive]:hidden h-full">
+        <TabsContent value="history" className="mt-0 h-full flex-1 overflow-y-auto border-0 p-0 data-[state=inactive]:hidden md:overflow-hidden">
           <FinishedFeedHistoryGrid />
         </TabsContent>
       </Tabs>

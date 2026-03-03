@@ -69,7 +69,7 @@ export function FinishedFeedStockGrid() {
 
   const loadData = async () => {
     setLoading(true);
-    const response = await fetch('/api/finished-goods/location?code=FEED_MILL&module=FEED_MILL');
+    const response = await fetch('/api/finished-goods/location?code=FEED_MILL&module=FEED_MILL&onlyInStock=true');
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       console.error('Finished feed stock load error:', payload.error || response.statusText);
@@ -196,7 +196,8 @@ export function FinishedFeedStockGrid() {
     <div className="flex flex-col h-full space-y-4">
       <div className="flex-1 bg-white border rounded-lg overflow-hidden shadow-sm ag-theme-quartz">
         <AgGridReact
-          rowData={rowData}
+          suppressMovableColumns={typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches}
+rowData={rowData}
           columnDefs={colDefs}
           defaultColDef={{
             sortable: true,
@@ -269,5 +270,6 @@ export function FinishedFeedStockGrid() {
     </div>
   );
 }
+
 
 

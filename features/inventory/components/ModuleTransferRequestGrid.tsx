@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useMemo, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
@@ -334,7 +334,8 @@ export function ModuleTransferRequestGrid({ moduleKey }: { moduleKey: ModuleKey 
      </div>
     ) : (
      <AgGridReact
-      rowData={filteredData}
+          suppressMovableColumns={typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches}
+rowData={filteredData}
       columnDefs={colDefs}
       defaultColDef={{
        sortable: true,
@@ -420,3 +421,4 @@ export function ModuleTransferRequestGrid({ moduleKey }: { moduleKey: ModuleKey 
   </div>
  );
 }
+

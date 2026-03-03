@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthContext, isRoleAllowed } from '@/lib/server/auth';
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
 
   const roundedCostPerKg = roundTo2(computedCostPerKg);
 
-  const { error: productionError } = await admin.rpc('handle_production_location', {
+  const { data: productionLogId, error: productionError } = await admin.rpc('handle_production_location', {
    p_recipe_id: recipeId,
    p_quantity_produced: roundedQtyProduced,
    p_cost_per_kg: roundedCostPerKg,
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest) {
   const unitSizeKg = hasBagInfo ? size : null;
   const unitCostAtTime = roundTo2(hasBagInfo ? roundedCostPerKg * size : roundedCostPerKg);
 
-  const { data: product, error: productError } = await admin
+  const { data: product } = await admin
    .from('Product')
    .select('*')
    .eq('name', productName)
@@ -168,6 +169,10 @@ export async function POST(request: NextRequest) {
    }
   }
 
+  const productionReferenceId = productionLogId
+   ? String(productionLogId)
+   : `${recipeId}:${productionDate}`;
+
   const { error: ledgerError } = await admin
    .from('FinishedGoodsLedger')
     .insert({
@@ -177,7 +182,7 @@ export async function POST(request: NextRequest) {
      quantity: producedQty,
      unitCostAtTime,
     referenceType: 'PRODUCTION_LOG',
-    referenceId: `${recipeId}:${productionDate}`,
+    referenceId: productionReferenceId,
     createdBy: auth.userId
    });
 
@@ -188,7 +193,7 @@ export async function POST(request: NextRequest) {
   await logActivityServer({
    action: 'PRODUCTION_LOGGED',
    entityType: 'ProductionLog',
-   entityId: recipeId,
+   entityId: productionReferenceId,
    description: `Produced ${quantityProduced}kg of ${recipe.name}`,
    metadata: { recipe: recipe.name, quantity: roundedQtyProduced, bagSizeKg: size, bagsProduced: bags },
    userId: auth.userId,
@@ -197,7 +202,7 @@ export async function POST(request: NextRequest) {
   });
 
   return NextResponse.json({ success: true });
- } catch (error: any) {
+ } catch (error: unknown) {
   console.error('Feed mill production error:', error);
   return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
  }
