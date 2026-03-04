@@ -285,12 +285,19 @@ CREATE TABLE IF NOT EXISTS "CatfishSale" (
   "batchId" UUID NOT NULL REFERENCES "CatfishBatch"("id") ON DELETE CASCADE,
   "saleDate" DATE NOT NULL DEFAULT CURRENT_DATE,
   "saleType" TEXT NOT NULL,
+  "saleLengthCm" NUMERIC,
+  "sizeCategoryName" TEXT,
   "quantitySold" INTEGER NOT NULL DEFAULT 0,
   "unitPrice" NUMERIC NOT NULL DEFAULT 0,
   "totalSaleValue" NUMERIC GENERATED ALWAYS AS ("quantitySold" * "unitPrice") STORED,
   "buyerDetails" TEXT,
   "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE "CatfishSale"
+  ADD COLUMN IF NOT EXISTS "saleLengthCm" NUMERIC;
+ALTER TABLE "CatfishSale"
+  ADD COLUMN IF NOT EXISTS "sizeCategoryName" TEXT;
 
 CREATE TABLE IF NOT EXISTS "CatfishTransfer" (
   "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -616,11 +623,38 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Size pricing configuration for batch classification and seed pricing
+CREATE TABLE IF NOT EXISTS public.catfish_size_pricing (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT NOT NULL,
+  min_cm NUMERIC NOT NULL,
+  max_cm NUMERIC NOT NULL,
+  price_per_piece NUMERIC NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc', now()),
+  CONSTRAINT catfish_size_pricing_cm_check CHECK (min_cm < max_cm),
+  CONSTRAINT catfish_size_pricing_price_check CHECK (price_per_piece > 0)
+);
+
+INSERT INTO public.catfish_size_pricing (name, min_cm, max_cm, price_per_piece, is_active)
+SELECT * FROM (
+  VALUES
+    ('Small / Ijebu Fingerlings', 2, 3, 25, true),
+    ('Standard Fingerlings', 3, 4, 50, true),
+    ('Post-Fingerlings', 5, 6, 80, true),
+    ('Juveniles', 6, 8, 100, true),
+    ('Jumbo / Post-Juveniles', 10, 12, 120, true)
+) AS seed(name, min_cm, max_cm, price_per_piece, is_active)
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.catfish_size_pricing
+);
+
 -- RLS
 ALTER TABLE "CatfishBatch" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "CatfishDailyLog" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "CatfishSale" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "CatfishTransfer" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.catfish_size_pricing ENABLE ROW LEVEL SECURITY;
 
 DO $$
 BEGIN
@@ -674,12 +708,106 @@ BEGIN
   END IF;
 END$$;
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'catfish_size_pricing'
+      AND policyname = 'catfish_size_pricing_read_active_or_admin'
+  ) THEN
+    CREATE POLICY "catfish_size_pricing_read_active_or_admin"
+      ON public.catfish_size_pricing
+      FOR SELECT
+      TO authenticated
+      USING (
+        is_active = true
+        OR EXISTS (
+          SELECT 1
+          FROM public.users u
+          WHERE u.id = auth.uid()
+            AND u.role = 'ADMIN'
+        )
+      );
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'catfish_size_pricing'
+      AND policyname = 'catfish_size_pricing_admin_insert'
+  ) THEN
+    CREATE POLICY "catfish_size_pricing_admin_insert"
+      ON public.catfish_size_pricing
+      FOR INSERT
+      TO authenticated
+      WITH CHECK (
+        EXISTS (
+          SELECT 1
+          FROM public.users u
+          WHERE u.id = auth.uid()
+            AND u.role = 'ADMIN'
+        )
+      );
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'catfish_size_pricing'
+      AND policyname = 'catfish_size_pricing_admin_update'
+  ) THEN
+    CREATE POLICY "catfish_size_pricing_admin_update"
+      ON public.catfish_size_pricing
+      FOR UPDATE
+      TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1
+          FROM public.users u
+          WHERE u.id = auth.uid()
+            AND u.role = 'ADMIN'
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1
+          FROM public.users u
+          WHERE u.id = auth.uid()
+            AND u.role = 'ADMIN'
+        )
+      );
+  END IF;
+END$$;
+
 -- Indexes
+WITH ranked_logs AS (
+  SELECT
+    "id",
+    ROW_NUMBER() OVER (
+      PARTITION BY "batchId", "logDate"
+      ORDER BY "createdAt" DESC, "id" DESC
+    ) AS rn
+  FROM "CatfishDailyLog"
+)
+DELETE FROM "CatfishDailyLog" d
+USING ranked_logs r
+WHERE d."id" = r."id"
+  AND r.rn > 1;
+
 CREATE INDEX IF NOT EXISTS "CatfishBatch_production_status_idx"
   ON "CatfishBatch" ("productionType", "status");
 CREATE INDEX IF NOT EXISTS "CatfishBatch_startDate_idx"
   ON "CatfishBatch" ("startDate");
 CREATE INDEX IF NOT EXISTS "CatfishDailyLog_batch_logDate_idx"
+  ON "CatfishDailyLog" ("batchId", "logDate");
+CREATE UNIQUE INDEX IF NOT EXISTS "CatfishDailyLog_batch_logDate_unique_idx"
   ON "CatfishDailyLog" ("batchId", "logDate");
 CREATE INDEX IF NOT EXISTS "CatfishSale_batch_saleDate_idx"
   ON "CatfishSale" ("batchId", "saleDate");
@@ -687,3 +815,5 @@ CREATE INDEX IF NOT EXISTS "CatfishTransfer_from_batch_idx"
   ON "CatfishTransfer" ("fromBatchId", "transferDate");
 CREATE INDEX IF NOT EXISTS "CatfishTransfer_to_batch_idx"
   ON "CatfishTransfer" ("toBatchId", "transferDate");
+CREATE INDEX IF NOT EXISTS catfish_size_pricing_active_range_idx
+  ON public.catfish_size_pricing (is_active, min_cm, max_cm);

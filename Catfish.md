@@ -1,325 +1,253 @@
-🐟 Juvenile Production Module
+🐟 Catfish Pricing & Size Classification Settings
 
-Stage 2 of Catfish Lifecycle (Post-Fingerlings)
+Admin Configuration Panel
 Built with: Next.js + Supabase (Self-hosted) + RLS
 
 🎯 Objective
 
-Implement the Juvenile Production Module as an independent production stage that:
+Implement a Catfish Price Settings page that:
 
-Receives stock via transfer from Fingerlings
+Defines seed price per size range (cm)
 
-Tracks daily feed & mortality
+Automatically assigns batch classification name based on cm range
 
-Tracks sampling data (ABW + length)
+Restricts access to Admin users only
 
-Computes biomass and FCR
+Allows updating pricing without affecting historical records
 
-Calculates cost of production
+This setting applies to:
 
-Supports transfer to Melange
-
-Supports external harvest/sales
-
-Provides full financial visibility per batch
-
-Juvenile is a batch-driven operational unit.
-
-🧱 Architecture Overview
-Catfish
-   ↓
 Fingerlings
-   ↓
+
 Juvenile
-   ↓
-Melange
 
-Juvenile batches:
+Future catfish stages
 
-Are created manually OR
+📂 Routing Structure
 
-Are auto-created via transfer from Fingerlings
+Under Catfish module:
 
-Each batch maintains:
+/catfish/settings/pricing
 
-Stock tracking
+Only visible to:
 
-Growth tracking
+role = "admin"
 
-Feed cost tracking
+Not visible to normal users.
 
-Profitability tracking
-
-📂 Routing Structure (Next.js App Router)
-Module Level
-/catfish/juvenile
-Pages
-
-/catfish/juvenile
-
-/catfish/juvenile/new
-
-/catfish/juvenile/analytics
-
-Batch Level
-/catfish/juvenile/[batchId]
-
-Subroutes:
-
-/catfish/juvenile/[batchId]/logs
-/catfish/juvenile/[batchId]/finance
-/catfish/juvenile/[batchId]/transfer
-/catfish/juvenile/[batchId]/harvest
-/catfish/juvenile/[batchId]/sales
-/catfish/juvenile/[batchId]/settings
 🗄 Database Schema
-1️⃣ Juvenile Daily Logs
-
-From documentation 
-
-juvenile
-
-:
-
-CREATE TABLE juvenile_daily_logs ( 
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(), 
-    batch_id UUID REFERENCES batches(id) ON DELETE CASCADE, 
-    log_date DATE NOT NULL DEFAULT CURRENT_DATE, 
-    feed_brand TEXT NOT NULL, 
-    feed_amount_kg NUMERIC NOT NULL, 
-    feed_unit_price NUMERIC NOT NULL, 
-    daily_feed_cost NUMERIC GENERATED ALWAYS AS (feed_amount_kg * feed_unit_price) STORED, 
-    mortality_count INTEGER DEFAULT 0, 
-    abw_grams NUMERIC, 
-    average_length_cm NUMERIC, 
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) 
+1️⃣ catfish_size_pricing
+CREATE TABLE catfish_size_pricing (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    min_cm NUMERIC NOT NULL,
+    max_cm NUMERIC NOT NULL,
+    price_per_piece NUMERIC NOT NULL,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now())
 );
-📊 Operational Logic
-1️⃣ Stock Calculation
-current_stock =
-initial_stock
-- SUM(mortality_count)
-- SUM(external_sales_quantity)
-- SUM(transfer_out_quantity)
-+ SUM(transfer_in_quantity)
+📊 Initial Seed Data
 
-Must never drop below 0.
+Based on boss instruction:
 
-2️⃣ Feed Cost
-total_feed_cost =
-SUM(daily_feed_cost)
+Name	Min CM	Max CM	Price
+Small / Ijebu Fingerlings	2	3	25
+Standard Fingerlings	3	4	50
+Post-Fingerlings	5	6	80
+Juveniles	6	8	100
+Jumbo / Post-Juveniles	10	12	120
+🧠 Business Logic
+1️⃣ Batch Size Classification
 
-Derived from logs.
+When creating or updating a batch:
 
-3️⃣ Biomass
-biomass_kg =
-(current_stock × latest_abw_grams) / 1000
+User enters:
 
-ABW comes from latest log where abw_grams is not null.
+average_length_cm
 
-4️⃣ FCR
-FCR =
-total_feed_kg / total_weight_gain_kg
+System should:
 
-Weight gain:
+Query catfish_size_pricing
 
-(current_biomass - initial_biomass)
-💰 Financial Model
+Find where:
 
-Juvenile must track:
+average_length_cm >= min_cm
+AND
+average_length_cm <= max_cm
+AND is_active = true
 
-Transfer cost from Fingerlings
+Assign:
 
-Feed cost
+batch.size_category_name = pricing.name
+batch.seed_price_per_piece = pricing.price_per_piece
 
-Operational expenses
+This must be automatic.
 
-Revenue (sales or transfer to Melange)
+2️⃣ Important Rule
 
-Cost Structure
-total_cost =
-transfer_cost_basis
-+ total_feed_cost
-+ other_expenses
-Cost Per Fish
-cost_per_fish =
-total_cost / current_stock
-Cost Per Kg
-cost_per_kg =
-total_cost / biomass_kg
-Revenue
+Classification must be:
 
-From:
+Dynamic at creation
 
-External sales
+Stored permanently on batch
 
-Transfer valuation to Melange
+Not affected by future price changes
 
-Profit
-gross_profit = total_revenue - total_cost
-🔁 Transfer Logic (Juvenile → Melange)
+Meaning:
 
-Route:
+If admin changes Juvenile price from ₦100 → ₦110
 
-/catfish/juvenile/[batchId]/transfer
+Old batches keep ₦100.
 
-Transfer form:
+🗄 Batch Table Updates
+
+Add fields to batches:
+
+ALTER TABLE batches
+ADD COLUMN size_category_name TEXT,
+ADD COLUMN initial_size_cm NUMERIC,
+ADD COLUMN seed_price_per_piece NUMERIC;
+🔐 RLS Requirements
+
+Only admin can:
+
+Insert pricing ranges
+
+Update pricing
+
+Deactivate pricing ranges
+
+Regular users:
+
+Can read active pricing
+
+Cannot modify
+
+🖥 UI Requirements
+Page: /catfish/settings/pricing
+Table View
+
+Columns:
+
+Category Name
+
+CM Range
+
+Price Per Piece
+
+Status (Active / Inactive)
+
+Actions (Edit / Deactivate)
+
+Add / Edit Modal
+
+Fields:
+
+Name
+
+Min CM
+
+Max CM
+
+Price per piece
+
+Validation:
+
+min_cm < max_cm
+
+No overlapping active ranges
+
+Price must be > 0
+
+🚨 Overlapping Protection
+
+Before inserting:
+
+Ensure:
+
+(new_min <= existing_max)
+AND
+(new_max >= existing_min)
+AND is_active = true
+
+If overlap → reject.
+
+🔁 Batch Creation Flow Update
+
+When creating Fingerlings or Juvenile batch:
+
+User inputs:
+
+Initial size (cm)
 
 Quantity
 
-Transfer date
+System auto-fills:
 
-Destination: Melange
+Category Name
 
-Notes
+Seed price per piece
 
-On Transfer:
+Initial seed cost = quantity × seed_price_per_piece
 
-Deduct stock
+Make category read-only on frontend.
 
-Calculate cost_per_fish
+📊 Financial Integration
 
-Compute transfer_cost_basis
+Seed cost should flow into:
 
-Create Melange batch
+production_expenses
+category = 'seed'
 
-Record linkage via parent_batch_id
+Or be stored directly in batch financial snapshot.
 
-📈 UI Requirements
-Batch Dashboard
+🎨 Sidebar Update
 
-Display:
+Under Catfish:
 
-Current stock
+Catfish
+   Dashboard
+   Fingerlings
+   Juvenile
+   Melange
+   Settings
+       Pricing
 
-Mortality total
-
-Total feed cost
-
-Latest ABW
-
-Average length
-
-Biomass
-
-FCR
-
-Cost per fish
-
-Profit status badge
-
-Logs Page
-
-Table view:
-
-Date
-
-Feed brand
-
-Feed kg
-
-Feed cost
-
-Mortality
-
-ABW
-
-Length
-
-Add Log modal:
-
-Feed brand
-
-Feed kg
-
-Feed price
-
-Mortality
-
-Optional ABW
-
-Optional Length
-
-Finance Page
-
-Display:
-
-Transfer cost basis
-
-Feed cost
-
-Total cost
-
-Revenue
-
-Profit
-
-Margin
-
-Expense breakdown chart
-
-🔐 RLS Requirements
-
-Policies must ensure:
-
-Only users from same farm can view batches
-
-Transfers limited within same farm
-
-Logs restricted by batch ownership
+Settings visible only to Admin.
 
 ⚠️ Business Rules
 
-ABW only required on sampling days
+Cannot delete pricing used by existing batch.
 
-Cannot transfer more than available stock
+Deactivation allowed.
 
-Batch auto-completes if stock = 0
+Historical batches must preserve original price.
 
-Financial calculations must be SQL-based
-
-Deleting logs must trigger recalculation
-
-📊 Module Analytics Page
-
-/catfish/juvenile/analytics
-
-Show:
-
-Average FCR across batches
-
-Mortality trends
-
-Best performing batch
-
-Cost comparison per batch
-
-Growth curve visualization
+Only one active pricing range per CM interval.
 
 🧠 Engineering Principles
 
-All calculations in SQL views
+Pricing ranges are configuration, not transactional data.
 
-UI consumes computed values
+Batch stores snapshot of price at time of creation.
 
-Maintain historical cost integrity
+No recalculation of historical seed cost.
 
-Transfer cost basis must be frozen at time of transfer
+All classification logic should run server-side (not frontend only).
 
-Never recalc historical transfers
+🚀 Final Outcome
 
-🚀 Final Expected Outcome
+When user enters:
 
-Each Juvenile batch behaves as:
+6 cm
 
-A growth tracker
+System auto-assigns:
 
-A financial unit
+Juveniles
+₦100 per piece
 
-A lifecycle stage
+No manual classification needed.
 
-A transfer bridge to Melange
+Admin controls pricing centrally.
 
-Fully integrated into:
-
-Fingerlings → Juvenile → Melange production chain.
+Historical integrity preserved.

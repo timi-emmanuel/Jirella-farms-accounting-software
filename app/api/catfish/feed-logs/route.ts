@@ -64,6 +64,12 @@ export async function POST(request: NextRequest) {
     if (feedAmountKg < 0) return NextResponse.json({ error: 'Feed amount cannot be negative' }, { status: 400 });
     if (feedUnitPriceInput < 0) return NextResponse.json({ error: 'Feed unit price cannot be negative' }, { status: 400 });
     if (mortalityCount < 0) return NextResponse.json({ error: 'Mortality cannot be negative' }, { status: 400 });
+    if (feedAmountKg > 0 && !feedProductId) {
+      return NextResponse.json(
+        { error: 'Select a feed product from inventory before logging feed quantity.' },
+        { status: 400 }
+      );
+    }
     if (
       feedAmountKg <= 0 &&
       mortalityCount <= 0 &&
@@ -75,6 +81,20 @@ export async function POST(request: NextRequest) {
     }
 
     const admin = createAdminClient();
+
+    const { count: sameDayCount, error: duplicateError } = await admin
+      .from('CatfishDailyLog')
+      .select('id', { count: 'exact', head: true })
+      .eq('batchId', batchId)
+      .eq('logDate', date);
+    if (duplicateError) return NextResponse.json({ error: duplicateError.message }, { status: 400 });
+    if ((sameDayCount || 0) > 0) {
+      return NextResponse.json(
+        { error: 'A daily log already exists for this batch on the selected date.' },
+        { status: 400 }
+      );
+    }
+
     let resolvedFeedBrand = feedBrandInput;
     let resolvedUnitPrice = feedUnitPriceInput;
     let ledgerLocationId: string | null = null;

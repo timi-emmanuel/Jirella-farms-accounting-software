@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
-import { Fish, Gauge, Scale, Skull, Wallet } from 'lucide-react';
+import { Fish, Scale, Skull, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -21,6 +21,8 @@ type BatchAnalytics = {
 
 type Metrics = {
   totalFeedKg: number;
+  totalWeightGainedKg: number;
+  fcr: number;
   totalFeedCost?: number;
   totalSold?: number;
   totalMortality: number;
@@ -33,6 +35,8 @@ type Metrics = {
 
 const emptyMetrics: Metrics = {
   totalFeedKg: 0,
+  totalWeightGainedKg: 0,
+  fcr: 0,
   totalFeedCost: 0,
   totalSold: 0,
   totalMortality: 0,
@@ -124,11 +128,11 @@ export function CatfishDashboard() {
       accent: 'text-blue-600'
     },
     {
-      label: 'Survival Rate',
-      value: `${metrics.survivalRate.toLocaleString(undefined, { maximumFractionDigits: 2 })}%`,
-      hint: 'Harvest count vs fishes stocked',
-      icon: Gauge,
-      accent: 'text-amber-600'
+      label: 'FCR',
+      value: metrics.fcr.toLocaleString(undefined, { maximumFractionDigits: 2 }),
+      hint: `Feed / Weight gain (${metrics.totalWeightGainedKg.toLocaleString(undefined, { maximumFractionDigits: 2 })} kg gained)`,
+      icon: Scale,
+      accent: 'text-violet-600'
     },
     {
       label: 'Revenue',

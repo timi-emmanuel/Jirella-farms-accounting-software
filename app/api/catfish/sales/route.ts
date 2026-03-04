@@ -48,23 +48,61 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const batchId = body.batchId;
     const quantitySold = Math.max(0, Math.floor(Number(body.quantitySold || 0)));
-    const unitPrice = roundTo2(Number(body.unitPrice || 0));
+    let unitPrice = roundTo2(Number(body.unitPrice || 0));
     const saleType = body.saleType === 'Final Clear-Out' ? 'Final Clear-Out' : 'Partial Offload';
     const saleDate = body.saleDate || new Date().toISOString().split('T')[0];
     const buyerDetails = body.buyerDetails ?? null;
+    const saleLengthCmRaw = body.saleLengthCm === null || body.saleLengthCm === undefined || body.saleLengthCm === ''
+      ? null
+      : roundTo2(Number(body.saleLengthCm));
+    let sizeCategoryName: string | null = null;
 
     if (!batchId) return NextResponse.json({ error: 'Batch is required' }, { status: 400 });
     if (quantitySold <= 0) return NextResponse.json({ error: 'Quantity sold must be greater than zero' }, { status: 400 });
     if (unitPrice < 0) return NextResponse.json({ error: 'Unit price cannot be negative' }, { status: 400 });
+    if (saleLengthCmRaw !== null && saleLengthCmRaw < 0) {
+      return NextResponse.json({ error: 'Sale length cannot be negative' }, { status: 400 });
+    }
 
     const admin = createAdminClient();
+    const { data: batch, error: batchError } = await admin
+      .from('CatfishBatch')
+      .select('id, productionType')
+      .eq('id', batchId)
+      .single();
+
+    if (batchError || !batch) return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
+
+    const autoPriceStage = batch.productionType === 'Fingerlings' || batch.productionType === 'Juvenile';
+    if (autoPriceStage && saleLengthCmRaw !== null) {
+      const { data: pricingRows, error: pricingError } = await admin
+        .from('catfish_size_pricing')
+        .select('name, price_per_piece')
+        .eq('is_active', true)
+        .lte('min_cm', saleLengthCmRaw)
+        .gt('max_cm', saleLengthCmRaw)
+        .order('min_cm', { ascending: true })
+        .limit(1);
+
+      if (pricingError) return NextResponse.json({ error: pricingError.message }, { status: 400 });
+      const matched = (pricingRows || [])[0];
+      if (!matched) {
+        return NextResponse.json({ error: 'No active pricing range found for the supplied length (cm).' }, { status: 400 });
+      }
+
+      sizeCategoryName = matched.name || null;
+      unitPrice = roundTo2(Number(matched.price_per_piece || 0));
+    }
+
     const payload = {
       batchId,
       saleDate,
       saleType,
       quantitySold,
       unitPrice,
-      buyerDetails
+      buyerDetails,
+      saleLengthCm: saleLengthCmRaw,
+      sizeCategoryName
     };
 
     const { data, error } = await admin

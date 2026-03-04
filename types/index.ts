@@ -258,6 +258,8 @@ export interface CatfishSale {
  batchId: string;
  saleDate: string;
  saleType: 'Partial Offload' | 'Final Clear-Out';
+ saleLengthCm?: number | null;
+ sizeCategoryName?: string | null;
  quantitySold: number;
  unitPrice: number;
  totalSaleValue: number;

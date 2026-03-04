@@ -80,7 +80,6 @@ export function CatfishFeedLogGrid({
     logDate: new Date().toISOString().split('T')[0],
     feedProductId: 'NONE',
     feedAmountKg: '',
-    feedUnitPrice: '',
     mortalityCount: '',
     abwGrams: '',
     averageLengthCm: '',
@@ -120,6 +119,14 @@ export function CatfishFeedLogGrid({
       toast({ title: "Missing fields", description: "Please select a batch.", variant: "destructive" });
       return;
     }
+    if (Number(form.feedAmountKg || 0) > 0 && form.feedProductId === 'NONE') {
+      toast({
+        title: "Missing feed product",
+        description: "Select a feed product from inventory before logging feed amount.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     setSubmitting(true);
     const response = await fetch('/api/catfish/feed-logs', {
@@ -130,7 +137,6 @@ export function CatfishFeedLogGrid({
         logDate: form.logDate,
         feedProductId: form.feedProductId === 'NONE' ? null : form.feedProductId,
         feedAmountKg: Number(form.feedAmountKg || 0),
-        feedUnitPrice: Number(form.feedUnitPrice || 0),
         mortalityCount: Number(form.mortalityCount || 0),
         abwGrams: form.abwGrams ? Number(form.abwGrams) : null,
         averageLengthCm: form.averageLengthCm ? Number(form.averageLengthCm) : null,
@@ -152,7 +158,6 @@ export function CatfishFeedLogGrid({
         logDate: new Date().toISOString().split('T')[0],
         feedProductId: 'NONE',
         feedAmountKg: '',
-        feedUnitPrice: '',
         mortalityCount: '',
         abwGrams: '',
         averageLengthCm: '',
@@ -245,7 +250,7 @@ export function CatfishFeedLogGrid({
               New Daily Log
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto modal-scrollbar">
+          <DialogContent className="sm:max-w-160 max-h-[90vh] overflow-y-auto modal-scrollbar">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold tracking-tight">Create {stageLabel} Daily Log</DialogTitle>
             </DialogHeader>
@@ -286,28 +291,29 @@ export function CatfishFeedLogGrid({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Feed Amount (kg)</Label>
-                <Input type="number" min="0" step="0.01" value={form.feedAmountKg} onChange={(e) => setForm({ ...form, feedAmountKg: e.target.value })} />
+                {products.length === 0 ? (
+                  <p className="text-xs text-amber-700">No feed stock is available in Catfish inventory.</p>
+                ) : null}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label>Feed Unit Price (₦)</Label>
-                  <Input type="number" min="0" step="0.01" value={form.feedUnitPrice} onChange={(e) => setForm({ ...form, feedUnitPrice: e.target.value })} />
+                  <Label>Feed Amount (kg)</Label>
+                  <Input type="number" min="0" step="0.01" value={form.feedAmountKg} onChange={(e) => setForm({ ...form, feedAmountKg: e.target.value })} />
                 </div>
                 <div className="space-y-2">
                   <Label>Mortality</Label>
                   <Input type="number" min="0" step="1" value={form.mortalityCount} onChange={(e) => setForm({ ...form, mortalityCount: e.target.value })} />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>ABW (grams)</Label>
-                <Input type="number" min="0" step="0.01" value={form.abwGrams} onChange={(e) => setForm({ ...form, abwGrams: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Average Length (cm)</Label>
-                <Input type="number" min="0" step="0.01" value={form.averageLengthCm} onChange={(e) => setForm({ ...form, averageLengthCm: e.target.value })} />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>ABW (grams)</Label>
+                  <Input type="number" min="0" step="0.01" value={form.abwGrams} onChange={(e) => setForm({ ...form, abwGrams: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Average Length (cm)</Label>
+                  <Input type="number" min="0" step="0.01" value={form.averageLengthCm} onChange={(e) => setForm({ ...form, averageLengthCm: e.target.value })} />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Notes</Label>
@@ -345,4 +351,7 @@ theme={themeQuartz}
     </div>
   );
 }
+
+
+
 

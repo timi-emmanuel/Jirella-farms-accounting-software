@@ -97,7 +97,8 @@ const navigation: NavigationItem[] = [
       { name: 'Juvenile', href: '/catfish/juvenile', icon: Fish },
       { name: 'Inventory', href: '/catfish/inventory', icon: Package },
       { name: 'Expenses', href: '/catfish/expenses', icon: Wallet },
-      { name: 'P&L Report', href: '/catfish/reports/pnl', icon: Calculator }
+      { name: 'P&L Report', href: '/catfish/reports/pnl', icon: Calculator },
+      { name: 'Settings', href: '/catfish/settings/pricing', icon: Settings }
     ]
   },
   { name: 'Store', href: '/store', icon: Package },  
@@ -195,6 +196,7 @@ function SidebarContent({ pathname, openMenus, toggleMenu, handleSignOut, isAdmi
                   {item.subItems!.map((sub) => {
                     // Hide Recipes for non-admins
                     if (sub.name === 'Recipes' && !isAdmin) return null;
+                    if (item.name === 'Catfish' && sub.name === 'Settings' && !isAdmin) return null;
                     if (item.name === 'BSF' && !isBsfSubItemAllowed(sub.name)) return null;
                     // Logic to hide Sales if not accountant/admin? 
                     // For now, let's keep sub-items visible if parent is visible, or add sub-item config.

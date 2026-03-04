@@ -72,6 +72,8 @@ export function CatfishSalesGrid({
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [pricingHint, setPricingHint] = useState<{ name: string; price: number } | null>(null);
+  const [pricingLoading, setPricingLoading] = useState(false);
 
   const [form, setForm] = useState({
     channel: 'EXTERNAL',
@@ -80,10 +82,13 @@ export function CatfishSalesGrid({
     saleType: 'Partial Offload',
     quantitySold: '',
     unitPrice: '',
+    saleLengthCm: '',
     buyerDetails: '',
     destinationBatchName: '',
     notes: ''
   });
+
+  const supportsLengthPricing = productionType === 'Fingerlings' || productionType === 'Juvenile';
 
   const loadData = async () => {
     setLoading(true);
@@ -126,6 +131,38 @@ export function CatfishSalesGrid({
     loadData();
   }, [batchId, productionType]);
 
+  useEffect(() => {
+    const lookupPricing = async () => {
+      if (!supportsLengthPricing || form.channel !== 'EXTERNAL') {
+        setPricingHint(null);
+        return;
+      }
+
+      const cm = Number(form.saleLengthCm || 0);
+      if (!Number.isFinite(cm) || cm <= 0) {
+        setPricingHint(null);
+        return;
+      }
+
+      setPricingLoading(true);
+      const response = await fetch(`/api/catfish/settings/pricing?cm=${cm}`);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.row) {
+        setPricingHint(null);
+        setForm((prev) => ({ ...prev, unitPrice: '' }));
+        setPricingLoading(false);
+        return;
+      }
+
+      const nextPrice = Number(payload.row.price_per_piece || 0);
+      setPricingHint({ name: String(payload.row.name || ''), price: nextPrice });
+      setForm((prev) => ({ ...prev, unitPrice: String(nextPrice) }));
+      setPricingLoading(false);
+    };
+
+    lookupPricing();
+  }, [form.saleLengthCm, form.channel, supportsLengthPricing]);
+
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.batchId || Number(form.quantitySold) <= 0) return;
@@ -153,7 +190,8 @@ export function CatfishSalesGrid({
           saleType: form.saleType,
           quantitySold: Number(form.quantitySold),
           unitPrice: Number(form.unitPrice),
-          buyerDetails: form.buyerDetails || null
+          buyerDetails: form.buyerDetails || null,
+          saleLengthCm: form.saleLengthCm ? Number(form.saleLengthCm) : null
         })
       });
 
@@ -173,6 +211,7 @@ export function CatfishSalesGrid({
         saleType: 'Partial Offload',
         quantitySold: '',
         unitPrice: '',
+        saleLengthCm: '',
         buyerDetails: '',
         destinationBatchName: '',
         notes: ''
@@ -195,6 +234,8 @@ export function CatfishSalesGrid({
     }
     cols.push(
       { field: 'saleType', headerName: 'Sale Type', minWidth: 140 },
+      { field: 'saleLengthCm', headerName: 'Length (cm)', type: 'numericColumn', minWidth: 110, valueFormatter: (p: any) => p.value ? Number(p.value).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-' },
+      { field: 'sizeCategoryName', headerName: 'Size Category', minWidth: 150, valueFormatter: (p: any) => p.value || '-' },
       { field: 'quantitySold', headerName: 'Qty Sold', type: 'numericColumn', minWidth: 110 },
       {
         field: 'unitPrice',
@@ -238,19 +279,25 @@ export function CatfishSalesGrid({
               <DialogTitle className="text-xl font-bold tracking-tight">Log {stageLabel} Sale</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleAdd} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Channel</Label>
-                <Select value={form.channel} onValueChange={(value) => setForm({ ...form, channel: value })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="EXTERNAL">Public Sale</SelectItem>
-                    {(productionType === 'Fingerlings' || productionType === 'Juvenile') && (
-                      <SelectItem value="INTERNAL">Internal Sale to {productionType === 'Juvenile' ? 'Melange' : 'Juvenile'}</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Date</Label>
+                  <Input type="date" value={form.saleDate} onChange={(e) => setForm({ ...form, saleDate: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Channel</Label>
+                  <Select value={form.channel} onValueChange={(value) => setForm({ ...form, channel: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="EXTERNAL">Public Sale</SelectItem>
+                      {(productionType === 'Fingerlings' || productionType === 'Juvenile') && (
+                        <SelectItem value="INTERNAL">Internal Sale to {productionType === 'Juvenile' ? 'Melange' : 'Juvenile'}</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               {!batchId && (
@@ -271,23 +318,35 @@ export function CatfishSalesGrid({
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Label>Date</Label>
-                <Input type="date" value={form.saleDate} onChange={(e) => setForm({ ...form, saleDate: e.target.value })} />
-              </div>
-
               {form.channel === 'EXTERNAL' ? (
-                <div className="space-y-2">
-                  <Label>Sale Type</Label>
-                  <Select value={form.saleType} onValueChange={(value) => setForm({ ...form, saleType: value })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Partial Offload">Partial Offload</SelectItem>
-                      <SelectItem value="Final Clear-Out">Final Clear-Out</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Sale Type</Label>
+                    <Select value={form.saleType} onValueChange={(value) => setForm({ ...form, saleType: value })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Partial Offload">Partial Offload</SelectItem>
+                        <SelectItem value="Final Clear-Out">Final Clear-Out</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {supportsLengthPricing ? (
+                    <div className="space-y-2">
+                      <Label>Fish Length (cm)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={form.saleLengthCm}
+                        onChange={(e) => setForm({ ...form, saleLengthCm: e.target.value })}
+                        placeholder="Enter length"
+                      />
+                    </div>
+                  ) : (
+                    <div />
+                  )}
                 </div>
               ) : (
                 <div className="rounded-lg border bg-slate-50 p-3 text-sm text-slate-700">
@@ -303,7 +362,14 @@ export function CatfishSalesGrid({
                 {form.channel === 'EXTERNAL' ? (
                   <div className="space-y-2">
                     <Label>Unit Price (N)</Label>
-                    <Input type="number" min="0" step="0.01" value={form.unitPrice} onChange={(e) => setForm({ ...form, unitPrice: e.target.value })} />
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={form.unitPrice}
+                      onChange={(e) => setForm({ ...form, unitPrice: e.target.value })}
+                      readOnly={supportsLengthPricing}
+                    />
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -312,6 +378,18 @@ export function CatfishSalesGrid({
                   </div>
                 )}
               </div>
+
+              {form.channel === 'EXTERNAL' && supportsLengthPricing && (
+                <div className="space-y-2">
+                  <p className="text-xs text-slate-500">
+                    {pricingLoading
+                      ? 'Looking up price...'
+                      : pricingHint
+                        ? `Category: ${pricingHint.name} | Auto price: N ${pricingHint.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                        : 'No active pricing range matched this length.'}
+                  </p>
+                </div>
+              )}
 
               {form.channel === 'EXTERNAL' ? (
                 <div className="space-y-2">
