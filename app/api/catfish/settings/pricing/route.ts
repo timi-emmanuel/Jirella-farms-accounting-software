@@ -9,17 +9,25 @@ const VIEW_ROLES = ['ADMIN', 'MANAGER', 'CATFISH_STAFF', 'ACCOUNTANT'];
 
 const isFiniteNumber = (value: unknown) => Number.isFinite(Number(value));
 
+const normalizeMethod = (value: unknown): 'CM' | 'KG' => (String(value || '').toUpperCase() === 'KG' ? 'KG' : 'CM');
+
 const validatePricingPayload = (body: any) => {
   const name = String(body?.name || '').trim();
-  const minCm = Number(body?.min_cm);
-  const maxCm = Number(body?.max_cm);
+  const method = normalizeMethod(body?.pricing_method);
+  const minCm = Number(body?.min_cm ?? 0);
+  const maxCm = Number(body?.max_cm ?? 9999);
   const pricePerPiece = Number(body?.price_per_piece);
+  const pricePerKg = Number(body?.price_per_kg);
 
   if (!name) return 'Category name is required';
-  if (!isFiniteNumber(minCm) || !isFiniteNumber(maxCm)) return 'Min CM and Max CM are required';
-  if (minCm < 0 || maxCm < 0) return 'CM values cannot be negative';
-  if (minCm >= maxCm) return 'Min CM must be less than Max CM';
-  if (!isFiniteNumber(pricePerPiece) || pricePerPiece <= 0) return 'Price per piece must be greater than zero';
+  if (method === 'CM') {
+    if (!isFiniteNumber(minCm) || !isFiniteNumber(maxCm)) return 'Min CM and Max CM are required for CM pricing';
+    if (minCm < 0 || maxCm < 0) return 'CM values cannot be negative';
+    if (minCm >= maxCm) return 'Min CM must be less than Max CM';
+    if (!isFiniteNumber(pricePerPiece) || pricePerPiece <= 0) return 'Price per piece must be greater than zero';
+  } else {
+    if (!isFiniteNumber(pricePerKg) || pricePerKg <= 0) return 'Price per kg must be greater than zero';
+  }
   return null;
 };
 
@@ -32,6 +40,7 @@ const findOverlappingActiveRange = async (
   let query = admin
     .from('catfish_size_pricing')
     .select('id, name, min_cm, max_cm')
+    .eq('pricing_method', 'CM')
     .eq('is_active', true)
     .lt('min_cm', maxCm)
     .gt('max_cm', minCm)
@@ -57,6 +66,7 @@ export async function GET(request: NextRequest) {
     const admin = createAdminClient();
     const { searchParams } = new URL(request.url);
     const cmParam = searchParams.get('cm');
+    const basisParam = searchParams.get('basis');
 
     if (cmParam !== null && cmParam !== '') {
       const cm = Number(cmParam);
@@ -67,6 +77,7 @@ export async function GET(request: NextRequest) {
       const { data, error } = await admin
         .from('catfish_size_pricing')
         .select('*')
+        .eq('pricing_method', 'CM')
         .eq('is_active', true)
         .lte('min_cm', cm)
         .gt('max_cm', cm)
@@ -77,9 +88,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ row: (data || [])[0] || null });
     }
 
+    if (String(basisParam || '').toUpperCase() === 'KG') {
+      const { data, error } = await admin
+        .from('catfish_size_pricing')
+        .select('*')
+        .eq('pricing_method', 'KG')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ row: (data || [])[0] || null });
+    }
+
     let query = admin
       .from('catfish_size_pricing')
       .select('*')
+      .order('pricing_method', { ascending: true })
       .order('min_cm', { ascending: true });
 
     if (auth.role !== 'ADMIN') {
@@ -107,15 +132,17 @@ export async function POST(request: NextRequest) {
     const validationError = validatePricingPayload(body);
     if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
 
+    const pricingMethod = normalizeMethod(body.pricing_method);
     const name = String(body.name).trim();
-    const minCm = roundTo2(Number(body.min_cm));
-    const maxCm = roundTo2(Number(body.max_cm));
-    const pricePerPiece = roundTo2(Number(body.price_per_piece));
+    const minCm = pricingMethod === 'CM' ? roundTo2(Number(body.min_cm)) : 0;
+    const maxCm = pricingMethod === 'CM' ? roundTo2(Number(body.max_cm)) : 9999;
+    const pricePerPiece = pricingMethod === 'CM' ? roundTo2(Number(body.price_per_piece)) : null;
+    const pricePerKg = pricingMethod === 'KG' ? roundTo2(Number(body.price_per_kg)) : null;
     const isActive = body.is_active === false ? false : true;
 
     const admin = createAdminClient();
 
-    if (isActive) {
+    if (isActive && pricingMethod === 'CM') {
       const { overlap, error: overlapError } = await findOverlappingActiveRange(admin, minCm, maxCm);
       if (overlapError) return NextResponse.json({ error: overlapError.message }, { status: 400 });
       if (overlap) {
@@ -130,9 +157,11 @@ export async function POST(request: NextRequest) {
       .from('catfish_size_pricing')
       .insert({
         name,
+        pricing_method: pricingMethod,
         min_cm: minCm,
         max_cm: maxCm,
         price_per_piece: pricePerPiece,
+        price_per_kg: pricePerKg,
         is_active: isActive
       })
       .select('*')
@@ -173,21 +202,25 @@ export async function PATCH(request: NextRequest) {
 
     const nextData = {
       name: body.name ?? existing.name,
+      pricing_method: body.pricing_method ?? existing.pricing_method,
       min_cm: body.min_cm ?? existing.min_cm,
       max_cm: body.max_cm ?? existing.max_cm,
       price_per_piece: body.price_per_piece ?? existing.price_per_piece,
+      price_per_kg: body.price_per_kg ?? existing.price_per_kg,
       is_active: body.is_active ?? existing.is_active
     };
 
     const validationError = validatePricingPayload(nextData);
     if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
 
-    const minCm = roundTo2(Number(nextData.min_cm));
-    const maxCm = roundTo2(Number(nextData.max_cm));
-    const pricePerPiece = roundTo2(Number(nextData.price_per_piece));
+    const pricingMethod = normalizeMethod(nextData.pricing_method);
+    const minCm = pricingMethod === 'CM' ? roundTo2(Number(nextData.min_cm)) : 0;
+    const maxCm = pricingMethod === 'CM' ? roundTo2(Number(nextData.max_cm)) : 9999;
+    const pricePerPiece = pricingMethod === 'CM' ? roundTo2(Number(nextData.price_per_piece)) : null;
+    const pricePerKg = pricingMethod === 'KG' ? roundTo2(Number(nextData.price_per_kg)) : null;
     const isActive = Boolean(nextData.is_active);
 
-    if (isActive) {
+    if (isActive && pricingMethod === 'CM') {
       const { overlap, error: overlapError } = await findOverlappingActiveRange(admin, minCm, maxCm, id);
       if (overlapError) return NextResponse.json({ error: overlapError.message }, { status: 400 });
       if (overlap) {
@@ -202,9 +235,11 @@ export async function PATCH(request: NextRequest) {
       .from('catfish_size_pricing')
       .update({
         name: String(nextData.name).trim(),
+        pricing_method: pricingMethod,
         min_cm: minCm,
         max_cm: maxCm,
         price_per_piece: pricePerPiece,
+        price_per_kg: pricePerKg,
         is_active: isActive
       })
       .eq('id', id)

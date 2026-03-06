@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Fish, Scale, Skull, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useUserRole } from '@/hooks/useUserRole';
 
 type YieldRow = { batchCode: string; quantityKg: number };
 type BatchStatRow = {
@@ -48,6 +49,8 @@ const emptyMetrics: Metrics = {
 };
 
 export function CatfishDashboard() {
+  const { role } = useUserRole();
+  const canViewFinancials = role !== 'CATFISH_STAFF';
   const [metrics, setMetrics] = useState<Metrics>(emptyMetrics);
   const [fingerlingsAnalytics, setFingerlingsAnalytics] = useState<BatchAnalytics>({
     total: 0,
@@ -56,6 +59,12 @@ export function CatfishDashboard() {
     avgCurrentStock: 0
   });
   const [juvenileAnalytics, setJuvenileAnalytics] = useState<BatchAnalytics>({
+    total: 0,
+    active: 0,
+    avgMortality: 0,
+    avgCurrentStock: 0
+  });
+  const [growoutAnalytics, setGrowoutAnalytics] = useState<BatchAnalytics>({
     total: 0,
     active: 0,
     avgMortality: 0,
@@ -70,10 +79,11 @@ export function CatfishDashboard() {
 
   const loadMetrics = async () => {
     setLoading(true);
-    const [metricsRes, fingerlingsRes, juvenileRes] = await Promise.all([
+    const [metricsRes, fingerlingsRes, juvenileRes, growoutRes] = await Promise.all([
       fetch(`/api/catfish/dashboard?from=${from}&to=${to}`),
       fetch('/api/catfish/batches?productionType=Fingerlings'),
-      fetch('/api/catfish/batches?productionType=Juvenile')
+      fetch('/api/catfish/batches?productionType=Juvenile'),
+      fetch('/api/catfish/batches?productionType=Grow-out%20(Adult)')
     ]);
 
     const metricsPayload = await metricsRes.json().catch(() => ({}));
@@ -105,6 +115,11 @@ export function CatfishDashboard() {
     if (juvenileRes.ok) {
       setJuvenileAnalytics(calc(juvenilePayload.batches || []));
     }
+
+    const growoutPayload = await growoutRes.json().catch(() => ({}));
+    if (growoutRes.ok) {
+      setGrowoutAnalytics(calc(growoutPayload.batches || []));
+    }
     setLoading(false);
   };
 
@@ -112,36 +127,47 @@ export function CatfishDashboard() {
     loadMetrics();
   }, []);
 
-  const cards = useMemo(() => ([
-    {
-      label: 'Feed Used (kg)',
-      value: metrics.totalFeedKg.toLocaleString(undefined, { maximumFractionDigits: 2 }),
-      hint: 'Feed log total',
-      icon: Scale,
-      accent: 'text-emerald-600'
-    },
-    {
-      label: 'Feed Cost',
-      value: `₦ ${Number(metrics.totalFeedCost || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-      hint: 'Daily log feed cost',
-      icon: Fish,
-      accent: 'text-blue-600'
-    },
-    {
-      label: 'FCR',
-      value: metrics.fcr.toLocaleString(undefined, { maximumFractionDigits: 2 }),
-      hint: `Feed / Weight gain (${metrics.totalWeightGainedKg.toLocaleString(undefined, { maximumFractionDigits: 2 })} kg gained)`,
-      icon: Scale,
-      accent: 'text-violet-600'
-    },
-    {
-      label: 'Revenue',
-      value: `₦ ${metrics.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-      hint: 'Sales in range',
-      icon: Wallet,
-      accent: 'text-emerald-700'
+  const cards = useMemo(() => {
+    const baseCards = [
+      {
+        label: 'Feed Used (kg)',
+        value: metrics.totalFeedKg.toLocaleString(undefined, { maximumFractionDigits: 2 }),
+        hint: 'Feed log total',
+        icon: Scale,
+        accent: 'text-emerald-600'
+      },
+      {
+        label: 'FCR',
+        value: metrics.fcr.toLocaleString(undefined, { maximumFractionDigits: 2 }),
+        hint: `Feed / Weight gain (${metrics.totalWeightGainedKg.toLocaleString(undefined, { maximumFractionDigits: 2 })} kg gained)`,
+        icon: Scale,
+        accent: 'text-violet-600'
+      }
+    ];
+
+    if (!canViewFinancials) {
+      return baseCards;
     }
-  ]), [metrics]);
+
+    return [
+      baseCards[0],
+      {
+        label: 'Feed Cost',
+        value: `₦ ${Number(metrics.totalFeedCost || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+        hint: 'Daily log feed cost',
+        icon: Fish,
+        accent: 'text-blue-600'
+      },
+      baseCards[1],
+      {
+        label: 'Revenue',
+        value: `₦ ${metrics.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+        hint: 'Sales in range',
+        icon: Wallet,
+        accent: 'text-emerald-700'
+      }
+    ];
+  }, [metrics, canViewFinancials]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -226,7 +252,7 @@ export function CatfishDashboard() {
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-3">
         <div className="bg-white border rounded-2xl p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900">Fingerlings Analytics</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -267,6 +293,28 @@ export function CatfishDashboard() {
             <div className="border rounded-xl p-4 bg-slate-50">
               <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Avg Current Stock</p>
               <p className="text-2xl font-bold text-slate-900 mt-2">{juvenileAnalytics.avgCurrentStock.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white border rounded-2xl p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-slate-900">Grow-out Analytics</h2>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="border rounded-xl p-4 bg-slate-50">
+              <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Total Batches</p>
+              <p className="text-2xl font-bold text-slate-900 mt-2">{growoutAnalytics.total.toLocaleString()}</p>
+            </div>
+            <div className="border rounded-xl p-4 bg-slate-50">
+              <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Active Batches</p>
+              <p className="text-2xl font-bold text-slate-900 mt-2">{growoutAnalytics.active.toLocaleString()}</p>
+            </div>
+            <div className="border rounded-xl p-4 bg-slate-50">
+              <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Avg Mortality / Batch</p>
+              <p className="text-2xl font-bold text-slate-900 mt-2">{growoutAnalytics.avgMortality.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+            </div>
+            <div className="border rounded-xl p-4 bg-slate-50">
+              <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Avg Current Stock</p>
+              <p className="text-2xl font-bold text-slate-900 mt-2">{growoutAnalytics.avgCurrentStock.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
             </div>
           </div>
         </div>

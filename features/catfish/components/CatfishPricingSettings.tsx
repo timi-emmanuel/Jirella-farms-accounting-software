@@ -2,6 +2,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
+import { AgGridReact } from 'ag-grid-react';
+import "ag-grid-community/styles/ag-theme-quartz.css";
+import {
+  ColDef,
+  ModuleRegistry,
+  ClientSideRowModelModule,
+  ValidationModule,
+  PaginationModule,
+  TextFilterModule,
+  NumberFilterModule,
+  themeQuartz
+} from 'ag-grid-community';
 import { Loader2, Pencil, Plus, Power, PowerOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,29 +27,50 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/lib/toast';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+ModuleRegistry.registerModules([
+  ClientSideRowModelModule,
+  ValidationModule,
+  PaginationModule,
+  TextFilterModule,
+  NumberFilterModule
+]);
 
 type PricingRow = {
   id: string;
   name: string;
+  pricing_method: 'CM' | 'KG';
   min_cm: number;
   max_cm: number;
-  price_per_piece: number;
+  price_per_piece?: number | null;
+  price_per_kg?: number | null;
   is_active: boolean;
   created_at: string;
 };
 
 type FormState = {
   name: string;
+  pricingMethod: 'CM' | 'KG';
   minCm: string;
   maxCm: string;
   pricePerPiece: string;
+  pricePerKg: string;
 };
 
 const emptyForm: FormState = {
   name: '',
+  pricingMethod: 'CM',
   minCm: '',
   maxCm: '',
-  pricePerPiece: ''
+  pricePerPiece: '',
+  pricePerKg: ''
 };
 
 export function CatfishPricingSettings() {
@@ -53,6 +86,79 @@ export function CatfishPricingSettings() {
     () => [...rows].sort((a, b) => Number(a.min_cm) - Number(b.min_cm)),
     [rows]
   );
+
+  const formatRange = (row: PricingRow) => {
+    if (row.pricing_method === 'KG') return '-';
+    const min = Number(row.min_cm).toLocaleString(undefined, { maximumFractionDigits: 2 });
+    const max = Number(row.max_cm || 0);
+    if (max >= 9999) return `${min}+`;
+    return `${min} - ${max.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  };
+
+  const colDefs: ColDef<PricingRow>[] = [
+    { field: 'name', headerName: 'Category Name', minWidth: 190, flex: 1.2 },
+    { field: 'pricing_method', headerName: 'Basis', minWidth: 95 },
+    {
+      headerName: 'CM Range',
+      minWidth: 145,
+      valueGetter: (params) => (params.data ? (params.data.pricing_method === 'CM' ? formatRange(params.data) : '-') : '-')
+    },
+    {
+      headerName: 'Price',
+      minWidth: 140,
+      valueGetter: (params) => {
+        const row = params.data;
+        if (!row) return '';
+        const amount = Number(row.pricing_method === 'CM' ? row.price_per_piece : row.price_per_kg || 0);
+        return `N ${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+      }
+    },
+    {
+      headerName: 'Status',
+      minWidth: 110,
+      valueGetter: (params) => (params.data?.is_active ? 'Active' : 'Inactive')
+    },
+    {
+      headerName: 'Actions',
+      minWidth: 210,
+      sortable: false,
+      filter: false,
+      cellRenderer: (params: { data?: PricingRow }) => {
+        const row = params.data;
+        if (!row) return null;
+        const isUpdating = updatingId === row.id;
+        return (
+          <div className="flex items-center gap-2 h-full">
+            <Button variant="ghost" size="sm" onClick={() => openEdit(row)} disabled={isUpdating}>
+              <Pencil className="w-4 h-4 mr-1" />
+              Edit
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => toggleActive(row)}
+              disabled={isUpdating}
+              className={row.is_active ? 'text-rose-600 hover:text-rose-700' : 'text-emerald-600 hover:text-emerald-700'}
+            >
+              {isUpdating ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : row.is_active ? (
+                <>
+                  <PowerOff className="w-4 h-4 mr-1" />
+                  Deactivate
+                </>
+              ) : (
+                <>
+                  <Power className="w-4 h-4 mr-1" />
+                  Activate
+                </>
+              )}
+            </Button>
+          </div>
+        );
+      }
+    }
+  ];
 
   const loadRows = async () => {
     setLoading(true);
@@ -85,23 +191,31 @@ export function CatfishPricingSettings() {
     setEditing(row);
     setForm({
       name: row.name || '',
+      pricingMethod: row.pricing_method || 'CM',
       minCm: String(row.min_cm ?? ''),
       maxCm: String(row.max_cm ?? ''),
-      pricePerPiece: String(row.price_per_piece ?? '')
+      pricePerPiece: String(row.price_per_piece ?? ''),
+      pricePerKg: String(row.price_per_kg ?? '')
     });
     setDialogOpen(true);
   };
 
   const validateClient = () => {
     const name = form.name.trim();
-    const minCm = Number(form.minCm);
-    const maxCm = Number(form.maxCm);
-    const price = Number(form.pricePerPiece);
+    const method = form.pricingMethod;
 
     if (!name) return 'Category name is required.';
-    if (!Number.isFinite(minCm) || !Number.isFinite(maxCm)) return 'Min CM and Max CM are required.';
-    if (minCm >= maxCm) return 'Min CM must be less than Max CM.';
-    if (!Number.isFinite(price) || price <= 0) return 'Price per piece must be greater than zero.';
+    if (method === 'CM') {
+      const minCm = Number(form.minCm);
+      const maxCm = Number(form.maxCm);
+      const price = Number(form.pricePerPiece);
+      if (!Number.isFinite(minCm) || !Number.isFinite(maxCm)) return 'Min CM and Max CM are required.';
+      if (minCm >= maxCm) return 'Min CM must be less than Max CM.';
+      if (!Number.isFinite(price) || price <= 0) return 'Price per piece must be greater than zero.';
+    } else {
+      const priceKg = Number(form.pricePerKg);
+      if (!Number.isFinite(priceKg) || priceKg <= 0) return 'Price per kg must be greater than zero.';
+    }
     return null;
   };
 
@@ -114,11 +228,14 @@ export function CatfishPricingSettings() {
     }
 
     setSaving(true);
+    const pricingMethod = form.pricingMethod;
     const payload = {
       name: form.name.trim(),
-      min_cm: Number(form.minCm),
-      max_cm: Number(form.maxCm),
-      price_per_piece: Number(form.pricePerPiece)
+      pricing_method: pricingMethod,
+      min_cm: pricingMethod === 'CM' ? Number(form.minCm) : 0,
+      max_cm: pricingMethod === 'CM' ? Number(form.maxCm) : 9999,
+      price_per_piece: pricingMethod === 'CM' ? Number(form.pricePerPiece) : null,
+      price_per_kg: pricingMethod === 'KG' ? Number(form.pricePerKg) : null
     };
 
     const url = editing
@@ -214,7 +331,7 @@ export function CatfishPricingSettings() {
               Add Pricing Range
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[540px]">
+          <DialogContent className="sm:max-w-135">
             <DialogHeader>
               <DialogTitle>{editing ? 'Edit Pricing Range' : 'Create Pricing Range'}</DialogTitle>
             </DialogHeader>
@@ -229,44 +346,71 @@ export function CatfishPricingSettings() {
                   required
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="minCm">Min CM</Label>
-                  <Input
-                    id="minCm"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.minCm}
-                    onChange={(e) => setForm((prev) => ({ ...prev, minCm: e.target.value }))}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="maxCm">Max CM</Label>
-                  <Input
-                    id="maxCm"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.maxCm}
-                    onChange={(e) => setForm((prev) => ({ ...prev, maxCm: e.target.value }))}
-                    required
-                  />
-                </div>
-              </div>
               <div className="space-y-2">
-                <Label htmlFor="pricePerPiece">Price Per Piece (N)</Label>
-                <Input
-                  id="pricePerPiece"
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={form.pricePerPiece}
-                  onChange={(e) => setForm((prev) => ({ ...prev, pricePerPiece: e.target.value }))}
-                  required
-                />
+                <Label>Pricing Basis</Label>
+                <Select value={form.pricingMethod} onValueChange={(value: 'CM' | 'KG') => setForm((prev) => ({ ...prev, pricingMethod: value }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CM">By Length (CM)</SelectItem>
+                    <SelectItem value="KG">By Weight (KG)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+              {form.pricingMethod === 'CM' ? (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="minCm">Min CM</Label>
+                      <Input
+                        id="minCm"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={form.minCm}
+                        onChange={(e) => setForm((prev) => ({ ...prev, minCm: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="maxCm">Max CM</Label>
+                      <Input
+                        id="maxCm"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={form.maxCm}
+                        onChange={(e) => setForm((prev) => ({ ...prev, maxCm: e.target.value }))}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="pricePerPiece">Price Per Piece (N)</Label>
+                    <Input
+                      id="pricePerPiece"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={form.pricePerPiece}
+                      onChange={(e) => setForm((prev) => ({ ...prev, pricePerPiece: e.target.value }))}
+                      required
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="pricePerKg">Price Per Kg (N)</Label>
+                  <Input
+                    id="pricePerKg"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={form.pricePerKg}
+                    onChange={(e) => setForm((prev) => ({ ...prev, pricePerKg: e.target.value }))}
+                    required
+                  />
+                </div>
+              )}
               <DialogFooter>
                 <Button type="submit" disabled={saving} className="w-full">
                   {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
@@ -278,32 +422,18 @@ export function CatfishPricingSettings() {
         </Dialog>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-        <div className="grid grid-cols-12 gap-2 border-b bg-slate-50 px-4 py-3 text-xs uppercase tracking-widest font-semibold text-slate-500">
-          <div className="col-span-3">Category Name</div>
-          <div className="col-span-2">CM Range</div>
-          <div className="col-span-2">Price / Piece</div>
-          <div className="col-span-2">Status</div>
-          <div className="col-span-3 text-right">Actions</div>
-        </div>
-
+      <div className="md:hidden space-y-3">
         {sortedRows.length === 0 ? (
-          <div className="px-4 py-10 text-center text-sm text-slate-500">
+          <div className="rounded-2xl border bg-white px-4 py-10 text-center text-sm text-slate-500">
             No pricing ranges found.
           </div>
         ) : (
           sortedRows.map((row) => {
             const isUpdating = updatingId === row.id;
             return (
-              <div key={row.id} className="grid grid-cols-12 gap-2 border-b last:border-b-0 px-4 py-4 items-center text-sm">
-                <div className="col-span-3 font-semibold text-slate-900">{row.name}</div>
-                <div className="col-span-2 text-slate-700">
-                  {Number(row.min_cm).toLocaleString(undefined, { maximumFractionDigits: 2 })} - {Number(row.max_cm).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                </div>
-                <div className="col-span-2 text-slate-700">
-                  N {Number(row.price_per_piece).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </div>
-                <div className="col-span-2">
+              <div key={row.id} className="rounded-2xl border bg-white p-4 shadow-sm space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="font-semibold text-slate-900">{row.name}</p>
                   <span
                     className={
                       row.is_active
@@ -314,13 +444,24 @@ export function CatfishPricingSettings() {
                     {row.is_active ? 'Active' : 'Inactive'}
                   </span>
                 </div>
-                <div className="col-span-3 flex justify-end gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => openEdit(row)} disabled={isUpdating}>
+                <div className="text-sm text-slate-700">
+                  <p><span className="text-slate-500">Basis:</span> {row.pricing_method}</p>
+                  {row.pricing_method === 'CM' ? (
+                    <>
+                      <p><span className="text-slate-500">CM Range:</span> {formatRange(row)} cm</p>
+                      <p><span className="text-slate-500">Price / Piece:</span> N {Number(row.price_per_piece || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                    </>
+                  ) : (
+                    <p><span className="text-slate-500">Price / Kg:</span> N {Number(row.price_per_kg || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" onClick={() => openEdit(row)} disabled={isUpdating}>
                     <Pencil className="w-4 h-4 mr-1" />
                     Edit
                   </Button>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
                     onClick={() => toggleActive(row)}
                     disabled={isUpdating}
@@ -345,6 +486,27 @@ export function CatfishPricingSettings() {
             );
           })
         )}
+      </div>
+
+      <div className="hidden md:block rounded-2xl border bg-white shadow-sm overflow-hidden">
+        <div className="h-100">
+          <AgGridReact
+            theme={themeQuartz}
+            rowData={sortedRows}
+            columnDefs={colDefs}
+            suppressMovableColumns={typeof window !== 'undefined' && window.matchMedia('(max-width: 1024px)').matches}
+            defaultColDef={{
+              sortable: true,
+              filter: true,
+              wrapHeaderText: true,
+              autoHeaderHeight: true,
+              minWidth: 120,
+            }}
+            pagination={true}
+            paginationPageSize={15}
+            overlayNoRowsTemplate="<span class='text-slate-500'>No pricing ranges found</span>"
+          />
+        </div>
       </div>
     </div>
   );

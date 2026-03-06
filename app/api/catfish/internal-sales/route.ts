@@ -5,8 +5,14 @@ import { getAuthContext, isRoleAllowed } from '@/lib/server/auth';
 import { logActivityServer } from '@/lib/server/activity-log';
 import { roundTo2 } from '@/lib/utils';
 
-const VIEW_ROLES = ['ADMIN', 'MANAGER', 'CATFISH_STAFF', 'ACCOUNTANT'];
-const EDIT_ROLES = ['ADMIN', 'MANAGER', 'CATFISH_STAFF'];
+const VIEW_ROLES = ['ADMIN', 'MANAGER', 'ACCOUNTANT'];
+const EDIT_ROLES = ['ADMIN', 'MANAGER', 'ACCOUNTANT'];
+
+const normalizeStage = (value: unknown): 'Juvenile' | 'Grow-out (Adult)' => {
+  const input = String(value || '').trim();
+  if (input === 'Grow-out (Adult)' || input === 'Melange') return 'Grow-out (Adult)';
+  return 'Juvenile';
+};
 
 const getAvailableStock = async (admin: ReturnType<typeof createAdminClient>, batchId: string) => {
   const [{ data: batch }, { data: logs }, { data: sales }, { data: outgoing }, { data: incoming }] = await Promise.all([
@@ -75,7 +81,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const fromBatchId = String(body.fromBatchId || '');
-    const targetStage = body.targetStage === 'Melange' ? 'Melange' : 'Juvenile';
+    const targetStage = normalizeStage(body.targetStage);
     const transferDate = body.transferDate || new Date().toISOString().split('T')[0];
     const destinationBatchName = String(body.destinationBatchName || '').trim();
     const notes = body.notes ?? null;
@@ -96,8 +102,11 @@ export async function POST(request: NextRequest) {
     if (sourceBatch.productionType === 'Fingerlings' && targetStage !== 'Juvenile') {
       return NextResponse.json({ error: 'Fingerlings can only be moved internally to Juvenile' }, { status: 400 });
     }
-    if (sourceBatch.productionType === 'Juvenile' && targetStage !== 'Melange') {
-      return NextResponse.json({ error: 'Juvenile can only be moved internally to Melange' }, { status: 400 });
+    if (sourceBatch.productionType === 'Juvenile' && targetStage !== 'Grow-out (Adult)') {
+      return NextResponse.json({ error: 'Juvenile can only be moved internally to Grow-out (Adult)' }, { status: 400 });
+    }
+    if (sourceBatch.productionType === 'Grow-out (Adult)') {
+      return NextResponse.json({ error: 'Grow-out (Adult) is the final stage and cannot be moved internally' }, { status: 400 });
     }
 
     const availableStock = await getAvailableStock(admin, fromBatchId);

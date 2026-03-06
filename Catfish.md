@@ -1,253 +1,209 @@
-🐟 Catfish Pricing & Size Classification Settings
+Jirella Farms Aquaculture Management System
 
-Admin Configuration Panel
-Built with: Next.js + Supabase (Self-hosted) + RLS
+This document describes the Hatchery & Breeding Unit module to be integrated into the existing Catfish Production System.
 
-🎯 Objective
+The hatchery module manages broodstock maintenance, spawning events, fry production, and internal transfers to the Fingerlings module.
 
-Implement a Catfish Price Settings page that:
+1. System Context
 
-Defines seed price per size range (cm)
+The farm production lifecycle is:
 
-Automatically assigns batch classification name based on cm range
-
-Restricts access to Admin users only
-
-Allows updating pricing without affecting historical records
-
-This setting applies to:
-
+Hatchery
+   ↓
 Fingerlings
-
+   ↓
 Juvenile
+   ↓
+Grow-out (Adults)
 
-Future catfish stages
+The Hatchery Module is responsible for producing fry, which are internally transferred to the Fingerlings module.
 
-📂 Routing Structure
+2. Navigation Structure
 
-Under Catfish module:
-
-/catfish/settings/pricing
-
-Only visible to:
-
-role = "admin"
-
-Not visible to normal users.
-
-🗄 Database Schema
-1️⃣ catfish_size_pricing
-CREATE TABLE catfish_size_pricing (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name TEXT NOT NULL,
-    min_cm NUMERIC NOT NULL,
-    max_cm NUMERIC NOT NULL,
-    price_per_piece NUMERIC NOT NULL,
-    is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now())
-);
-📊 Initial Seed Data
-
-Based on boss instruction:
-
-Name	Min CM	Max CM	Price
-Small / Ijebu Fingerlings	2	3	25
-Standard Fingerlings	3	4	50
-Post-Fingerlings	5	6	80
-Juveniles	6	8	100
-Jumbo / Post-Juveniles	10	12	120
-🧠 Business Logic
-1️⃣ Batch Size Classification
-
-When creating or updating a batch:
-
-User enters:
-
-average_length_cm
-
-System should:
-
-Query catfish_size_pricing
-
-Find where:
-
-average_length_cm >= min_cm
-AND
-average_length_cm <= max_cm
-AND is_active = true
-
-Assign:
-
-batch.size_category_name = pricing.name
-batch.seed_price_per_piece = pricing.price_per_piece
-
-This must be automatic.
-
-2️⃣ Important Rule
-
-Classification must be:
-
-Dynamic at creation
-
-Stored permanently on batch
-
-Not affected by future price changes
-
-Meaning:
-
-If admin changes Juvenile price from ₦100 → ₦110
-
-Old batches keep ₦100.
-
-🗄 Batch Table Updates
-
-Add fields to batches:
-
-ALTER TABLE batches
-ADD COLUMN size_category_name TEXT,
-ADD COLUMN initial_size_cm NUMERIC,
-ADD COLUMN seed_price_per_piece NUMERIC;
-🔐 RLS Requirements
-
-Only admin can:
-
-Insert pricing ranges
-
-Update pricing
-
-Deactivate pricing ranges
-
-Regular users:
-
-Can read active pricing
-
-Cannot modify
-
-🖥 UI Requirements
-Page: /catfish/settings/pricing
-Table View
-
-Columns:
-
-Category Name
-
-CM Range
-
-Price Per Piece
-
-Status (Active / Inactive)
-
-Actions (Edit / Deactivate)
-
-Add / Edit Modal
-
-Fields:
-
-Name
-
-Min CM
-
-Max CM
-
-Price per piece
-
-Validation:
-
-min_cm < max_cm
-
-No overlapping active ranges
-
-Price must be > 0
-
-🚨 Overlapping Protection
-
-Before inserting:
-
-Ensure:
-
-(new_min <= existing_max)
-AND
-(new_max >= existing_min)
-AND is_active = true
-
-If overlap → reject.
-
-🔁 Batch Creation Flow Update
-
-When creating Fingerlings or Juvenile batch:
-
-User inputs:
-
-Initial size (cm)
-
-Quantity
-
-System auto-fills:
-
-Category Name
-
-Seed price per piece
-
-Initial seed cost = quantity × seed_price_per_piece
-
-Make category read-only on frontend.
-
-📊 Financial Integration
-
-Seed cost should flow into:
-
-production_expenses
-category = 'seed'
-
-Or be stored directly in batch financial snapshot.
-
-🎨 Sidebar Update
-
-Under Catfish:
+Add Hatchery to the main navigation under the Catfish module.
 
 Catfish
-   Dashboard
-   Fingerlings
-   Juvenile
-   Melange
-   Settings
-       Pricing
+ ├── Overview
+ ├── Hatchery
+ │   ├── Broodstock Logs
+ │   ├── Spawning Events
+ │   ├── Fry Transfers
+ │   └── Hatchery Financials
+ ├── Fingerlings
+ ├── Juvenile
+ └── Grow-out
+3. Hatchery Pages
+3.1 Broodstock Logs Page
 
-Settings visible only to Admin.
+Tracks feeding and mortality of broodstock fish used for reproduction.
 
-⚠️ Business Rules
+Route
+/catfish/hatchery/broodstock
+Table Fields
+Field	Type	Description
+log_date	date	Date of feeding
+feed_brand	text	Brand of feed
+feed_amount_kg	number	Quantity used
+feed_unit_price	number	Price per kg
+daily_feed_cost	computed	feed_amount × unit_price
+mortality_count	integer	Number of broodstock deaths
+Supabase Table
+broodstock_logs
+Computed Field
+daily_feed_cost = feed_amount_kg * feed_unit_price
+4. Spawning Events Page
 
-Cannot delete pricing used by existing batch.
+Tracks breeding operations where eggs are produced.
 
-Deactivation allowed.
+Route
+/catfish/hatchery/spawning
+Table Fields
+Field	Type	Description
+event_date	date	Spawning date
+females_stripped	integer	Number of female broodstock used
+hormone_cost	number	Cost of hormone used
+male_fish_cost	number	Cost of male broodstock
+sacrificed_male_weight_kg	number	Weight of male fish sacrificed
+status	enum	Incubating / Completed / Failed
+Supabase Table
+spawning_events
+Status Lifecycle
+Incubating → Completed
+Incubating → Failed
+5. Fry Transfers Page
 
-Historical batches must preserve original price.
+This page closes the hatchery cycle.
 
-Only one active pricing range per CM interval.
+It records the number of fry produced and transferred to the Fingerlings module.
 
-🧠 Engineering Principles
+Route
+/catfish/hatchery/transfers
+Table Fields
+Field	Type	Description
+spawning_event_id	uuid	reference to spawning event
+transfer_date	date	date fry moved
+live_fry_count	integer	number of fry
+internal_price_per_fry	number	accounting transfer price
+sacrificed_male_meat_price	number	price/kg of male meat
+total_transfer_value	computed	financial value
+Supabase Table
+fry_transfers
+Computation
+total_transfer_value =
+(live_fry_count * internal_price_per_fry)
++
+(sacrificed_male_meat_price * sacrificed_male_weight_kg)
 
-Pricing ranges are configuration, not transactional data.
+This value becomes the inventory cost for the Fingerlings module.
 
-Batch stores snapshot of price at time of creation.
+6. Automatic Transfer to Fingerlings
 
-No recalculation of historical seed cost.
+When a fry transfer is recorded, the system should automatically create a fingerlings batch.
 
-All classification logic should run server-side (not frontend only).
+Logic
+Insert fry_transfer
+      ↓
+Create Fingerlings Batch
+Data Passed
+Hatchery	Fingerlings
+live_fry_count	initial_stock
+transfer_date	batch_start_date
+total_transfer_value	batch_cost
+7. Hatchery Financials Page
+Route
+/catfish/hatchery/financials
+Metrics
 
-🚀 Final Outcome
+Display aggregated totals:
 
-When user enters:
+Metric	Calculation
+Total Broodstock Feed Cost	SUM(daily_feed_cost)
+Total Hormone Cost	SUM(hormone_cost)
+Total Male Fish Cost	SUM(male_fish_cost)
+Total Fry Produced	SUM(live_fry_count)
+Total Transfer Value	SUM(total_transfer_value)
+8. UI Components
 
-6 cm
+Use the same UI pattern used across other modules.
 
-System auto-assigns:
+Components needed:
 
-Juveniles
-₦100 per piece
+DataTable
+CreateModal
+EditModal
+DeleteConfirm
+FinancialSummaryCards
+9. Supabase Tables
+broodstock_logs
+id
+log_date
+feed_brand
+feed_amount_kg
+feed_unit_price
+daily_feed_cost (generated)
+mortality_count
+spawning_events
+id
+event_date
+females_stripped
+hormone_cost
+male_fish_cost
+sacrificed_male_weight_kg
+status
+fry_transfers
+id
+spawning_event_id
+transfer_date
+live_fry_count
+internal_price_per_fry
+sacrificed_male_meat_price
+total_transfer_value (generated)
+10. Access Control
 
-No manual classification needed.
+Use Supabase RLS.
 
-Admin controls pricing centrally.
+Role	Permissions
+Admin	Full access
+Staff	Create + View
+Viewer	Read only
+11. Important Business Logic
+1️⃣ Hatchery feeds Fingerlings
+Hatchery fry transfer
+      ↓
+Fingerlings batch creation
+2️⃣ Hatchery has no sales
 
-Historical integrity preserved.
+Hatchery only transfers internally.
+
+3️⃣ Financial Tracking
+
+All hatchery costs should contribute to:
+
+Fingerlings production cost
+
+This ensures true farm profitability tracking.
+
+12. Future Improvements (Optional)
+
+Possible enhancements:
+
+• Hatch rate tracking
+• Fertilization success rate
+• Fry survival percentage
+• incubation monitoring
+
+Final Architecture
+Catfish System
+
+Hatchery
+ ├─ Broodstock Logs
+ ├─ Spawning Events
+ └─ Fry Transfers
+       ↓
+Fingerlings
+       ↓
+Juvenile
+       ↓
+Grow-out
+
+

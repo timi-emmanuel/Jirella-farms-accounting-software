@@ -51,8 +51,7 @@ export async function GET(request: NextRequest) {
 
     const { data: batches } = await admin
       .from('CatfishBatch')
-      .select('id, batchName, startDate, initialStock, initialSeedCost, status')
-      .eq('productionType', 'Fingerlings');
+      .select('id, batchName, startDate, initialStock, initialSeedCost, status, productionType');
 
     const logBatchIds = Array.from(
       new Set((dailyLogs || []).map((row: any) => String(row.batchId || '')).filter(Boolean))

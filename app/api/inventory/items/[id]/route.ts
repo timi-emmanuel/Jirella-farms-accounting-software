@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthContext, isRoleAllowed } from '@/lib/server/auth';
 import { logActivityServer } from '@/lib/server/activity-log';
+import { roundTo2 } from '@/lib/utils';
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
  try {
@@ -12,20 +13,31 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const { name, description, unit, trackInFeedMill, lastPurchaseDate } = await request.json();
+  const { name, description, unit, trackInFeedMill, lastPurchaseDate, unitPrice } = await request.json();
 
   if (!id) {
    return NextResponse.json({ error: 'Missing item id' }, { status: 400 });
   }
 
-  const updatePayload: Record<string, any> = {};
+  const updatePayload: Record<string, unknown> = {};
   if (name) updatePayload.name = name;
   if (description !== undefined) updatePayload.description = description;
   if (unit) updatePayload.unit = unit;
   if (trackInFeedMill !== undefined) updatePayload.trackInFeedMill = trackInFeedMill;
 
-  if (Object.keys(updatePayload).length === 0) {
+  const shouldUpdateCost = unitPrice !== undefined && unitPrice !== null && unitPrice !== '';
+  const parsedUnitPrice = shouldUpdateCost ? roundTo2(Number(unitPrice)) : null;
+  if (shouldUpdateCost && (!Number.isFinite(Number(unitPrice)) || Number(unitPrice) < 0)) {
+   return NextResponse.json({ error: 'Unit price must be a valid non-negative number' }, { status: 400 });
+  }
+
+  if (Object.keys(updatePayload).length === 0 && lastPurchaseDate === undefined && !shouldUpdateCost) {
    return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+  }
+
+  if (shouldUpdateCost) {
+   updatePayload.averageCost = parsedUnitPrice;
+   updatePayload.lastPurchasedPrice = parsedUnitPrice;
   }
 
   const admin = createAdminClient();
@@ -45,7 +57,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
    entityType: 'Ingredient',
    entityId: id,
    description: `Updated inventory item ${data?.name ?? id}`,
-   metadata: { ...updatePayload, lastPurchaseDate: lastPurchaseDate ?? null },
+   metadata: { ...updatePayload, lastPurchaseDate: lastPurchaseDate ?? null, unitPrice: shouldUpdateCost ? parsedUnitPrice : null },
    userId: auth.userId,
    userRole: auth.role,
    ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip')
@@ -59,19 +71,26 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
    .single();
 
   if (storeLocation?.id) {
-   if (lastPurchaseDate !== undefined) {
+   if (lastPurchaseDate !== undefined || shouldUpdateCost) {
     const { data: existingBalance } = await admin
       .from('InventoryBalance')
-      .select('itemId, locationId, quantityOnHand, averageUnitCost, lastPurchaseUnitCost')
+      .select('itemId, locationId, quantityOnHand, averageUnitCost, lastPurchaseUnitCost, lastPurchaseDate')
       .eq('itemId', id)
       .eq('locationId', storeLocation.id)
       .single();
 
     if (existingBalance) {
+      const nextAverageUnitCost = shouldUpdateCost ? parsedUnitPrice : existingBalance.averageUnitCost;
+      const nextLastPurchaseUnitCost = shouldUpdateCost ? parsedUnitPrice : existingBalance.lastPurchaseUnitCost;
+      const nextLastPurchaseDate = lastPurchaseDate !== undefined
+        ? (lastPurchaseDate || null)
+        : (existingBalance.lastPurchaseDate || null);
       await admin
         .from('InventoryBalance')
         .update({
-          lastPurchaseDate: lastPurchaseDate || null,
+          averageUnitCost: nextAverageUnitCost,
+          lastPurchaseUnitCost: nextLastPurchaseUnitCost,
+          lastPurchaseDate: nextLastPurchaseDate,
           updatedAt: new Date().toISOString()
         })
         .eq('itemId', id)
@@ -83,8 +102,8 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
           itemId: id,
           locationId: storeLocation.id,
           quantityOnHand: 0,
-          averageUnitCost: 0,
-          lastPurchaseUnitCost: 0,
+          averageUnitCost: shouldUpdateCost ? parsedUnitPrice : 0,
+          lastPurchaseUnitCost: shouldUpdateCost ? parsedUnitPrice : 0,
           lastPurchaseDate: lastPurchaseDate || null
         });
     }
@@ -98,7 +117,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
      type: 'ADJUSTMENT',
      quantity: 0,
      direction: 'IN',
-     unitCost: null,
+     unitCost: shouldUpdateCost ? parsedUnitPrice : null,
      datePurchased: lastPurchaseDate || null,
      referenceType: 'ITEM_EDIT',
      referenceId: id,
@@ -108,7 +127,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   }
 
   return NextResponse.json({ item: data });
- } catch (error: any) {
+ } catch (error: unknown) {
   console.error('Inventory item update error:', error);
   return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
  }
@@ -154,7 +173,7 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
   });
 
   return NextResponse.json({ success: true });
- } catch (error: any) {
+ } catch (error: unknown) {
   console.error('Inventory item delete error:', error);
   return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
  }

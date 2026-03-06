@@ -18,6 +18,13 @@ const makeLegacyBatchCode = (name: string) => {
   return `${slug}-${stamp}`;
 };
 
+const normalizeProductionType = (value: unknown): 'Fingerlings' | 'Juvenile' | 'Grow-out (Adult)' => {
+  const input = String(value || '').trim();
+  if (input === 'Juvenile') return 'Juvenile';
+  if (input === 'Grow-out (Adult)' || input === 'Melange') return 'Grow-out (Adult)';
+  return 'Fingerlings';
+};
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await getAuthContext();
@@ -30,9 +37,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const batchId = searchParams.get('batchId') || searchParams.get('id');
     const requestedType = searchParams.get('productionType');
-    const productionType = requestedType === 'Juvenile' || requestedType === 'Melange'
-      ? requestedType
-      : 'Fingerlings';
+    const productionType = normalizeProductionType(requestedType);
 
     let query = admin
       .from('CatfishBatch')
@@ -126,9 +131,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const batchName = String(body.batchName || '').trim();
-    const productionType = body.productionType === 'Juvenile' || body.productionType === 'Melange'
-      ? body.productionType
-      : 'Fingerlings';
+    const productionType = normalizeProductionType(body.productionType);
     const initialStock = Math.floor(Number(body.initialStock || 0));
     const initialSeedCost = roundTo2(Number(body.initialSeedCost || 0));
 
@@ -255,9 +258,7 @@ export async function PATCH(request: NextRequest) {
 
     const body = await request.json();
     const batchName = String(body.batchName || '').trim();
-    const productionType = body.productionType === 'Juvenile' || body.productionType === 'Melange'
-      ? body.productionType
-      : 'Fingerlings';
+    const productionType = normalizeProductionType(body.productionType);
     const initialStock = Math.floor(Number(body.initialStock || 0));
     const initialSeedCost = roundTo2(Number(body.initialSeedCost || 0));
 

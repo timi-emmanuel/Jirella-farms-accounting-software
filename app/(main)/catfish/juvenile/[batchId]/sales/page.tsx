@@ -1,4 +1,6 @@
 import { CatfishSalesGrid } from "@/features/catfish/components/CatfishSalesGrid";
+import { getAuthContext } from "@/lib/server/auth";
+import { redirect } from "next/navigation";
 
 export default async function CatfishJuvenileBatchSalesPage({
   params,
@@ -6,6 +8,10 @@ export default async function CatfishJuvenileBatchSalesPage({
   params: Promise<{ batchId: string }>;
 }) {
   const { batchId } = await params;
+  const auth = await getAuthContext();
+  if (auth?.role === "CATFISH_STAFF") {
+    redirect(`/catfish/juvenile/${batchId}`);
+  }
   return (
     <div className="h-full flex flex-col space-y-6">
       <div className="flex flex-col">

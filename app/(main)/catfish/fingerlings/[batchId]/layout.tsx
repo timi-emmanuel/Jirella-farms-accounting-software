@@ -1,4 +1,5 @@
 import { CatfishBatchTabs } from "@/features/catfish/components/CatfishBatchTabs";
+import { getAuthContext } from "@/lib/server/auth";
 
 export default async function CatfishFingerlingsBatchLayout({
   children,
@@ -8,10 +9,12 @@ export default async function CatfishFingerlingsBatchLayout({
   params: Promise<{ batchId: string }>;
 }) {
   const { batchId } = await params;
+  const auth = await getAuthContext();
+  const hideRestrictedTabs = auth?.role === "CATFISH_STAFF";
 
   return (
     <div className="h-full flex flex-col space-y-4 overflow-y-auto modal-scrollbar pr-2">
-      <CatfishBatchTabs batchId={batchId} />
+      <CatfishBatchTabs batchId={batchId} hideFinanceTab={hideRestrictedTabs} hideSalesTab={hideRestrictedTabs} />
       {children}
     </div>
   );

@@ -1,4 +1,5 @@
 import { CatfishBatchTabs } from "@/features/catfish/components/CatfishBatchTabs";
+import { getAuthContext } from "@/lib/server/auth";
 
 const juvenileTabs = [
   { label: "Overview", suffix: "" },
@@ -15,10 +16,18 @@ export default async function CatfishJuvenileBatchLayout({
   params: Promise<{ batchId: string }>;
 }) {
   const { batchId } = await params;
+  const auth = await getAuthContext();
+  const hideRestrictedTabs = auth?.role === "CATFISH_STAFF";
 
   return (
     <div className="h-full flex flex-col space-y-4 overflow-y-auto modal-scrollbar pr-2">
-      <CatfishBatchTabs batchId={batchId} basePath="/catfish/juvenile" tabs={juvenileTabs} />
+      <CatfishBatchTabs
+        batchId={batchId}
+        basePath="/catfish/juvenile"
+        tabs={juvenileTabs}
+        hideFinanceTab={hideRestrictedTabs}
+        hideSalesTab={hideRestrictedTabs}
+      />
       {children}
     </div>
   );

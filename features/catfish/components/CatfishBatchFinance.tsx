@@ -40,7 +40,7 @@ const metric = (value: number | null | undefined, suffix = "") =>
     : `${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${suffix}`;
 
 type Props = {
-  stage?: 'fingerlings' | 'juvenile' | 'melange';
+  stage?: 'fingerlings' | 'juvenile' | 'growout';
   stageLabel?: string;
 };
 

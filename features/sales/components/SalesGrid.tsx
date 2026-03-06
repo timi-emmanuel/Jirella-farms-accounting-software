@@ -19,7 +19,7 @@ import {
  themeQuartz
 } from 'ag-grid-community';
 import { toast } from "@/lib/toast";
-import { Loader2, Plus, TrendingUp } from 'lucide-react';
+import { Loader2, Pencil, Plus, TrendingUp } from 'lucide-react';
 import { Sale, Product } from '@/types';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,8 +78,11 @@ export function SalesGrid({
  const [loading, setLoading] = useState(true);
  const [showAddSale, setShowAddSale] = useState(false);
  const [showAddProduct, setShowAddProduct] = useState(false);
+ const [showEditSale, setShowEditSale] = useState(false);
  const [submitting, setSubmitting] = useState(false);
  const [creatingProduct, setCreatingProduct] = useState(false);
+ const [updatingSale, setUpdatingSale] = useState(false);
+ const [undoingSaleId, setUndoingSaleId] = useState<string | null>(null);
  const [moduleFilter, setModuleFilter] = useState<ModuleFilter>(initialModule);
 
  const [newSale, setNewSale] = useState({
@@ -97,6 +100,15 @@ export function SalesGrid({
   name: '',
   module: 'FEED_MILL' as ModuleFilter,
   unit: ''
+ });
+ const [editSale, setEditSale] = useState({
+  id: '',
+  soldAt: new Date().toISOString().split('T')[0],
+  unitSellingPrice: '',
+  notes: '',
+  customerName: '',
+  customerContact: '',
+  customerAddress: ''
  });
 
  const loadSales = async (moduleValue: ModuleFilter) => {
@@ -215,6 +227,96 @@ export function SalesGrid({
   setCreatingProduct(false);
  };
 
+ const openEditSale = (sale: Sale) => {
+  setEditSale({
+   id: sale.id,
+   soldAt: sale.soldAt ? String(sale.soldAt).split('T')[0] : new Date().toISOString().split('T')[0],
+   unitSellingPrice: String(Number(sale.unitSellingPrice || 0)),
+   notes: sale.notes || '',
+   customerName: sale.customerName || '',
+   customerContact: sale.customerContact || '',
+   customerAddress: sale.customerAddress || ''
+  });
+  setShowEditSale(true);
+ };
+
+ const handleEditSale = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!editSale.id) return;
+  if (!editSale.customerName.trim()) {
+   toast({ title: "Missing customer", description: "Customer name is required.", variant: "destructive" });
+   return;
+  }
+  const contactDigits = editSale.customerContact.replace(/\D/g, '');
+  if (contactDigits && !/^\d{11}$/.test(contactDigits)) {
+   toast({ title: "Invalid contact", description: "Contact must be an 11 digit number.", variant: "destructive" });
+   return;
+  }
+
+  setUpdatingSale(true);
+  const response = await fetch(`/api/sales?id=${editSale.id}`, {
+   method: 'PATCH',
+   headers: { 'Content-Type': 'application/json' },
+   body: JSON.stringify({
+    soldAt: editSale.soldAt,
+    unitSellingPrice: Number(editSale.unitSellingPrice || 0),
+    notes: editSale.notes || null,
+    customerName: editSale.customerName.trim(),
+    customerContact: contactDigits || null,
+    customerAddress: editSale.customerAddress || null
+   })
+  });
+
+  if (!response.ok) {
+   const payload = await response.json().catch(() => ({}));
+   toast({
+    title: "Error",
+    description: payload.error || 'Failed to update sale.',
+    variant: "destructive"
+   });
+  } else {
+   setShowEditSale(false);
+   loadSales(moduleFilter);
+  }
+  setUpdatingSale(false);
+ };
+
+ const handleUndoSale = async (sale: Sale) => {
+  if (!sale?.id) return;
+  if (sale.module !== 'FEED_MILL') {
+   toast({
+    title: "Not allowed",
+    description: "Undo sale is currently supported for Feed Mill sales only.",
+    variant: "destructive"
+   });
+   return;
+  }
+
+  const confirmed = window.confirm(
+   `Undo this sale for "${sale.product?.name || 'product'}"? This will return the quantity to finished stock.`
+  );
+  if (!confirmed) return;
+
+  setUndoingSaleId(sale.id);
+  const response = await fetch(`/api/sales?id=${sale.id}`, { method: 'DELETE' });
+  if (!response.ok) {
+   const payload = await response.json().catch(() => ({}));
+   toast({
+    title: "Error",
+    description: payload.error || 'Failed to undo sale.',
+    variant: "destructive"
+   });
+  } else {
+   toast({
+    title: "Sale undone",
+    description: "Sale was reversed and stock has been restored."
+   });
+   loadSales(moduleFilter);
+   loadProducts(moduleFilter);
+  }
+  setUndoingSaleId(null);
+ };
+
  const stockByProductId = useMemo(() => {
   return new Map(products.map((product) => [product.id, product]));
  }, [products]);
@@ -331,6 +433,45 @@ export function SalesGrid({
         </span>
       )
     }])
+  ,
+  {
+   headerName: "Actions",
+   minWidth: 180,
+   maxWidth: 190,
+   pinned: 'right',
+   lockPinned: true,
+   sortable: false,
+   filter: false,
+   cellRenderer: (p: any) => {
+    const sale = p.data as Sale;
+    const isUndoing = undoingSaleId === sale.id;
+    const canUndo = sale.module === 'FEED_MILL';
+
+    return (
+      <div className="flex w-full items-center justify-center gap-1">
+       <Button
+        size="sm"
+        variant="ghost"
+        className="h-8 px-1.5 text-slate-500 hover:text-blue-600 hover:bg-transparent"
+        onClick={() => openEditSale(sale)}
+       >
+        <Pencil className="w-4 h-4 mr-1" />
+        Edit
+       </Button>
+       <Button
+        size="sm"
+        variant="ghost"
+        disabled={!canUndo || isUndoing}
+        className="h-8 px-1.5 text-rose-600 hover:text-rose-700 hover:bg-transparent disabled:text-slate-300"
+        onClick={() => handleUndoSale(sale)}
+       >
+        {isUndoing ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+        Undo
+       </Button>
+      </div>
+    );
+   }
+  }
   ];
 
   if (showStockColumn) {
@@ -349,7 +490,7 @@ export function SalesGrid({
   }
 
   return columns;
- }, [stockByProductId, showStockColumn, hideCogsColumn, hideGrossProfitColumn]);
+ }, [stockByProductId, showStockColumn, hideCogsColumn, hideGrossProfitColumn, undoingSaleId, handleUndoSale]);
 
  const selectedProduct = products.find(p => p.id === newSale.productId);
  const selectedStock = Number(selectedProduct?.quantityOnHand || 0);
@@ -444,7 +585,7 @@ export function SalesGrid({
      </DialogContent>
     </Dialog>
 
-    <Dialog open={showAddSale} onOpenChange={setShowAddSale}>
+   <Dialog open={showAddSale} onOpenChange={setShowAddSale}>
       <DialogTrigger asChild>
        <Button className="bg-emerald-700 hover:bg-emerald-800 shadow-lg shadow-emerald-700/20 transition-all hover:scale-105 active:scale-95 px-6 mr-2">
         <Plus className="w-4 h-4 " />
@@ -564,6 +705,55 @@ export function SalesGrid({
         </Button>
        </DialogFooter>
       </form>
+    </DialogContent>
+   </Dialog>
+
+   <Dialog open={showEditSale} onOpenChange={setShowEditSale}>
+    <DialogContent className="sm:max-w-112.5">
+     <DialogHeader>
+      <DialogTitle className="text-xl font-bold tracking-tight">Edit Sale</DialogTitle>
+     </DialogHeader>
+     <form onSubmit={handleEditSale} className="space-y-4 py-2">
+      <div className="space-y-2">
+       <Label htmlFor="editSaleDate">Sale Date</Label>
+       <Input id="editSaleDate" type="date" value={editSale.soldAt} onChange={(e) => setEditSale({ ...editSale, soldAt: e.target.value })} required />
+      </div>
+      <div className="space-y-2">
+       <Label htmlFor="editUnitPrice">Unit Price (N)</Label>
+       <Input id="editUnitPrice" type="number" min="0" step="0.01" value={editSale.unitSellingPrice} onChange={(e) => setEditSale({ ...editSale, unitSellingPrice: e.target.value })} required />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+       <div className="space-y-2">
+        <Label htmlFor="editCustomerName">Customer Name</Label>
+        <Input id="editCustomerName" value={editSale.customerName} onChange={(e) => setEditSale({ ...editSale, customerName: e.target.value })} required />
+       </div>
+       <div className="space-y-2">
+        <Label htmlFor="editCustomerContact">Contact</Label>
+        <Input
+         id="editCustomerContact"
+         value={editSale.customerContact}
+         inputMode="numeric"
+         maxLength={11}
+         placeholder="11-digit number"
+         onChange={(e) => setEditSale({ ...editSale, customerContact: e.target.value.replace(/\D/g, '').slice(0, 11) })}
+        />
+       </div>
+      </div>
+      <div className="space-y-2">
+       <Label htmlFor="editCustomerAddress">Address</Label>
+       <Input id="editCustomerAddress" value={editSale.customerAddress} onChange={(e) => setEditSale({ ...editSale, customerAddress: e.target.value })} />
+      </div>
+      <div className="space-y-2">
+       <Label htmlFor="editNotes">Notes</Label>
+       <Input id="editNotes" value={editSale.notes} onChange={(e) => setEditSale({ ...editSale, notes: e.target.value })} />
+      </div>
+      <DialogFooter>
+       <Button type="submit" disabled={updatingSale} className="w-full">
+        {updatingSale ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+        Save Changes
+       </Button>
+      </DialogFooter>
+     </form>
     </DialogContent>
    </Dialog>
      </div>

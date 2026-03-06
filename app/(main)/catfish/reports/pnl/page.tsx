@@ -2,8 +2,15 @@ import { CatfishPnlReportGrid } from "@/features/catfish/components/CatfishPnlRe
 import { CatfishBatchPnlGrid } from "@/features/catfish/components/CatfishBatchPnlGrid";
 import { ClipboardList, LayoutGrid } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getAuthContext } from "@/lib/server/auth";
+import { redirect } from "next/navigation";
 
-export default function CatfishPnlReportPage() {
+export default async function CatfishPnlReportPage() {
+  const auth = await getAuthContext();
+  if (auth?.role === "CATFISH_STAFF") {
+    redirect("/catfish/dashboard");
+  }
+
   return (
     <div className="h-full flex flex-col space-y-6">
       <div className="flex flex-col">

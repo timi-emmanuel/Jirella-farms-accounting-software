@@ -256,6 +256,7 @@ rowData={rowData}
                 <SelectContent>
                   <SelectItem value="POULTRY">Poultry</SelectItem>
                   <SelectItem value="CATFISH">Catfish</SelectItem>
+                  <SelectItem value="BSF">BSF</SelectItem>
                 </SelectContent>
               </Select>
             </div>

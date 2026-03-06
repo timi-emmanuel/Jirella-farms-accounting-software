@@ -608,12 +608,13 @@ BEGIN
         fip."soldByUserId",
         CASE
           WHEN fgl."referenceType" = 'INTERNAL_FEED_PURCHASE_CATFISH' THEN 'CATFISH'
+          WHEN fgl."referenceType" = 'INTERNAL_FEED_PURCHASE_BSF' THEN 'BSF'
           ELSE 'POULTRY'
         END AS target_module,
         fgl."unitCostAtTime" AS unit_cost_at_time
       FROM "FeedInternalPurchase" fip
       LEFT JOIN "FinishedGoodsLedger" fgl
-        ON fgl."referenceType" IN ('INTERNAL_FEED_PURCHASE', 'INTERNAL_FEED_PURCHASE_CATFISH')
+        ON fgl."referenceType" IN ('INTERNAL_FEED_PURCHASE', 'INTERNAL_FEED_PURCHASE_CATFISH', 'INTERNAL_FEED_PURCHASE_BSF')
        AND fgl."referenceId" = fip.id::text
        AND fgl."type" = 'INTERNAL_SALE_OUT'
       JOIN "Product" p ON p.id = fip."productId"

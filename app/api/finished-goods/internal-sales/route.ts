@@ -5,7 +5,8 @@ import { logActivityServer } from '@/lib/server/activity-log';
 import { roundTo2 } from '@/lib/utils';
 
 const EDIT_ROLES = ['ADMIN', 'MANAGER', 'FEED_MILL_STAFF'];
-const VIEW_ROLES = ['ADMIN', 'MANAGER', 'FEED_MILL_STAFF', 'POULTRY_STAFF', 'CATFISH_STAFF', 'ACCOUNTANT'];
+const VIEW_ROLES = ['ADMIN', 'MANAGER', 'FEED_MILL_STAFF', 'POULTRY_STAFF', 'CATFISH_STAFF', 'BSF_STAFF', 'PROCUREMENT_MANAGER', 'ACCOUNTANT'];
+type LedgerReferenceRow = { referenceId: string | null };
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,7 +19,11 @@ export async function POST(request: NextRequest) {
     const { productId, quantityKg, unitPrice, boughtByUserId, targetModule } = await request.json();
     const qtyKg = roundTo2(Number(quantityKg));
     const price = roundTo2(Number(unitPrice));
-    const moduleTarget = targetModule === 'CATFISH' ? 'CATFISH' : 'POULTRY';
+    const moduleTarget = targetModule === 'CATFISH'
+      ? 'CATFISH'
+      : targetModule === 'BSF'
+        ? 'BSF'
+        : 'POULTRY';
 
     if (!productId || !Number.isFinite(qtyKg) || qtyKg <= 0 || !Number.isFinite(price) || price <= 0) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
@@ -63,7 +68,9 @@ export async function POST(request: NextRequest) {
 
     const rpcName = moduleTarget === 'CATFISH'
       ? 'handle_internal_feed_purchase_catfish'
-      : 'handle_internal_feed_purchase';
+      : moduleTarget === 'BSF'
+        ? 'handle_internal_feed_purchase_bsf'
+        : 'handle_internal_feed_purchase';
 
     const { data: purchaseId, error } = await admin.rpc(rpcName, {
       p_product_id: productId,
@@ -112,7 +119,7 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ id: purchaseId, saleId: saleRow?.id ?? null });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Internal feed sale error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -136,17 +143,19 @@ export async function GET(request: NextRequest) {
       .select('*, product:Product(name, unit, unitSizeKg)')
       .order('purchaseDate', { ascending: false });
 
-    if (targetModule === 'CATFISH' || targetModule === 'POULTRY') {
+    if (targetModule === 'CATFISH' || targetModule === 'POULTRY' || targetModule === 'BSF') {
       const referenceType = targetModule === 'CATFISH'
         ? 'INTERNAL_FEED_PURCHASE_CATFISH'
-        : 'INTERNAL_FEED_PURCHASE';
+        : targetModule === 'BSF'
+          ? 'INTERNAL_FEED_PURCHASE_BSF'
+          : 'INTERNAL_FEED_PURCHASE';
       const { data: refs } = await admin
         .from('FinishedGoodsLedger')
         .select('referenceId')
         .eq('referenceType', referenceType);
 
-      const ids = (refs || [])
-        .map((row: any) => row.referenceId)
+      const ids = ((refs || []) as LedgerReferenceRow[])
+        .map((row) => row.referenceId)
         .filter((id: string | null) => !!id);
 
       if (ids.length === 0) {
@@ -163,7 +172,7 @@ export async function GET(request: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
     return NextResponse.json({ purchases: data || [] });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Internal feed sale fetch error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

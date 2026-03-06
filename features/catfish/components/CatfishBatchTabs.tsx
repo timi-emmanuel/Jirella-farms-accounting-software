@@ -8,6 +8,8 @@ type Props = {
   batchId: string;
   basePath?: string;
   tabs?: Array<{ label: string; suffix: string }>;
+  hideFinanceTab?: boolean;
+  hideSalesTab?: boolean;
 };
 
 const defaultTabs = [
@@ -20,14 +22,21 @@ const defaultTabs = [
 export function CatfishBatchTabs({
   batchId,
   basePath = "/catfish/fingerlings",
-  tabs = defaultTabs
+  tabs = defaultTabs,
+  hideFinanceTab = false,
+  hideSalesTab = false
 }: Props) {
   const pathname = usePathname();
   const base = `${basePath}/${batchId}`;
+  const visibleTabs = tabs.filter((tab) => {
+    if (hideFinanceTab && tab.suffix === "/finance") return false;
+    if (hideSalesTab && tab.suffix === "/sales") return false;
+    return true;
+  });
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {tabs.map((tab) => {
+      {visibleTabs.map((tab) => {
         const href = `${base}${tab.suffix}`;
         const isActive = pathname === href;
         return (

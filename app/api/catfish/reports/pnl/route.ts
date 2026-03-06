@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthContext, isRoleAllowed } from '@/lib/server/auth';
 import { roundTo2 } from '@/lib/utils';
 
-const VIEW_ROLES = ['ADMIN', 'MANAGER', 'CATFISH_STAFF', 'ACCOUNTANT'];
+const VIEW_ROLES = ['ADMIN', 'MANAGER', 'ACCOUNTANT'];
 
 const monthKey = (dateString?: string | null) => {
   if (!dateString) return null;

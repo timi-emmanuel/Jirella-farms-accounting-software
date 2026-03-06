@@ -3,7 +3,18 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { getAuthContext, isRoleAllowed } from '@/lib/server/auth';
 import { createClient as createServerClient } from '@/lib/supabase/server';
 
-const VIEW_ROLES = ['ADMIN', 'MANAGER', 'FEED_MILL_STAFF', 'POULTRY_STAFF', 'CATFISH_STAFF', 'ACCOUNTANT', 'STORE_KEEPER'];
+const VIEW_ROLES = ['ADMIN', 'MANAGER', 'FEED_MILL_STAFF', 'POULTRY_STAFF', 'CATFISH_STAFF', 'BSF_STAFF', 'PROCUREMENT_MANAGER', 'ACCOUNTANT', 'STORE_KEEPER'];
+type FinishedGoodsStockRow = {
+  productId: string;
+  quantityOnHand: number | string | null;
+  averageUnitCost: number | string | null;
+};
+const LOCATION_NAMES: Record<string, string> = {
+  FEED_MILL: 'Feed Mill',
+  POULTRY: 'Poultry',
+  BSF: 'BSF',
+  CATFISH: 'Catfish Facility'
+};
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,7 +32,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const code = searchParams.get('code');
-    const module = searchParams.get('module');
+    const moduleParam = searchParams.get('module');
     const onlyInStock = searchParams.get('onlyInStock') === 'true';
 
     if (!code) {
@@ -29,14 +40,42 @@ export async function GET(request: NextRequest) {
     }
 
     const admin = createAdminClient();
-    const { data: location, error: locationError } = await admin
+    const { data: locationData, error: locationError } = await admin
       .from('InventoryLocation')
       .select('id, code, name')
       .eq('code', code)
       .single();
+    let location = locationData;
 
+    // Self-heal common setup gaps where module location row is missing.
     if (locationError || !location) {
-      return NextResponse.json({ error: 'Location not found' }, { status: 404 });
+      const defaultName = LOCATION_NAMES[code];
+      if (!defaultName) {
+        return NextResponse.json({ error: 'Location not found' }, { status: 404 });
+      }
+
+      const { error: ensureError } = await admin
+        .from('InventoryLocation')
+        .upsert(
+          { code, name: defaultName },
+          { onConflict: 'code', ignoreDuplicates: false }
+        );
+
+      if (ensureError) {
+        return NextResponse.json({ error: ensureError.message }, { status: 400 });
+      }
+
+      const ensured = await admin
+        .from('InventoryLocation')
+        .select('id, code, name')
+        .eq('code', code)
+        .single();
+
+      if (ensured.error || !ensured.data) {
+        return NextResponse.json({ error: 'Location not found' }, { status: 404 });
+      }
+
+      location = ensured.data;
     }
 
     let productQuery = admin
@@ -44,8 +83,8 @@ export async function GET(request: NextRequest) {
       .select('id, name, unit, unitSizeKg, module')
       .order('name');
 
-    if (module) {
-      productQuery = productQuery.eq('module', module);
+    if (moduleParam) {
+      productQuery = productQuery.eq('module', moduleParam);
     }
 
     const { data: products, error: productError } = await productQuery;
@@ -59,7 +98,7 @@ export async function GET(request: NextRequest) {
       .in('productId', products.map((p) => p.id));
 
     const stockMap = new Map(
-      (stocks || []).map((stock: any) => [
+      ((stocks || []) as FinishedGoodsStockRow[]).map((stock) => [
         stock.productId,
         {
           quantityOnHand: Number(stock.quantityOnHand || 0),
@@ -82,7 +121,7 @@ export async function GET(request: NextRequest) {
       : enriched;
 
     return NextResponse.json({ location, items });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Finished goods location error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

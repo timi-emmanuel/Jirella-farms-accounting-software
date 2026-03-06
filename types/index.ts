@@ -204,7 +204,7 @@ export type CatfishBatchStatus = 'GROWING' | 'HARVESTING' | 'CLOSED';
 
 export interface CatfishBatch {
  id: string;
- productionType?: 'Fingerlings' | 'Juvenile' | 'Melange';
+ productionType?: 'Fingerlings' | 'Juvenile' | 'Grow-out (Adult)';
  batchName?: string;
  startDate: string;
  expectedHarvestDate?: string | null;
@@ -257,8 +257,10 @@ export interface CatfishSale {
  id: string;
  batchId: string;
  saleDate: string;
+ pricingMethod?: 'CM' | 'KG';
  saleType: 'Partial Offload' | 'Final Clear-Out';
  saleLengthCm?: number | null;
+ saleWeightKg?: number | null;
  sizeCategoryName?: string | null;
  quantitySold: number;
  unitPrice: number;
@@ -288,6 +290,48 @@ export interface CatfishHarvest {
  notes?: string | null;
  createdAt: string;
  batch?: CatfishBatch;
+}
+
+export type CatfishSpawningStatus = 'Incubating' | 'Completed' | 'Failed';
+
+export interface CatfishBroodstockLog {
+ id: string;
+ logDate: string;
+ feedBrand: string;
+ feedAmountKg: number;
+ feedUnitPrice: number;
+ dailyFeedCost: number;
+ mortalityCount: number;
+ notes?: string | null;
+ createdAt: string;
+}
+
+export interface CatfishSpawningEvent {
+ id: string;
+ eventDate: string;
+ femalesStripped: number;
+ hormoneCost: number;
+ maleFishCost: number;
+ sacrificedMaleWeightKg: number;
+ status: CatfishSpawningStatus;
+ notes?: string | null;
+ createdAt: string;
+}
+
+export interface CatfishFryTransfer {
+ id: string;
+ spawningEventId: string;
+ transferDate: string;
+ liveFryCount: number;
+ internalPricePerFry: number;
+ sacrificedMaleWeightKg: number;
+ sacrificedMaleMeatPrice: number;
+ totalTransferValue: number;
+ toBatchId?: string | null;
+ notes?: string | null;
+ createdAt: string;
+ spawningEvent?: CatfishSpawningEvent;
+ toBatch?: CatfishBatch;
 }
 
 export interface ProductionLog {

@@ -205,3 +205,146 @@ ALTER TABLE "Sale"
 
 ALTER TABLE "Sale"
   ADD COLUMN IF NOT EXISTS "totalAmount" NUMERIC;
+
+-- Internal purchase handler (Feed Mill -> BSF)
+CREATE OR REPLACE FUNCTION handle_internal_feed_purchase_bsf(
+  p_product_id UUID,
+  p_quantity_kg NUMERIC,
+  p_unit_price NUMERIC,
+  p_sold_by UUID,
+  p_bought_by UUID
+) RETURNS UUID AS $$
+DECLARE
+  v_feed_mill UUID;
+  v_bsf UUID;
+  v_product RECORD;
+  v_units NUMERIC;
+  v_unit_price_per_unit NUMERIC;
+  v_cost_basis_per_unit NUMERIC;
+  v_feed_mill_qty NUMERIC;
+  v_feed_mill_avg NUMERIC;
+  v_bsf_qty NUMERIC;
+  v_bsf_avg NUMERIC;
+  v_next_qty NUMERIC;
+  v_next_avg NUMERIC;
+  v_purchase_id UUID;
+BEGIN
+  SELECT id INTO v_feed_mill FROM "InventoryLocation" WHERE "code" = 'FEED_MILL';
+  SELECT id INTO v_bsf FROM "InventoryLocation" WHERE "code" = 'BSF';
+
+  IF v_feed_mill IS NULL OR v_bsf IS NULL THEN
+    RAISE EXCEPTION 'Locations not found';
+  END IF;
+
+  SELECT "unit", "unitSizeKg"
+  INTO v_product
+  FROM "Product"
+  WHERE id = p_product_id;
+
+  IF v_product."unit" = 'BAG' AND COALESCE(v_product."unitSizeKg", 0) > 0 THEN
+    v_units := ROUND((p_quantity_kg / v_product."unitSizeKg")::numeric, 2);
+    v_unit_price_per_unit := p_unit_price * v_product."unitSizeKg";
+  ELSE
+    v_units := p_quantity_kg;
+    v_unit_price_per_unit := p_unit_price;
+  END IF;
+
+  SELECT "quantityOnHand", "averageUnitCost"
+  INTO v_feed_mill_qty, v_feed_mill_avg
+  FROM "FinishedGoodsInventory"
+  WHERE "productId" = p_product_id AND "locationId" = v_feed_mill
+  FOR UPDATE;
+
+  IF COALESCE(v_feed_mill_qty, 0) < COALESCE(v_units, 0) THEN
+    RAISE EXCEPTION 'Insufficient feed mill stock';
+  END IF;
+
+  v_cost_basis_per_unit := COALESCE(NULLIF(v_feed_mill_avg, 0), v_unit_price_per_unit);
+
+  UPDATE "FinishedGoodsInventory"
+  SET "quantityOnHand" = v_feed_mill_qty - v_units,
+      "updatedAt" = NOW()
+  WHERE "productId" = p_product_id AND "locationId" = v_feed_mill;
+
+  SELECT "quantityOnHand", "averageUnitCost"
+  INTO v_bsf_qty, v_bsf_avg
+  FROM "FinishedGoodsInventory"
+  WHERE "productId" = p_product_id AND "locationId" = v_bsf
+  FOR UPDATE;
+
+  v_bsf_qty := COALESCE(v_bsf_qty, 0);
+  v_bsf_avg := COALESCE(v_bsf_avg, 0);
+  v_next_qty := v_bsf_qty + v_units;
+  v_next_avg := CASE
+    WHEN v_next_qty > 0 THEN ((v_bsf_qty * v_bsf_avg) + (v_units * v_cost_basis_per_unit)) / v_next_qty
+    ELSE v_cost_basis_per_unit
+  END;
+
+  INSERT INTO "FinishedGoodsInventory" ("productId", "locationId", "quantityOnHand", "averageUnitCost")
+  VALUES (p_product_id, v_bsf, v_next_qty, ROUND(v_next_avg::numeric, 2))
+  ON CONFLICT ("productId", "locationId") DO UPDATE SET
+    "quantityOnHand" = EXCLUDED."quantityOnHand",
+    "averageUnitCost" = EXCLUDED."averageUnitCost",
+    "updatedAt" = NOW();
+
+  INSERT INTO "FeedInternalPurchase" (
+    "productId",
+    "quantityKg",
+    "unitPrice",
+    "totalAmount",
+    "purchaseDate",
+    "soldByUserId",
+    "boughtByUserId"
+  ) VALUES (
+    p_product_id,
+    p_quantity_kg,
+    p_unit_price,
+    ROUND(p_quantity_kg * p_unit_price, 2),
+    CURRENT_DATE,
+    p_sold_by,
+    p_bought_by
+  ) RETURNING id INTO v_purchase_id;
+
+  INSERT INTO "FinishedGoodsLedger" (
+    "productId",
+    "locationId",
+    "type",
+    "quantity",
+    "unitCostAtTime",
+    "referenceType",
+    "referenceId",
+    "createdBy"
+  ) VALUES (
+    p_product_id,
+    v_feed_mill,
+    'INTERNAL_SALE_OUT',
+    v_units,
+    v_cost_basis_per_unit,
+    'INTERNAL_FEED_PURCHASE_BSF',
+    v_purchase_id::text,
+    p_sold_by
+  );
+
+  INSERT INTO "FinishedGoodsLedger" (
+    "productId",
+    "locationId",
+    "type",
+    "quantity",
+    "unitCostAtTime",
+    "referenceType",
+    "referenceId",
+    "createdBy"
+  ) VALUES (
+    p_product_id,
+    v_bsf,
+    'INTERNAL_PURCHASE_IN',
+    v_units,
+    v_cost_basis_per_unit,
+    'INTERNAL_FEED_PURCHASE_BSF',
+    v_purchase_id::text,
+    p_bought_by
+  );
+
+  RETURN v_purchase_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

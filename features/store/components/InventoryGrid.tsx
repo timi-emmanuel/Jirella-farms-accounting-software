@@ -116,6 +116,7 @@ export function InventoryGrid() {
   name: '',
   unit: 'KG',
   description: '',
+  unitPrice: '',
   purchaseDate: '',
   trackInFeedMill: true,
   adjustQuantity: '',
@@ -152,6 +153,7 @@ export function InventoryGrid() {
    name: item.name ?? '',
    unit: item.unit ?? 'KG',
    description: item.description ?? '',
+   unitPrice: String(item.lastPurchaseUnitCost ?? item.averageUnitCost ?? 0),
    purchaseDate: isoToDdMmYyyy(item.lastPurchaseDate),
    trackInFeedMill: item.trackInFeedMill ?? true,
    adjustQuantity: '',
@@ -352,6 +354,14 @@ export function InventoryGrid() {
   setSubmitting(true);
   setEditingId(editForm.id);
 
+  const parsedUnitPrice = Number(editForm.unitPrice || 0);
+  if (!Number.isFinite(parsedUnitPrice) || parsedUnitPrice < 0) {
+   toast({ title: "Error", description: "Unit price must be a valid non-negative number.", variant: "destructive" });
+   setSubmitting(false);
+   setEditingId(null);
+   return;
+  }
+
   const updateResponse = await fetch(`/api/inventory/items/${editForm.id}`, {
    method: 'PATCH',
    headers: { 'Content-Type': 'application/json' },
@@ -359,6 +369,7 @@ export function InventoryGrid() {
     name: editForm.name,
     unit: editForm.unit,
     description: editForm.description || null,
+    unitPrice: parsedUnitPrice,
     lastPurchaseDate: isoPurchaseDate,
     trackInFeedMill: editForm.trackInFeedMill
    })
@@ -673,16 +684,29 @@ export function InventoryGrid() {
           </Select>
          </div>
         </div>
-        <div className="space-y-2">
-         <Label htmlFor="editPurchaseDate">Date Purchased</Label>
-         <Input
-          id="editPurchaseDate"
-          type="text"
-          value={editForm.purchaseDate}
-          onChange={(e) => setEditForm({ ...editForm, purchaseDate: e.target.value })}
-          placeholder="dd-mm-yyyy"
-          pattern="\d{2}-\d{2}-\d{4}"
-         />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+         <div className="space-y-2">
+          <Label htmlFor="editUnitPrice">Unit Price (N)</Label>
+          <Input
+           id="editUnitPrice"
+           type="number"
+           min="0"
+           step="0.01"
+           value={editForm.unitPrice}
+           onChange={(e) => setEditForm({ ...editForm, unitPrice: e.target.value })}
+          />
+         </div>
+         <div className="space-y-2">
+          <Label htmlFor="editPurchaseDate">Date Purchased</Label>
+          <Input
+           id="editPurchaseDate"
+           type="text"
+           value={editForm.purchaseDate}
+           onChange={(e) => setEditForm({ ...editForm, purchaseDate: e.target.value })}
+           placeholder="dd-mm-yyyy"
+           pattern="\d{2}-\d{2}-\d{4}"
+          />
+         </div>
         </div>
         <div className="border-t pt-3 space-y-3">
          <p className="text-sm font-medium">Optional stock adjustment</p>

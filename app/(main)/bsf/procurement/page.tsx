@@ -1,5 +1,5 @@
-import { ModuleInventoryGrid } from "@/features/inventory/components/ModuleInventoryGrid";
-import { ModuleTransferRequestGrid } from "@/features/inventory/components/ModuleTransferRequestGrid";
+import { BsfFeedStockGrid } from "@/features/bsf/components/BsfFeedStockGrid";
+import { BsfFeedPurchaseGrid } from "@/features/bsf/components/BsfFeedPurchaseGrid";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClipboardList, Warehouse } from "lucide-react";
 
@@ -11,7 +11,7 @@ export default function BsfProcurementPage() {
           BSF <span className="text-emerald-600">Procurement</span>
         </h1>
         <p className="text-slate-500 text-sm font-medium">
-          Request PKC, poultry waste, and additives for BSF batches.
+          Feed stock and internal purchases from feed mill.
         </p>
       </div>
       <Tabs defaultValue="inventory" className="flex-1 flex flex-col overflow-hidden">
@@ -23,17 +23,17 @@ export default function BsfProcurementPage() {
             </TabsTrigger>
             <TabsTrigger value="history">
               <ClipboardList className="w-4 h-4 mr-2" />
-              Request History
+              Purchases
             </TabsTrigger>
           </TabsList>
         </div>
 
         <TabsContent value="inventory" className="flex-1 overflow-hidden mt-0 border-0 p-0 data-[state=inactive]:hidden h-full">
-          <ModuleInventoryGrid moduleKey="BSF" />
+          <BsfFeedStockGrid />
         </TabsContent>
 
         <TabsContent value="history" className="flex-1 overflow-hidden mt-0 border-0 p-0 data-[state=inactive]:hidden h-full">
-          <ModuleTransferRequestGrid moduleKey="BSF" />
+          <BsfFeedPurchaseGrid />
         </TabsContent>
       </Tabs>
     </div>

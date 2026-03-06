@@ -22,6 +22,7 @@ import {
 import { toast } from "@/lib/toast";
 import { Loader2, Plus } from 'lucide-react';
 import { CatfishBatch, CatfishFeedLog, Product } from '@/types';
+import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -58,7 +59,7 @@ type Props = {
   batchId?: string;
   hideBatchColumn?: boolean;
   mode?: 'all' | 'mortality' | 'feed';
-  productionType?: 'Fingerlings' | 'Juvenile' | 'Melange';
+  productionType?: 'Fingerlings' | 'Juvenile' | 'Grow-out (Adult)';
   stageLabel?: string;
 };
 
@@ -69,6 +70,8 @@ export function CatfishFeedLogGrid({
   productionType = 'Fingerlings',
   stageLabel = 'Fingerlings'
 }: Props) {
+  const { role } = useUserRole();
+  const canViewFinancials = role !== 'CATFISH_STAFF';
   const [rowData, setRowData] = useState<CatfishFeedLog[]>([]);
   const [batches, setBatches] = useState<CatfishBatch[]>([]);
   const [products, setProducts] = useState<(Product & { quantityOnHand?: number })[]>([]);
@@ -91,7 +94,7 @@ export function CatfishFeedLogGrid({
     const query = batchId ? `?batchId=${batchId}` : '';
     const [logRes, batchRes, productRes] = await Promise.all([
       fetch(`/api/catfish/feed-logs${query}`),
-      fetch(`/api/catfish/batches?productionType=${productionType}`),
+      fetch(`/api/catfish/batches?productionType=${encodeURIComponent(productionType)}`),
       fetch('/api/finished-goods/location?code=CATFISH&module=FEED_MILL')
     ]);
 
@@ -200,27 +203,31 @@ export function CatfishFeedLogGrid({
     cols.push(
       { headerName: 'Feed Product', minWidth: 160, valueGetter: (p: any) => p.data.feedProduct?.name || '-' },
       { field: 'feedAmountKg', headerName: 'Feed (kg)', type: 'numericColumn', minWidth: 120 },
-      {
-        field: 'feedUnitPrice',
-        headerName: 'Unit Price (₦)',
-        type: 'numericColumn',
-        minWidth: 130,
-        valueFormatter: (p: any) => `${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-      },
-      {
-        field: 'dailyFeedCost',
-        headerName: 'Feed Cost (₦)',
-        type: 'numericColumn',
-        minWidth: 130,
-        valueFormatter: (p: any) => `${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-      },
       { field: 'mortalityCount', headerName: 'Mortality', type: 'numericColumn', minWidth: 110 },
       { field: 'abwGrams', headerName: 'ABW (g)', type: 'numericColumn', minWidth: 100, valueFormatter: (p: any) => p.value ? Number(p.value).toLocaleString() : '-' },
       { field: 'averageLengthCm', headerName: 'Length (cm)', type: 'numericColumn', minWidth: 110, valueFormatter: (p: any) => p.value ? Number(p.value).toLocaleString() : '-' },
       { field: 'notes', headerName: 'Notes', minWidth: 180, flex: 1 }
     );
+    if (canViewFinancials) {
+      cols.splice(4, 0,
+        {
+          field: 'feedUnitPrice',
+          headerName: 'Unit Price (₦)',
+          type: 'numericColumn',
+          minWidth: 130,
+          valueFormatter: (p: any) => `${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+        },
+        {
+          field: 'dailyFeedCost',
+          headerName: 'Feed Cost (₦)',
+          type: 'numericColumn',
+          minWidth: 130,
+          valueFormatter: (p: any) => `${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+        }
+      );
+    }
     return cols;
-  }, [hideBatchColumn, mode]);
+  }, [hideBatchColumn, mode, canViewFinancials]);
 
   const displayedRows = useMemo(() => {
     if (mode === 'mortality') {

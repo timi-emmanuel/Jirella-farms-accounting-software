@@ -243,7 +243,16 @@ BEGIN
   ELSE
     v_next_qty := v_qty + p_quantity;
     IF p_unit_cost IS NOT NULL THEN
-      v_next_avg := ((v_qty * v_avg) + (p_quantity * p_unit_cost)) / NULLIF(v_next_qty, 0);
+      IF v_qty <= 0 THEN
+        -- When stock is empty, reset average to the latest incoming unit cost.
+        v_next_avg := p_unit_cost;
+      ELSE
+        -- When stock exists, keep weighted-average valuation.
+        v_next_avg := ((v_qty * v_avg) + (p_quantity * p_unit_cost)) / NULLIF(v_next_qty, 0);
+      END IF;
+    ELSIF v_qty <= 0 THEN
+      -- No stock and no incoming cost: fall back to the latest known purchase cost.
+      v_next_avg := COALESCE(v_last_purchase_unit_cost, 0);
     ELSE
       v_next_avg := v_avg;
     END IF;

@@ -41,6 +41,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from "@/lib/toast";
+import { useUserRole } from '@/hooks/useUserRole';
 
 ModuleRegistry.registerModules([
   CellStyleModule,
@@ -55,7 +56,7 @@ ModuleRegistry.registerModules([
 ]);
 
 type Props = {
-  productionType?: 'Fingerlings' | 'Juvenile' | 'Melange';
+  productionType?: 'Fingerlings' | 'Juvenile' | 'Grow-out (Adult)';
   basePath?: string;
   stageLabel?: string;
 };
@@ -65,6 +66,8 @@ export function CatfishBatchGrid({
   basePath = '/catfish/fingerlings',
   stageLabel = 'Fingerlings'
 }: Props) {
+  const { role } = useUserRole();
+  const canViewFinancials = role !== 'CATFISH_STAFF';
   const getToday = () => new Date().toISOString().split('T')[0];
   const [rowData, setRowData] = useState<CatfishBatch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,7 +96,7 @@ export function CatfishBatchGrid({
 
   const loadData = async () => {
     setLoading(true);
-    const response = await fetch(`/api/catfish/batches?productionType=${productionType}`);
+    const response = await fetch(`/api/catfish/batches?productionType=${encodeURIComponent(productionType)}`);
     const payload = await response.json().catch(() => ({}));
     if (response.ok) setRowData(payload.batches || []);
     setLoading(false);
@@ -128,7 +131,7 @@ export function CatfishBatchGrid({
         startDate: form.startDate,
         expectedHarvestDate: form.expectedHarvestDate || null,
         initialStock: Number(form.initialStock || 0),
-        initialSeedCost: Number(form.initialSeedCost || 0),
+        initialSeedCost: canViewFinancials ? Number(form.initialSeedCost || 0) : 0,
         status: form.status
       })
     });
@@ -191,7 +194,7 @@ export function CatfishBatchGrid({
         startDate: editForm.startDate,
         expectedHarvestDate: editForm.expectedHarvestDate || null,
         initialStock: Number(editForm.initialStock || 0),
-        initialSeedCost: Number(editForm.initialSeedCost || 0),
+        initialSeedCost: canViewFinancials ? Number(editForm.initialSeedCost || 0) : 0,
         status: editForm.status
       })
     });
@@ -228,7 +231,7 @@ export function CatfishBatchGrid({
     { field: 'currentPopulation', headerName: 'Current Pop.', type: 'numericColumn', minWidth: 120, valueGetter: (p: any) => Number(p.data.currentPopulation || 0) },
     {
       field: 'initialSeedCost',
-      headerName: 'Seed Cost (₦)',
+      headerName: 'Seed Cost (N)',
       type: 'numericColumn',
       minWidth: 130,
       valueFormatter: (p: any) => `${Number(p.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
@@ -285,6 +288,14 @@ export function CatfishBatchGrid({
     }
   ];
 
+  if (!canViewFinancials) {
+    const soldIndex = colDefs.findIndex((col) => col.field === 'totalSold');
+    if (soldIndex >= 0) colDefs.splice(soldIndex, 1);
+
+    const seedCostIndex = colDefs.findIndex((col) => col.field === 'initialSeedCost');
+    if (seedCostIndex >= 0) colDefs.splice(seedCostIndex, 1);
+  }
+
   if (loading && rowData.length === 0) {
     return (
       <div className="p-8 flex justify-center">
@@ -303,7 +314,7 @@ export function CatfishBatchGrid({
               New Batch
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto modal-scrollbar">
+          <DialogContent className="sm:max-w-140 max-h-[90vh] overflow-y-auto modal-scrollbar">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold tracking-tight">Create {stageLabel} Batch</DialogTitle>
             </DialogHeader>
@@ -322,15 +333,17 @@ export function CatfishBatchGrid({
                   <Input id="expectedHarvestDate" type="date" value={form.expectedHarvestDate} onChange={(e) => setForm({ ...form, expectedHarvestDate: e.target.value })} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className={`grid gap-4 ${canViewFinancials ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 <div className="space-y-2">
                   <Label>Initial Stock</Label>
                   <Input type="number" min="1" value={form.initialStock} onChange={(e) => setForm({ ...form, initialStock: e.target.value })} required />
                 </div>
-                <div className="space-y-2">
-                  <Label>Initial Seed Cost (₦)</Label>
-                  <Input type="number" min="0" step="0.01" value={form.initialSeedCost} onChange={(e) => setForm({ ...form, initialSeedCost: e.target.value })} required />
-                </div>
+                {canViewFinancials ? (
+                  <div className="space-y-2">
+                    <Label>Initial Seed Cost (N)</Label>
+                    <Input type="number" min="0" step="0.01" value={form.initialSeedCost} onChange={(e) => setForm({ ...form, initialSeedCost: e.target.value })} required />
+                  </div>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <Label>Status</Label>
@@ -353,7 +366,7 @@ export function CatfishBatchGrid({
         </Dialog>
 
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-          <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto modal-scrollbar">
+          <DialogContent className="sm:max-w-140 max-h-[90vh] overflow-y-auto modal-scrollbar">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold tracking-tight">Edit {stageLabel} Batch</DialogTitle>
             </DialogHeader>
@@ -372,15 +385,17 @@ export function CatfishBatchGrid({
                   <Input id="editExpectedHarvestDate" type="date" value={editForm.expectedHarvestDate} onChange={(e) => setEditForm({ ...editForm, expectedHarvestDate: e.target.value })} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className={`grid gap-4 ${canViewFinancials ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 <div className="space-y-2">
                   <Label>Initial Stock</Label>
                   <Input type="number" min="1" value={editForm.initialStock} onChange={(e) => setEditForm({ ...editForm, initialStock: e.target.value })} required />
                 </div>
-                <div className="space-y-2">
-                  <Label>Initial Seed Cost (₦)</Label>
-                  <Input type="number" min="0" step="0.01" value={editForm.initialSeedCost} onChange={(e) => setEditForm({ ...editForm, initialSeedCost: e.target.value })} required />
-                </div>
+                {canViewFinancials ? (
+                  <div className="space-y-2">
+                    <Label>Initial Seed Cost (N)</Label>
+                    <Input type="number" min="0" step="0.01" value={editForm.initialSeedCost} onChange={(e) => setEditForm({ ...editForm, initialSeedCost: e.target.value })} required />
+                  </div>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <Label>Status</Label>
@@ -406,7 +421,7 @@ export function CatfishBatchGrid({
       <div className="flex-1 border rounded-2xl overflow-hidden bg-white shadow-xl shadow-slate-200/50">
         <AgGridReact
           suppressMovableColumns={typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches}
-theme={themeQuartz}
+          theme={themeQuartz}
           rowData={rowData}
           columnDefs={colDefs}
           defaultColDef={{
@@ -423,4 +438,3 @@ theme={themeQuartz}
     </div>
   );
 }
-
