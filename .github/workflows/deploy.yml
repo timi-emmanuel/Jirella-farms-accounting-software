@@ -202,8 +202,8 @@ jobs:
           # Clean up local files
           rm -rf ./deploy-temp ./source.tar.gz
           
-          # Extract and deploy on server
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_IP }} 'cd ~/jirella-farm/ && tar -xzf source.tar.gz && rm source.tar.gz'
+          # Clean old code directories, extract, and deploy on server
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_IP }} 'cd ~/jirella-farm/ && rm -rf api app components config features hooks lib public sql types && tar -xzf source.tar.gz && rm source.tar.gz'
           
           # Execute deployment
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 ${{ secrets.STAGING_SERVER_USER }}@${{ secrets.STAGING_SERVER_IP }} '
