@@ -255,6 +255,26 @@ export interface CatfishSale {
  batch?: CatfishBatch;
 }
 
+// Kept broad for compatibility with existing and in-flight catfish harvest UIs.
+export interface CatfishHarvest {
+ id: string;
+ batchId: string;
+ harvestDate?: string;
+ date?: string;
+ harvestedQuantity?: number;
+ quantityKg?: number;
+ averageWeightKg?: number | null;
+ averageFishWeightKg?: number | null;
+ fishCountHarvested?: number | null;
+ totalRevenue?: number | null;
+ unitPrice?: number | null;
+ harvestMethod?: string | null;
+ notes?: string | null;
+ createdBy?: string | null;
+ createdAt: string;
+ batch?: CatfishBatch;
+}
+
 export type CatfishSpawningStatus = 'Incubating' | 'Completed' | 'Failed';
 
 export interface CatfishBroodstockLog {

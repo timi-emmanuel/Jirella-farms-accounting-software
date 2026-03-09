@@ -124,7 +124,7 @@ jobs:
           cat > release.config.js << 'EOF'
           export default {
             branches: [
-              { name: 'jirella-farm' }
+              { name: 'main' }
             ],
             repositoryUrl: 'https://github.com/${{ github.repository }}.git',
             tagFormat: 'v${version}',
