@@ -19,11 +19,11 @@ import {
   Settings,
   Menu,
   X,
-  Truck, // New icon
-  LayoutGrid, // New icon
-  FlaskConical, // New icon
+  Truck,
+  LayoutGrid,
+  FlaskConical,
   Egg,
-  Activity, // New icon
+  Activity,
   ClipboardList,
   Wallet,
   Bug,
@@ -93,13 +93,10 @@ const navigation: NavigationItem[] = [
     icon: Fish,
     subItems: [
       { name: 'Dashboard', href: '/catfish/dashboard', icon: LayoutDashboard },      
-      { name: 'Inventory', href: '/catfish/inventory', icon: Package },
-      { name: 'Expenses', href: '/catfish/expenses', icon: Wallet },
-      { name: 'Hatchery', href: '/catfish/hatchery/broodstock', icon: Fish },
-      { name: 'Fingerlings', href: '/catfish/fingerlings', icon: Fish },
-      { name: 'Juvenile', href: '/catfish/juvenile', icon: Fish },
-      { name: 'Grow-out (Adult)', href: '/catfish/growout', icon: Fish },      
-      { name: 'P&L Report', href: '/catfish/reports/pnl', icon: Calculator },
+      { name: 'Hatchery', href: '/catfish/hatchery/dashboard', icon: Fish },
+      { name: 'Fingerlings', href: '/catfish/fingerlings/dashboard', icon: Fish },
+      { name: 'Juvenile', href: '/catfish/juvenile/dashboard', icon: Fish },
+      { name: 'Grow-out (Adult)', href: '/catfish/growout/dashboard', icon: Fish },      
       { name: 'Settings', href: '/catfish/settings/pricing', icon: Settings }
     ]
   },
@@ -199,7 +196,7 @@ function SidebarContent({ pathname, openMenus, toggleMenu, handleSignOut, isAdmi
                     // Hide Recipes for non-admins
                     if (sub.name === 'Recipes' && !isAdmin) return null;
                     if (item.name === 'Catfish' && sub.name === 'Settings' && !isAdmin) return null;
-                    if (item.name === 'Catfish' && role === 'CATFISH_STAFF' && ['Expenses', 'P&L Report'].includes(sub.name)) return null;
+
                     if (item.name === 'BSF' && !isBsfSubItemAllowed(sub.name)) return null;
                     // Logic to hide Sales if not accountant/admin? 
                    
@@ -351,3 +348,4 @@ export function Sidebar() {
     </>
   )
 }
+

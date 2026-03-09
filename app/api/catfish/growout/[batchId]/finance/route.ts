@@ -50,9 +50,9 @@ export async function GET(
     if (salesError) return NextResponse.json({ error: salesError.message }, { status: 400 });
 
     const { data: expenses } = await admin
-      .from('Expense')
+      .from('CatfishModuleExpense')
       .select('amount')
-      .eq('module', 'CATFISH');
+      .eq('batchId', batchId);
 
     const totalFeedCost = roundTo2((feedLogs || []).reduce((sum: number, row: any) => sum + Number(row.dailyFeedCost || 0), 0));
     const totalFeedKg = roundTo2((feedLogs || []).reduce((sum: number, row: any) => sum + Number(row.feedAmountKg || 0), 0));

@@ -187,19 +187,6 @@ export interface Sale {
  product?: Product;
 }
 
-export type CatfishPondStatus = 'ACTIVE' | 'MAINTENANCE';
-export type CatfishWaterType = 'EARTHEN' | 'CONCRETE' | 'TANK';
-
-export interface CatfishPond {
- id: string;
- name: string;
- capacityFish: number;
- waterType: CatfishWaterType;
- status: CatfishPondStatus;
- createdAt: string;
- updatedAt: string;
-}
-
 export type CatfishBatchStatus = 'GROWING' | 'HARVESTING' | 'CLOSED';
 
 export interface CatfishBatch {
@@ -213,14 +200,12 @@ export interface CatfishBatch {
  status: CatfishBatchStatus | 'Active' | 'Completed';
  // legacy fields kept during migration
  batchCode?: string;
- pondId?: string;
  initialFingerlingsCount?: number;
  fingerlingUnitCost?: number;
  totalFingerlingCost?: number;
  notes?: string | null;
  createdAt: string;
  updatedAt: string;
- pond?: CatfishPond;
  mortalityTotal?: number;
  harvestedCount?: number;
  fishesLeft?: number;
@@ -266,28 +251,6 @@ export interface CatfishSale {
  unitPrice: number;
  totalSaleValue: number;
  buyerDetails?: string | null;
- createdAt: string;
- batch?: CatfishBatch;
-}
-
-export interface CatfishMortalityLog {
- id: string;
- batchId: string;
- date: string;
- deadCount: number;
- cause?: string | null;
- createdAt: string;
- batch?: CatfishBatch;
-}
-
-export interface CatfishHarvest {
- id: string;
- batchId: string;
- date: string;
- quantityKg: number;
- fishCountHarvested?: number | null;
- averageFishWeightKg: number;
- notes?: string | null;
  createdAt: string;
  batch?: CatfishBatch;
 }
@@ -421,9 +384,10 @@ export interface FeedInternalPurchase {
 }
 
 export interface Expense {
- id: string;
- module: ExpenseModule;
- category: string;
+  id: string;
+  module: ExpenseModule;
+  stage?: string | null;
+  category: string;
  amount: number;
  spentAt: string;
  notes?: string | null;

@@ -65,7 +65,7 @@ export function FinishedFeedStockGrid() {
   const [selling, setSelling] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<StockRow | null>(null);
-  const [saleForm, setSaleForm] = useState({ quantityKg: '', unitPrice: '', targetModule: 'POULTRY' });
+  const [saleForm, setSaleForm] = useState({ quantityKg: '', unitPrice: '', targetModule: 'POULTRY', targetStage: 'FINGERLINGS' });
 
   const loadData = async () => {
     setLoading(true);
@@ -131,7 +131,7 @@ export function FinishedFeedStockGrid() {
           className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
           onClick={() => {
             setSelectedProduct(params.data);
-            setSaleForm({ quantityKg: '', unitPrice: '', targetModule: 'POULTRY' });
+            setSaleForm({ quantityKg: '', unitPrice: '', targetModule: 'POULTRY', targetStage: 'FINGERLINGS' });
             setDialogOpen(true);
           }}
         >
@@ -159,7 +159,8 @@ export function FinishedFeedStockGrid() {
         productId: selectedProduct.id,
         quantityKg,
         unitPrice,
-        targetModule: saleForm.targetModule
+        targetModule: saleForm.targetModule,
+        targetStage: saleForm.targetStage
       })
     });
 
@@ -173,7 +174,7 @@ export function FinishedFeedStockGrid() {
     } else {
       setDialogOpen(false);
       setSelectedProduct(null);
-      setSaleForm({ quantityKg: '', unitPrice: '', targetModule: 'POULTRY' });
+      setSaleForm({ quantityKg: '', unitPrice: '', targetModule: 'POULTRY', targetStage: 'FINGERLINGS' });
       loadData();
       toast({
         title: "Success",
@@ -244,21 +245,42 @@ rowData={rowData}
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label>Target Module</Label>
-              <Select
-                value={saleForm.targetModule}
-                onValueChange={(value) => setSaleForm({ ...saleForm, targetModule: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select target module" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="POULTRY">Poultry</SelectItem>
-                  <SelectItem value="CATFISH">Catfish</SelectItem>
-                  <SelectItem value="BSF">BSF</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className={`grid gap-4 ${saleForm.targetModule === 'CATFISH' ? 'md:grid-cols-2' : 'grid-cols-1'}`}>
+              <div className="space-y-2">
+                <Label>Target Module</Label>
+                <Select
+                  value={saleForm.targetModule}
+                  onValueChange={(value) => setSaleForm({ ...saleForm, targetModule: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select target module" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="POULTRY">Poultry</SelectItem>
+                    <SelectItem value="CATFISH">Catfish</SelectItem>
+                    <SelectItem value="BSF">BSF</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {saleForm.targetModule === 'CATFISH' ? (
+                <div className="space-y-2">
+                  <Label>Catfish Stage</Label>
+                  <Select
+                    value={saleForm.targetStage}
+                    onValueChange={(value) => setSaleForm({ ...saleForm, targetStage: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select stage" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="HATCHERY">Hatchery</SelectItem>
+                      <SelectItem value="FINGERLINGS">Fingerlings</SelectItem>
+                      <SelectItem value="JUVENILE">Juvenile</SelectItem>
+                      <SelectItem value="GROWOUT">Grow-out</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
             </div>
             <DialogFooter>
               <Button type="submit" disabled={selling}>

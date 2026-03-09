@@ -6,6 +6,16 @@ import { roundTo2 } from '@/lib/utils';
 
 const VIEW_ROLES = ['ADMIN', 'MANAGER', 'CATFISH_STAFF', 'ACCOUNTANT'];
 
+type DashboardProductionType = 'Hatchery' | 'Fingerlings' | 'Juvenile' | 'Grow-out (Adult)';
+
+const normalizeProductionType = (value: unknown): DashboardProductionType => {
+  const input = String(value || '').trim();
+  if (input === 'Hatchery') return 'Hatchery';
+  if (input === 'Juvenile') return 'Juvenile';
+  if (input === 'Grow-out (Adult)' || input === 'Melange') return 'Grow-out (Adult)';
+  return 'Fingerlings';
+};
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await getAuthContext();
@@ -20,14 +30,88 @@ export async function GET(request: NextRequest) {
       .toISOString()
       .split('T')[0];
     const from = searchParams.get('from') ?? fromDefault;
+    const requestedType = searchParams.get('productionType');
+    const normalizedType = requestedType ? normalizeProductionType(requestedType) : null;
 
     const admin = createAdminClient();
 
-    const { data: dailyLogs } = await admin
-      .from('CatfishDailyLog')
-      .select('batchId, logDate, feedAmountKg, dailyFeedCost, mortalityCount, abwGrams')
-      .gte('logDate', from)
-      .lte('logDate', to);
+    const { data: allBatches } = await admin
+      .from('CatfishBatch')
+      .select('id, batchName, startDate, initialStock, initialSeedCost, status, productionType');
+
+    if (normalizedType === 'Hatchery') {
+      const [{ data: broodstockLogs }, { data: fryTransfers }, { data: expenses }] = await Promise.all([
+        admin
+          .from('CatfishBroodstockLog')
+          .select('logDate, feedAmountKg, dailyFeedCost, mortalityCount')
+          .gte('logDate', from)
+          .lte('logDate', to),
+        admin
+          .from('CatfishFryTransfer')
+          .select('id, transferDate, liveFryCount, totalTransferValue')
+          .gte('transferDate', from)
+          .lte('transferDate', to),
+        admin
+          .from('CatfishModuleExpense')
+          .select('amount')
+          .eq('stage', 'Hatchery')
+          .gte('expenseDate', from)
+          .lte('expenseDate', to)
+      ]);
+
+      const totalFeedKg = roundTo2((broodstockLogs || []).reduce((sum: number, row: any) => sum + Number(row.feedAmountKg || 0), 0));
+      const totalFeedCost = roundTo2((broodstockLogs || []).reduce((sum: number, row: any) => sum + Number(row.dailyFeedCost || 0), 0));
+      const totalMortality = Math.round((broodstockLogs || []).reduce((sum: number, row: any) => sum + Number(row.mortalityCount || 0), 0));
+      const totalExternalExpenses = roundTo2((expenses || []).reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0));
+      const totalRevenue = roundTo2((fryTransfers || []).reduce((sum: number, row: any) => sum + Number(row.totalTransferValue || 0), 0));
+      const totalSold = Math.round((fryTransfers || []).reduce((sum: number, row: any) => sum + Number(row.liveFryCount || 0), 0));
+
+      return NextResponse.json({
+        metrics: {
+          totalFeedKg,
+          totalWeightGainedKg: 0,
+          fcr: 0,
+          totalFeedCost,
+          totalExternalExpenses,
+          totalProductionCost: roundTo2(totalFeedCost + totalExternalExpenses),
+          totalSold,
+          totalHarvestKg: totalSold,
+          totalMortality,
+          survivalRate: 0,
+          averageAbwGrams: 0,
+          totalRevenue,
+          activeBatches: 1,
+          yieldByBatch: (fryTransfers || []).slice(0, 10).map((row: any) => ({
+            batchCode: `Transfer ${String(row.transferDate || '')}`,
+            quantityKg: roundTo2(Number(row.liveFryCount || 0))
+          }))
+        }
+      });
+    }
+
+    const batches = normalizedType
+      ? (allBatches || []).filter((b: any) => b.productionType === normalizedType)
+      : (allBatches || []);
+    const stageBatchIds = batches.map((batch: any) => batch.id);
+
+    const [{ data: dailyLogs }, { data: sales }] = await Promise.all([
+      stageBatchIds.length > 0
+        ? admin
+            .from('CatfishDailyLog')
+            .select('batchId, logDate, feedAmountKg, dailyFeedCost, mortalityCount, abwGrams')
+            .in('batchId', stageBatchIds)
+            .gte('logDate', from)
+            .lte('logDate', to)
+        : Promise.resolve({ data: [] as any[] }),
+      stageBatchIds.length > 0
+        ? admin
+            .from('CatfishSale')
+            .select('batchId, saleDate, quantitySold, totalSaleValue')
+            .in('batchId', stageBatchIds)
+            .gte('saleDate', from)
+            .lte('saleDate', to)
+        : Promise.resolve({ data: [] as any[] })
+    ]);
 
     const totalFeedKg = roundTo2((dailyLogs || []).reduce((sum: number, row: any) => sum + Number(row.feedAmountKg || 0), 0));
     const totalFeedCost = roundTo2((dailyLogs || []).reduce((sum: number, row: any) => sum + Number(row.dailyFeedCost || 0), 0));
@@ -40,18 +124,8 @@ export async function GET(request: NextRequest) {
       ? roundTo2(abwValues.reduce((sum: number, value: number) => sum + value, 0) / abwValues.length)
       : 0;
 
-    const { data: sales } = await admin
-      .from('CatfishSale')
-      .select('batchId, saleDate, quantitySold, totalSaleValue')
-      .gte('saleDate', from)
-      .lte('saleDate', to);
-
     const totalSold = Math.round((sales || []).reduce((sum: number, row: any) => sum + Number(row.quantitySold || 0), 0));
     const totalRevenue = roundTo2((sales || []).reduce((sum: number, row: any) => sum + Number(row.totalSaleValue || 0), 0));
-
-    const { data: batches } = await admin
-      .from('CatfishBatch')
-      .select('id, batchName, startDate, initialStock, initialSeedCost, status, productionType');
 
     const logBatchIds = Array.from(
       new Set((dailyLogs || []).map((row: any) => String(row.batchId || '')).filter(Boolean))
@@ -137,12 +211,30 @@ export async function GET(request: NextRequest) {
       }))
       .slice(0, 10);
 
+    // For stage-specific dashboards, calculate total external expenses
+    let totalExternalExpenses = 0;
+    let totalProductionCost = 0;
+    if (normalizedType) {
+      if (stageBatchIds.length > 0) {
+        const { data: expenses } = await admin
+          .from('CatfishModuleExpense')
+          .select('amount')
+          .in('batchId', stageBatchIds)
+          .gte('expenseDate', from)
+          .lte('expenseDate', to);
+        totalExternalExpenses = roundTo2((expenses || []).reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0));
+      }
+      totalProductionCost = roundTo2(totalFeedCost + totalExternalExpenses);
+    }
+
     return NextResponse.json({
       metrics: {
         totalFeedKg,
         totalWeightGainedKg,
         fcr,
         totalFeedCost,
+        totalExternalExpenses,
+        totalProductionCost,
         totalSold,
         totalHarvestKg: totalSold,
         totalMortality,

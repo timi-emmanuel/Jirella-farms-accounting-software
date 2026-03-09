@@ -155,6 +155,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (transferError) {
+      await admin.from('CatfishBatch').delete().eq('id', destinationBatch.id);
       return NextResponse.json({ error: transferError.message }, { status: 400 });
     }
 

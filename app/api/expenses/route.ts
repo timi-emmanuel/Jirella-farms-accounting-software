@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const module = searchParams.get('module');
+    const stage = searchParams.get('stage');
 
     const admin = createAdminClient();
     let query = admin
@@ -26,6 +27,9 @@ export async function GET(request: NextRequest) {
 
     if (module && module !== 'ALL') {
       query = query.eq('module', module);
+    }
+    if (stage && stage !== 'ALL') {
+      query = query.eq('stage', stage);
     }
 
     const { data, error } = await query;
@@ -45,7 +49,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { module, category, amount, spentAt, notes } = await request.json();
+    const { module, category, amount, spentAt, notes, stage } = await request.json();
     const value = roundTo2(Number(amount));
 
     if (!module || !category || !Number.isFinite(value) || value <= 0) {
@@ -57,6 +61,7 @@ export async function POST(request: NextRequest) {
       .from('Expense')
       .insert({
         module,
+        stage: stage ?? null,
         category,
         amount: value,
         spentAt: spentAt ?? new Date().toISOString().split('T')[0],
@@ -73,7 +78,7 @@ export async function POST(request: NextRequest) {
       entityType: 'Expense',
       entityId: data.id,
       description: `Expense logged for ${module}`,
-      metadata: { module, category, amount: value },
+      metadata: { module, stage: stage ?? null, category, amount: value },
       userId: auth.userId,
       userRole: auth.role,
       ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip')

@@ -8,20 +8,15 @@ import { roundTo2 } from '@/lib/utils';
 const VIEW_ROLES = ['ADMIN', 'MANAGER', 'CATFISH_STAFF', 'ACCOUNTANT'];
 const EDIT_ROLES = ['ADMIN', 'MANAGER', 'CATFISH_STAFF'];
 
-const makeLegacyBatchCode = (name: string) => {
-  const slug = name
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 20) || 'BATCH';
-  const stamp = Date.now().toString().slice(-6);
-  return `${slug}-${stamp}`;
-};
-
-const normalizeProductionType = (value: unknown): 'Fingerlings' | 'Juvenile' | 'Grow-out (Adult)' => {
+const normalizeProductionType = (value: unknown): 'Fingerlings' | 'Juvenile' | 'Grow-out (Adult)' | null => {
   const input = String(value || '').trim();
+  if (!input) return null;
   if (input === 'Juvenile') return 'Juvenile';
   if (input === 'Grow-out (Adult)' || input === 'Melange') return 'Grow-out (Adult)';
+  if (input === 'Fingerlings') return 'Fingerlings';
+  if (input === 'Hatchery') return null;
+  if (input === 'Growout') return 'Grow-out (Adult)';
+  if (input === 'Grow-out') return 'Grow-out (Adult)';
   return 'Fingerlings';
 };
 
@@ -42,8 +37,11 @@ export async function GET(request: NextRequest) {
     let query = admin
       .from('CatfishBatch')
       .select('*')
-      .eq('productionType', productionType)
       .order('startDate', { ascending: false });
+
+    if (productionType) {
+      query = query.eq('productionType', productionType);
+    }
 
     if (batchId) query = query.eq('id', batchId);
 
@@ -131,7 +129,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const batchName = String(body.batchName || '').trim();
-    const productionType = normalizeProductionType(body.productionType);
+    const productionType = normalizeProductionType(body.productionType) ?? 'Fingerlings';
     const initialStock = Math.floor(Number(body.initialStock || 0));
     const initialSeedCost = roundTo2(Number(body.initialSeedCost || 0));
 
@@ -149,7 +147,6 @@ export async function POST(request: NextRequest) {
     const payload = {
       productionType,
       batchName,
-      batchCode: String(body.batchCode || makeLegacyBatchCode(batchName)),
       startDate: body.startDate ?? new Date().toISOString().split('T')[0],
       expectedHarvestDate: body.expectedHarvestDate ?? null,
       initialStock,
@@ -258,7 +255,7 @@ export async function PATCH(request: NextRequest) {
 
     const body = await request.json();
     const batchName = String(body.batchName || '').trim();
-    const productionType = normalizeProductionType(body.productionType);
+    const productionType = normalizeProductionType(body.productionType) ?? 'Fingerlings';
     const initialStock = Math.floor(Number(body.initialStock || 0));
     const initialSeedCost = roundTo2(Number(body.initialSeedCost || 0));
 

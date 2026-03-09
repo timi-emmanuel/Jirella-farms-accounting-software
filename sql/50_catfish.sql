@@ -25,11 +25,83 @@ WHERE NOT EXISTS (
   SELECT 1 FROM "InventoryLocation" WHERE "code" = 'CATFISH'
 );
 
+-- Ensure stage-specific catfish inventory locations exist
+INSERT INTO "InventoryLocation" ("code", "name")
+SELECT 'CATFISH_HATCHERY', 'Catfish Hatchery'
+WHERE NOT EXISTS (
+  SELECT 1 FROM "InventoryLocation" WHERE "code" = 'CATFISH_HATCHERY'
+);
+
+INSERT INTO "InventoryLocation" ("code", "name")
+SELECT 'CATFISH_FINGERLINGS', 'Catfish Fingerlings'
+WHERE NOT EXISTS (
+  SELECT 1 FROM "InventoryLocation" WHERE "code" = 'CATFISH_FINGERLINGS'
+);
+
+INSERT INTO "InventoryLocation" ("code", "name")
+SELECT 'CATFISH_JUVENILE', 'Catfish Juvenile'
+WHERE NOT EXISTS (
+  SELECT 1 FROM "InventoryLocation" WHERE "code" = 'CATFISH_JUVENILE'
+);
+
+INSERT INTO "InventoryLocation" ("code", "name")
+SELECT 'CATFISH_GROWOUT', 'Catfish Grow-out'
+WHERE NOT EXISTS (
+  SELECT 1 FROM "InventoryLocation" WHERE "code" = 'CATFISH_GROWOUT'
+);
+
+-- Migrate legacy general catfish feed stock into stage inventory (default: Fingerlings)
+DO $$
+DECLARE
+  v_general_location UUID;
+  v_fingerlings_location UUID;
+BEGIN
+  SELECT id INTO v_general_location FROM "InventoryLocation" WHERE "code" = 'CATFISH';
+  SELECT id INTO v_fingerlings_location FROM "InventoryLocation" WHERE "code" = 'CATFISH_FINGERLINGS';
+
+  IF v_general_location IS NOT NULL AND v_fingerlings_location IS NOT NULL THEN
+    INSERT INTO "FinishedGoodsInventory" ("productId", "locationId", "quantityOnHand", "averageUnitCost")
+    SELECT
+      g."productId",
+      v_fingerlings_location,
+      COALESCE(f."quantityOnHand", 0) + COALESCE(g."quantityOnHand", 0) AS "quantityOnHand",
+      CASE
+        WHEN (COALESCE(f."quantityOnHand", 0) + COALESCE(g."quantityOnHand", 0)) > 0 THEN
+          (
+            (COALESCE(f."quantityOnHand", 0) * COALESCE(f."averageUnitCost", 0))
+            + (COALESCE(g."quantityOnHand", 0) * COALESCE(g."averageUnitCost", 0))
+          )
+          / (COALESCE(f."quantityOnHand", 0) + COALESCE(g."quantityOnHand", 0))
+        ELSE 0
+      END AS "averageUnitCost"
+    FROM "FinishedGoodsInventory" g
+    LEFT JOIN "FinishedGoodsInventory" f
+      ON f."productId" = g."productId"
+     AND f."locationId" = v_fingerlings_location
+    WHERE g."locationId" = v_general_location
+      AND COALESCE(g."quantityOnHand", 0) > 0
+    ON CONFLICT ("productId", "locationId") DO UPDATE
+    SET
+      "quantityOnHand" = EXCLUDED."quantityOnHand",
+      "averageUnitCost" = EXCLUDED."averageUnitCost",
+      "updatedAt" = NOW();
+
+    UPDATE "FinishedGoodsInventory"
+    SET "quantityOnHand" = 0,
+        "updatedAt" = NOW()
+    WHERE "locationId" = v_general_location
+      AND COALESCE("quantityOnHand", 0) > 0;
+  END IF;
+END$$;
+
 -- Seed catfish product
 INSERT INTO "Product" ("name", "module", "unit", "active")
 VALUES
   ('Live Catfish', 'CATFISH', 'KG', TRUE)
 ON CONFLICT ("name") DO NOTHING;
+
+ALTER TABLE "Expense"
+  ADD COLUMN IF NOT EXISTS "stage" TEXT;
 
 -- Fingerlings-first unified batch table
 CREATE TABLE IF NOT EXISTS "CatfishBatch" (
@@ -649,8 +721,75 @@ AFTER INSERT ON "CatfishFryTransfer"
 FOR EACH ROW
 EXECUTE FUNCTION catfish_create_fingerlings_batch_from_fry_transfer();
 
--- Dashboard view with database-level aggregations
-CREATE OR REPLACE VIEW "CatfishLiveDashboard" AS
+-- External expenses table for each batch (applicable to all production stages)
+CREATE TABLE IF NOT EXISTS "CatfishModuleExpense" (
+  "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  "batchId" UUID REFERENCES "CatfishBatch"("id") ON DELETE CASCADE,
+  "stage" TEXT,
+  "expenseDate" DATE NOT NULL DEFAULT CURRENT_DATE,
+  "description" TEXT NOT NULL,
+  "amount" NUMERIC NOT NULL DEFAULT 0,
+  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE "CatfishModuleExpense"
+  ADD COLUMN IF NOT EXISTS "stage" TEXT;
+ALTER TABLE "CatfishModuleExpense"
+  ALTER COLUMN "batchId" DROP NOT NULL;
+
+UPDATE "CatfishModuleExpense" me
+SET "stage" = b."productionType"
+FROM "CatfishBatch" b
+WHERE me."batchId" = b."id"
+  AND me."stage" IS NULL;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'CatfishModuleExpense_stage_check'
+  ) THEN
+    ALTER TABLE "CatfishModuleExpense" DROP CONSTRAINT "CatfishModuleExpense_stage_check";
+  END IF;
+END$$;
+
+ALTER TABLE "CatfishModuleExpense"
+  ADD CONSTRAINT "CatfishModuleExpense_stage_check"
+  CHECK (
+    "stage" IS NULL
+    OR "stage" IN ('Hatchery', 'Fingerlings', 'Juvenile', 'Grow-out (Adult)')
+  );
+
+CREATE INDEX IF NOT EXISTS "CatfishModuleExpense_batch_date_idx"
+  ON "CatfishModuleExpense" ("batchId", "expenseDate");
+CREATE INDEX IF NOT EXISTS "CatfishModuleExpense_stage_date_idx"
+  ON "CatfishModuleExpense" ("stage", "expenseDate");
+
+ALTER TABLE "CatfishModuleExpense" ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'CatfishModuleExpense'
+      AND policyname = 'Allow all for authenticated users'
+  ) THEN
+    CREATE POLICY "Allow all for authenticated users"
+    ON "CatfishModuleExpense"
+    FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+END$$;
+
+-- Drop dependent views first (in correct order)
+DROP VIEW IF EXISTS "CatfishLiveDashboard_Hatchery" CASCADE;
+DROP VIEW IF EXISTS "CatfishLiveDashboard_Growout" CASCADE;
+DROP VIEW IF EXISTS "CatfishLiveDashboard_Juvenile" CASCADE;
+DROP VIEW IF EXISTS "CatfishLiveDashboard_Fingerlings" CASCADE;
+DROP VIEW IF EXISTS "CatfishLiveDashboard" CASCADE;
+
+-- Dashboard view with database-level aggregations (all stages)
+CREATE VIEW "CatfishLiveDashboard" AS
 SELECT
   b."id" AS "batchId",
   b."productionType",
@@ -669,6 +808,13 @@ SELECT
     AS "totalFeedCostToDate",
   COALESCE((SELECT SUM(dl."feedAmountKg") FROM "CatfishDailyLog" dl WHERE dl."batchId" = b."id"), 0)
     AS "totalFeedGivenKg",
+  COALESCE((SELECT SUM(me."amount") FROM "CatfishModuleExpense" me WHERE me."batchId" = b."id"), 0)
+    AS "totalExternalExpenses",
+  (
+    b."initialSeedCost"
+    + COALESCE((SELECT SUM(dl."dailyFeedCost") FROM "CatfishDailyLog" dl WHERE dl."batchId" = b."id"), 0)
+    + COALESCE((SELECT SUM(me."amount") FROM "CatfishModuleExpense" me WHERE me."batchId" = b."id"), 0)
+  ) AS "totalProductionCost",
   (
     SELECT dl."abwGrams"
     FROM "CatfishDailyLog" dl
@@ -687,6 +833,45 @@ SELECT
   ) AS "latestAverageLengthCm"
 FROM "CatfishBatch" b;
 
+-- Stage-specific dashboards
+CREATE VIEW "CatfishLiveDashboard_Fingerlings" AS
+SELECT * FROM "CatfishLiveDashboard"
+WHERE "productionType" = 'Fingerlings';
+
+CREATE VIEW "CatfishLiveDashboard_Juvenile" AS
+SELECT * FROM "CatfishLiveDashboard"
+WHERE "productionType" = 'Juvenile';
+
+CREATE VIEW "CatfishLiveDashboard_Growout" AS
+SELECT * FROM "CatfishLiveDashboard"
+WHERE "productionType" = 'Grow-out (Adult)';
+
+CREATE VIEW "CatfishLiveDashboard_Hatchery" AS
+SELECT
+  NULL::UUID AS "batchId",
+  'Hatchery'::TEXT AS "productionType",
+  'Hatchery'::TEXT AS "batchName",
+  'Active'::TEXT AS "status",
+  0::INTEGER AS "initialStock",
+  0::NUMERIC AS "initialSeedCost",
+  NULL::NUMERIC AS "currentPopulation",
+  COALESCE((SELECT SUM(cbl."dailyFeedCost") FROM "CatfishBroodstockLog" cbl), 0)
+    AS "totalFeedCostToDate",
+  COALESCE((SELECT SUM(cbl."feedAmountKg") FROM "CatfishBroodstockLog" cbl), 0)
+    AS "totalFeedGivenKg",
+  (
+    COALESCE((SELECT SUM(se."hormoneCost" + se."maleFishCost") FROM "CatfishSpawningEvent" se), 0)
+    + COALESCE((SELECT SUM(me."amount") FROM "CatfishModuleExpense" me WHERE me."stage" = 'Hatchery'), 0)
+  )
+    AS "totalExternalExpenses",
+  (
+    COALESCE((SELECT SUM(cbl."dailyFeedCost") FROM "CatfishBroodstockLog" cbl), 0)
+    + COALESCE((SELECT SUM(se."hormoneCost" + se."maleFishCost") FROM "CatfishSpawningEvent" se), 0)
+    + COALESCE((SELECT SUM(me."amount") FROM "CatfishModuleExpense" me WHERE me."stage" = 'Hatchery'), 0)
+  ) AS "totalProductionCost",
+  NULL::NUMERIC AS "latestAbwGrams",
+  NULL::NUMERIC AS "latestAverageLengthCm";
+
 -- Keep global sale table flexible for module-specific batch linkage
 ALTER TABLE "Sale"
   ADD COLUMN IF NOT EXISTS "batchId" UUID;
@@ -697,11 +882,13 @@ CREATE OR REPLACE FUNCTION handle_internal_feed_purchase_catfish(
   p_quantity_kg NUMERIC,
   p_unit_price NUMERIC,
   p_sold_by UUID,
-  p_bought_by UUID
+  p_bought_by UUID,
+  p_target_location_code TEXT DEFAULT 'CATFISH_FINGERLINGS'
 ) RETURNS UUID AS $$
 DECLARE
   v_feed_mill UUID;
   v_catfish UUID;
+  v_reference_type TEXT;
   v_product RECORD;
   v_units NUMERIC;
   v_unit_price_per_unit NUMERIC;
@@ -715,11 +902,20 @@ DECLARE
   v_purchase_id UUID;
 BEGIN
   SELECT id INTO v_feed_mill FROM "InventoryLocation" WHERE "code" = 'FEED_MILL';
-  SELECT id INTO v_catfish FROM "InventoryLocation" WHERE "code" = 'CATFISH';
+  SELECT id INTO v_catfish
+  FROM "InventoryLocation"
+  WHERE "code" = COALESCE(NULLIF(p_target_location_code, ''), 'CATFISH_FINGERLINGS');
 
   IF v_feed_mill IS NULL OR v_catfish IS NULL THEN
     RAISE EXCEPTION 'Locations not found';
   END IF;
+
+  v_reference_type := CASE COALESCE(NULLIF(p_target_location_code, ''), 'CATFISH_FINGERLINGS')
+    WHEN 'CATFISH_HATCHERY' THEN 'INTERNAL_FEED_PURCHASE_CATFISH_HATCHERY'
+    WHEN 'CATFISH_JUVENILE' THEN 'INTERNAL_FEED_PURCHASE_CATFISH_JUVENILE'
+    WHEN 'CATFISH_GROWOUT' THEN 'INTERNAL_FEED_PURCHASE_CATFISH_GROWOUT'
+    ELSE 'INTERNAL_FEED_PURCHASE_CATFISH_FINGERLINGS'
+  END;
 
   SELECT "unit", "unitSizeKg"
   INTO v_product
@@ -805,7 +1001,7 @@ BEGIN
     'INTERNAL_SALE_OUT',
     v_units,
     v_cost_basis_per_unit,
-    'INTERNAL_FEED_PURCHASE_CATFISH',
+    v_reference_type,
     v_purchase_id::text,
     p_sold_by
   );
@@ -825,7 +1021,7 @@ BEGIN
     'INTERNAL_PURCHASE_IN',
     v_units,
     v_cost_basis_per_unit,
-    'INTERNAL_FEED_PURCHASE_CATFISH',
+    v_reference_type,
     v_purchase_id::text,
     p_bought_by
   );

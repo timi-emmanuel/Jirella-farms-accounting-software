@@ -8,6 +8,7 @@ type HatcheryMetrics = {
   totalBroodstockFeedCost: number;
   totalHormoneCost: number;
   totalMaleFishCost: number;
+  otherExpenses: number;
   totalFryProduced: number;
   totalTransferValue: number;
 };
@@ -16,6 +17,7 @@ const empty: HatcheryMetrics = {
   totalBroodstockFeedCost: 0,
   totalHormoneCost: 0,
   totalMaleFishCost: 0,
+  otherExpenses: 0,
   totalFryProduced: 0,
   totalTransferValue: 0,
 };
@@ -52,6 +54,7 @@ export function CatfishHatcheryFinancials() {
     { label: "Total Broodstock Feed Cost", value: `N ${metrics.totalBroodstockFeedCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
     { label: "Total Hormone Cost", value: `N ${metrics.totalHormoneCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
     { label: "Total Male Fish Cost", value: `N ${metrics.totalMaleFishCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
+    { label: "Other Hatchery Expenses", value: `N ${metrics.otherExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
     { label: "Total Fry Produced", value: metrics.totalFryProduced.toLocaleString() },
     { label: "Total Transfer Value", value: `N ${metrics.totalTransferValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
   ];

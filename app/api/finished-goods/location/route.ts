@@ -13,7 +13,11 @@ const LOCATION_NAMES: Record<string, string> = {
   FEED_MILL: 'Feed Mill',
   POULTRY: 'Poultry',
   BSF: 'BSF',
-  CATFISH: 'Catfish Facility'
+  CATFISH: 'Catfish Facility',
+  CATFISH_HATCHERY: 'Catfish Hatchery',
+  CATFISH_FINGERLINGS: 'Catfish Fingerlings',
+  CATFISH_JUVENILE: 'Catfish Juvenile',
+  CATFISH_GROWOUT: 'Catfish Grow-out'
 };
 
 export async function GET(request: NextRequest) {

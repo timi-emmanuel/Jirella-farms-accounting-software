@@ -60,11 +60,29 @@ export async function GET(request: NextRequest) {
      .single();
     location = retry.data;
     locationError = retry.error;
+
+     if (createError) {
+      console.error('Inventory location auto-create failed:', {
+       code,
+       message: createError.message,
+       details: createError.details,
+       hint: createError.hint
+      });
+     }
    }
   }
 
   if (locationError || !location) {
-   return NextResponse.json({ error: 'Location not found' }, { status: 404 });
+   console.error('Inventory location lookup failed:', {
+    code,
+    message: locationError?.message,
+    details: locationError?.details,
+    hint: locationError?.hint
+   });
+   return NextResponse.json(
+    { error: locationError?.message || 'Location not found' },
+    { status: 404 }
+   );
   }
 
   const { data: balances, error: balanceError } = await admin

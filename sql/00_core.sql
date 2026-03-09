@@ -107,6 +107,23 @@ CREATE TABLE IF NOT EXISTS "InventoryLocation" (
   "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Seed core inventory locations
+INSERT INTO "InventoryLocation" ("code", "name")
+SELECT seed.code, seed.name
+FROM (
+  VALUES
+    ('STORE', 'Store'),
+    ('FEED_MILL', 'Feed Mill'),
+    ('POULTRY', 'Poultry'),
+    ('BSF', 'BSF Facility'),
+    ('CATFISH', 'Catfish Facility')
+) AS seed(code, name)
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM "InventoryLocation" existing
+  WHERE existing."code" = seed.code
+);
+
 CREATE TABLE IF NOT EXISTS "Product" (
   "id" UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   "name" TEXT NOT NULL UNIQUE,
@@ -329,11 +346,29 @@ END$$;
 
 -- Backfill any missing profiles (idempotent)
 INSERT INTO public.users (id, email, role)
-SELECT id, email, 'ADMIN' FROM auth.users
-WHERE id NOT IN (SELECT id FROM public.users);
+SELECT au.id, au.email, 'STAFF'
+FROM auth.users au
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM public.users pu
+  WHERE pu.id = au.id
+);
 
 ALTER TABLE public.users
   ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN NOT NULL DEFAULT TRUE;
+
+-- Grants
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT ALL ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT ALL ON ROUTINES TO anon, authenticated, service_role;
 
 -- RLS
 ALTER TABLE "InventoryLocation" ENABLE ROW LEVEL SECURITY;

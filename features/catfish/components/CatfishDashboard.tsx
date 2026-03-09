@@ -1,7 +1,6 @@
-/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Fish, Scale, Skull, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -77,7 +76,7 @@ export function CatfishDashboard() {
   });
   const [to, setTo] = useState(() => new Date().toISOString().split('T')[0]);
 
-  const loadMetrics = async () => {
+  const loadMetrics = useCallback(async () => {
     setLoading(true);
     const [metricsRes, fingerlingsRes, juvenileRes, growoutRes] = await Promise.all([
       fetch(`/api/catfish/dashboard?from=${from}&to=${to}`),
@@ -121,11 +120,13 @@ export function CatfishDashboard() {
       setGrowoutAnalytics(calc(growoutPayload.batches || []));
     }
     setLoading(false);
-  };
+  }, [from, to]);
 
   useEffect(() => {
-    loadMetrics();
-  }, []);
+    queueMicrotask(() => {
+      void loadMetrics();
+    });
+  }, [loadMetrics]);
 
   const cards = useMemo(() => {
     const baseCards = [

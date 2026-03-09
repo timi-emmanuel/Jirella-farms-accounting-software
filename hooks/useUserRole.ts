@@ -21,14 +21,20 @@ export function useUserRole() {
 
     if (user) {
      // 2. Get Profile from public.users
-     const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', user.id)
-      .single();
+    const { data, error } = await supabase
+     .from('users')
+     .select('*')
+     .eq('id', user.id)
+     .single();
 
      if (error && error.code !== 'PGRST116') { // Ignore "Row not found" if that's the case, but unexpected for logged in user
-      console.error("Error fetching user profile:", error);
+      console.error("Error fetching user profile:", {
+       code: error.code,
+       message: error.message,
+       details: error.details,
+       hint: error.hint,
+       userId: user.id
+      });
      }
 
      if (data) {

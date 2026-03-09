@@ -40,13 +40,22 @@ type PurchaseRow = {
   product?: { name?: string };
 };
 
-export function CatfishFeedPurchaseGrid() {
+const normalizeStage = (stage: string) => {
+  const normalized = String(stage || '').toLowerCase();
+  if (normalized === 'hatchery') return 'HATCHERY';
+  if (normalized === 'juvenile') return 'JUVENILE';
+  if (normalized === 'growout' || normalized === 'grow-out') return 'GROWOUT';
+  return 'FINGERLINGS';
+};
+
+export function CatfishFeedPurchaseGrid({ stage = 'fingerlings' }: { stage?: string }) {
   const [rowData, setRowData] = useState<PurchaseRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const targetStage = normalizeStage(stage);
 
   const loadData = async () => {
     setLoading(true);
-    const response = await fetch('/api/finished-goods/internal-sales?targetModule=CATFISH');
+    const response = await fetch(`/api/finished-goods/internal-sales?targetModule=CATFISH&targetStage=${encodeURIComponent(targetStage)}`);
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       console.error('Catfish feed purchase load error:', payload.error || response.statusText);
@@ -58,7 +67,7 @@ export function CatfishFeedPurchaseGrid() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [targetStage]);
 
   const colDefs = useMemo<ColDef<PurchaseRow>[]>(() => [
     { field: 'purchaseDate', headerName: 'Date', minWidth: 120, valueFormatter: (p: any) => new Date(p.value).toLocaleDateString('en-GB').replace(/\//g, '-') },

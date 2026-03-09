@@ -40,13 +40,22 @@ type StockRow = {
   averageUnitCost: number;
 };
 
-export function CatfishFeedStockGrid() {
+const stageToLocationCode = (stage: string) => {
+  const normalized = String(stage || '').toLowerCase();
+  if (normalized === 'hatchery') return 'CATFISH_HATCHERY';
+  if (normalized === 'juvenile') return 'CATFISH_JUVENILE';
+  if (normalized === 'growout' || normalized === 'grow-out') return 'CATFISH_GROWOUT';
+  return 'CATFISH_FINGERLINGS';
+};
+
+export function CatfishFeedStockGrid({ stage = 'fingerlings' }: { stage?: string }) {
   const [rowData, setRowData] = useState<StockRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const locationCode = stageToLocationCode(stage);
 
   const loadData = async () => {
     setLoading(true);
-    const response = await fetch('/api/finished-goods/location?code=CATFISH&module=FEED_MILL');
+    const response = await fetch(`/api/finished-goods/location?code=${encodeURIComponent(locationCode)}&module=FEED_MILL`);
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       console.error('Catfish feed stock load error:', payload.error || response.statusText);
@@ -59,7 +68,7 @@ export function CatfishFeedStockGrid() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [locationCode]);
 
   const colDefs = useMemo<ColDef<StockRow>[]>(() => [
     {

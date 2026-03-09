@@ -42,6 +42,26 @@ type HistoryRow = {
   createdAt: string;
 };
 
+const getTargetLabel = (referenceType?: string | null) => {
+  switch (referenceType) {
+    case 'INTERNAL_FEED_PURCHASE':
+      return 'Poultry';
+    case 'INTERNAL_FEED_PURCHASE_BSF':
+      return 'BSF';
+    case 'INTERNAL_FEED_PURCHASE_CATFISH':
+    case 'INTERNAL_FEED_PURCHASE_CATFISH_FINGERLINGS':
+      return 'Catfish / Fingerlings';
+    case 'INTERNAL_FEED_PURCHASE_CATFISH_HATCHERY':
+      return 'Catfish / Hatchery';
+    case 'INTERNAL_FEED_PURCHASE_CATFISH_JUVENILE':
+      return 'Catfish / Juvenile';
+    case 'INTERNAL_FEED_PURCHASE_CATFISH_GROWOUT':
+      return 'Catfish / Grow-out';
+    default:
+      return '';
+  }
+};
+
 ModuleRegistry.registerModules([
   ClientSideRowModelModule,
   CellStyleModule,
@@ -128,6 +148,11 @@ export function FinishedFeedHistoryGrid() {
       headerName: "Action",
       minWidth: 180,
       valueGetter: (p: any) => typeLabels[p.data.type] || p.data.type
+    },
+    {
+      headerName: "Target",
+      minWidth: 190,
+      valueGetter: (p: any) => getTargetLabel(p.data.referenceType)
     },
     {
       field: "quantity",

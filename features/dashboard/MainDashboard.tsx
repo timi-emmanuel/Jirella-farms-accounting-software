@@ -298,8 +298,8 @@ export function MainDashboard() {
             <Link className="block text-emerald-700 hover:text-emerald-800 font-semibold" href="/poultry/inventory">
               Poultry Inventory
             </Link>
-            <Link className="block text-emerald-700 hover:text-emerald-800 font-semibold" href="/catfish/inventory">
-              Catfish Inventory
+            <Link className="block text-emerald-700 hover:text-emerald-800 font-semibold" href="/catfish/fingerlings/inventory">
+              Catfish Fingerlings Inventory
             </Link>
           </div>
         </div>

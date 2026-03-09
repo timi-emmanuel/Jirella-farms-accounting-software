@@ -8,6 +8,28 @@ const EDIT_ROLES = ['ADMIN', 'MANAGER', 'FEED_MILL_STAFF'];
 const VIEW_ROLES = ['ADMIN', 'MANAGER', 'FEED_MILL_STAFF', 'POULTRY_STAFF', 'CATFISH_STAFF', 'BSF_STAFF', 'PROCUREMENT_MANAGER', 'ACCOUNTANT'];
 type LedgerReferenceRow = { referenceId: string | null };
 
+const normalizeCatfishStage = (value: unknown): 'HATCHERY' | 'FINGERLINGS' | 'JUVENILE' | 'GROWOUT' => {
+  const raw = String(value || '').trim().toUpperCase();
+  if (raw === 'HATCHERY') return 'HATCHERY';
+  if (raw === 'JUVENILE') return 'JUVENILE';
+  if (raw === 'GROWOUT' || raw === 'GROW-OUT' || raw === 'GROW_OUT' || raw === 'ADULT') return 'GROWOUT';
+  return 'FINGERLINGS';
+};
+
+const catfishStageLocationCode = (stage: 'HATCHERY' | 'FINGERLINGS' | 'JUVENILE' | 'GROWOUT') => {
+  if (stage === 'HATCHERY') return 'CATFISH_HATCHERY';
+  if (stage === 'JUVENILE') return 'CATFISH_JUVENILE';
+  if (stage === 'GROWOUT') return 'CATFISH_GROWOUT';
+  return 'CATFISH_FINGERLINGS';
+};
+
+const catfishStageReferenceType = (stage: 'HATCHERY' | 'FINGERLINGS' | 'JUVENILE' | 'GROWOUT') => {
+  if (stage === 'HATCHERY') return 'INTERNAL_FEED_PURCHASE_CATFISH_HATCHERY';
+  if (stage === 'JUVENILE') return 'INTERNAL_FEED_PURCHASE_CATFISH_JUVENILE';
+  if (stage === 'GROWOUT') return 'INTERNAL_FEED_PURCHASE_CATFISH_GROWOUT';
+  return 'INTERNAL_FEED_PURCHASE_CATFISH_FINGERLINGS';
+};
+
 export async function POST(request: NextRequest) {
   try {
     const auth = await getAuthContext();
@@ -16,7 +38,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { productId, quantityKg, unitPrice, boughtByUserId, targetModule } = await request.json();
+    const { productId, quantityKg, unitPrice, boughtByUserId, targetModule, targetStage } = await request.json();
     const qtyKg = roundTo2(Number(quantityKg));
     const price = roundTo2(Number(unitPrice));
     const moduleTarget = targetModule === 'CATFISH'
@@ -24,6 +46,7 @@ export async function POST(request: NextRequest) {
       : targetModule === 'BSF'
         ? 'BSF'
         : 'POULTRY';
+    const catfishStage = normalizeCatfishStage(targetStage);
 
     if (!productId || !Number.isFinite(qtyKg) || qtyKg <= 0 || !Number.isFinite(price) || price <= 0) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
@@ -72,13 +95,24 @@ export async function POST(request: NextRequest) {
         ? 'handle_internal_feed_purchase_bsf'
         : 'handle_internal_feed_purchase';
 
-    const { data: purchaseId, error } = await admin.rpc(rpcName, {
-      p_product_id: productId,
-      p_quantity_kg: qtyKg,
-      p_unit_price: price,
-      p_sold_by: auth.userId,
-      p_bought_by: boughtByUserId ?? auth.userId
-    });
+    const rpcPayload = moduleTarget === 'CATFISH'
+      ? {
+          p_product_id: productId,
+          p_quantity_kg: qtyKg,
+          p_unit_price: price,
+          p_sold_by: auth.userId,
+          p_bought_by: boughtByUserId ?? auth.userId,
+          p_target_location_code: catfishStageLocationCode(catfishStage)
+        }
+      : {
+          p_product_id: productId,
+          p_quantity_kg: qtyKg,
+          p_unit_price: price,
+          p_sold_by: auth.userId,
+          p_bought_by: boughtByUserId ?? auth.userId
+        };
+
+    const { data: purchaseId, error } = await admin.rpc(rpcName, rpcPayload);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
@@ -99,6 +133,7 @@ export async function POST(request: NextRequest) {
         soldAt,
         soldBy: auth.userId,
         notes: `Internal sale to ${moduleTarget}`
+          + (moduleTarget === 'CATFISH' ? ` (${catfishStage})` : '')
       })
       .select('id')
       .single();
@@ -111,8 +146,8 @@ export async function POST(request: NextRequest) {
       action: 'INTERNAL_FEED_SALE',
       entityType: 'FeedInternalPurchase',
       entityId: purchaseId,
-      description: `Internal feed sale to ${moduleTarget}`,
-      metadata: { productId, quantityKg: qtyKg, unitPrice: price, targetModule: moduleTarget },
+      description: `Internal feed sale to ${moduleTarget}${moduleTarget === 'CATFISH' ? ` (${catfishStage})` : ''}`,
+      metadata: { productId, quantityKg: qtyKg, unitPrice: price, targetModule: moduleTarget, targetStage: moduleTarget === 'CATFISH' ? catfishStage : null },
       userId: auth.userId,
       userRole: auth.role,
       ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip')
@@ -136,6 +171,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const productId = searchParams.get('productId');
     const targetModule = searchParams.get('targetModule');
+    const targetStage = normalizeCatfishStage(searchParams.get('targetStage'));
 
     const admin = createAdminClient();
     let query = admin
@@ -144,15 +180,26 @@ export async function GET(request: NextRequest) {
       .order('purchaseDate', { ascending: false });
 
     if (targetModule === 'CATFISH' || targetModule === 'POULTRY' || targetModule === 'BSF') {
-      const referenceType = targetModule === 'CATFISH'
-        ? 'INTERNAL_FEED_PURCHASE_CATFISH'
+      const referenceTypes = targetModule === 'CATFISH'
+        ? (
+            searchParams.get('targetStage')
+              ? [catfishStageReferenceType(targetStage)]
+              : [
+                  'INTERNAL_FEED_PURCHASE_CATFISH_FINGERLINGS',
+                  'INTERNAL_FEED_PURCHASE_CATFISH_JUVENILE',
+                  'INTERNAL_FEED_PURCHASE_CATFISH_GROWOUT',
+                  'INTERNAL_FEED_PURCHASE_CATFISH_HATCHERY',
+                  'INTERNAL_FEED_PURCHASE_CATFISH'
+                ]
+          )
         : targetModule === 'BSF'
           ? 'INTERNAL_FEED_PURCHASE_BSF'
           : 'INTERNAL_FEED_PURCHASE';
+      const referenceTypeList = Array.isArray(referenceTypes) ? referenceTypes : [referenceTypes];
       const { data: refs } = await admin
         .from('FinishedGoodsLedger')
         .select('referenceId')
-        .eq('referenceType', referenceType);
+        .in('referenceType', referenceTypeList);
 
       const ids = ((refs || []) as LedgerReferenceRow[])
         .map((row) => row.referenceId)

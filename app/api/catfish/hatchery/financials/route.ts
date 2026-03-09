@@ -13,10 +13,11 @@ export async function GET() {
     if (!isRoleAllowed(auth.role, VIEW_ROLES)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const admin = createAdminClient();
-    const [{ data: broodstock }, { data: spawning }, { data: transfers }] = await Promise.all([
+    const [{ data: broodstock }, { data: spawning }, { data: transfers }, { data: expenses }] = await Promise.all([
       admin.from('CatfishBroodstockLog').select('dailyFeedCost'),
       admin.from('CatfishSpawningEvent').select('hormoneCost, maleFishCost'),
-      admin.from('CatfishFryTransfer').select('liveFryCount, totalTransferValue')
+      admin.from('CatfishFryTransfer').select('liveFryCount, totalTransferValue'),
+      admin.from('CatfishModuleExpense').select('amount').eq('stage', 'Hatchery')
     ]);
 
     const totalBroodstockFeedCost = roundTo2((broodstock || []).reduce((sum: number, row: any) => sum + Number(row.dailyFeedCost || 0), 0));
@@ -24,12 +25,14 @@ export async function GET() {
     const totalMaleFishCost = roundTo2((spawning || []).reduce((sum: number, row: any) => sum + Number(row.maleFishCost || 0), 0));
     const totalFryProduced = (transfers || []).reduce((sum: number, row: any) => sum + Number(row.liveFryCount || 0), 0);
     const totalTransferValue = roundTo2((transfers || []).reduce((sum: number, row: any) => sum + Number(row.totalTransferValue || 0), 0));
+    const otherExpenses = roundTo2((expenses || []).reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0));
 
     return NextResponse.json({
       metrics: {
         totalBroodstockFeedCost,
         totalHormoneCost,
         totalMaleFishCost,
+        otherExpenses,
         totalFryProduced,
         totalTransferValue
       }

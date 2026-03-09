@@ -44,6 +44,11 @@ export async function GET(
       return NextResponse.json({ error: feedError.message }, { status: 400 });
     }
 
+    const { data: expenses } = await admin
+      .from('CatfishModuleExpense')
+      .select('amount')
+      .eq('batchId', batchId);
+
     const { data: sales, error: salesError } = await admin
       .from('CatfishSale')
       .select('quantitySold, totalSaleValue')
@@ -74,7 +79,7 @@ export async function GET(
 
     const initialStock = Number(batch.initialStock || 0);
     const seedCost = roundTo2(Number(batch.initialSeedCost || 0));
-    const otherExpenses = 0;
+    const otherExpenses = roundTo2((expenses || []).reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0));
     const totalOperationalCost = roundTo2(totalFeedCost + otherExpenses);
     const totalExpenses = roundTo2(seedCost + totalOperationalCost);
 

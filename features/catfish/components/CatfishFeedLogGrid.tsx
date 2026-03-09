@@ -63,6 +63,12 @@ type Props = {
   stageLabel?: string;
 };
 
+const getCatfishStageLocationCode = (type: string) => {
+  if (type === 'Juvenile') return 'CATFISH_JUVENILE';
+  if (type === 'Grow-out (Adult)') return 'CATFISH_GROWOUT';
+  return 'CATFISH_FINGERLINGS';
+};
+
 export function CatfishFeedLogGrid({
   batchId,
   hideBatchColumn,
@@ -95,7 +101,7 @@ export function CatfishFeedLogGrid({
     const [logRes, batchRes, productRes] = await Promise.all([
       fetch(`/api/catfish/feed-logs${query}`),
       fetch(`/api/catfish/batches?productionType=${encodeURIComponent(productionType)}`),
-      fetch('/api/finished-goods/location?code=CATFISH&module=FEED_MILL')
+      fetch(`/api/finished-goods/location?code=${encodeURIComponent(getCatfishStageLocationCode(productionType))}&module=FEED_MILL&onlyInStock=true`)
     ]);
 
     const logPayload = await logRes.json().catch(() => ({}));

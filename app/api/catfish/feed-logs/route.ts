@@ -8,6 +8,12 @@ import { roundTo2 } from '@/lib/utils';
 const VIEW_ROLES = ['ADMIN', 'MANAGER', 'CATFISH_STAFF', 'ACCOUNTANT'];
 const EDIT_ROLES = ['ADMIN', 'MANAGER', 'CATFISH_STAFF'];
 
+const getCatfishStageLocationCode = (productionType: string) => {
+  if (productionType === 'Juvenile') return 'CATFISH_JUVENILE';
+  if (productionType === 'Grow-out (Adult)') return 'CATFISH_GROWOUT';
+  return 'CATFISH_FINGERLINGS';
+};
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await getAuthContext();
@@ -82,6 +88,16 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient();
 
+    const { data: batch, error: batchError } = await admin
+      .from('CatfishBatch')
+      .select('id, productionType')
+      .eq('id', batchId)
+      .single();
+
+    if (batchError || !batch) {
+      return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
+    }
+
     const { count: sameDayCount, error: duplicateError } = await admin
       .from('CatfishDailyLog')
       .select('id', { count: 'exact', head: true })
@@ -115,10 +131,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Feed must come from feed mill products' }, { status: 400 });
       }
 
+      const locationCode = getCatfishStageLocationCode(batch.productionType);
       const { data: location, error: locationError } = await admin
         .from('InventoryLocation')
         .select('id')
-        .eq('code', 'CATFISH')
+        .eq('code', locationCode)
         .single();
 
       if (locationError || !location) {
