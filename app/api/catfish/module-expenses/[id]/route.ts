@@ -7,7 +7,7 @@ const EDIT_ROLES = ['ADMIN', 'MANAGER', 'CATFISH_STAFF'];
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const auth = await getAuthContext();
@@ -16,7 +16,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { id } = params;
+    const { id } = await params;
     if (!id) {
       return NextResponse.json({ error: 'Missing expense ID' }, { status: 400 });
     }
